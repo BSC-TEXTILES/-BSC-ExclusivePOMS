@@ -1,0 +1,418 @@
+openapi: 3.1.0
+info:
+  title: POMS — Purchase Order Management System API
+  version: 1.0.0
+  description: |
+    API contract for the BSC Exclusive Purchase Order & Merchandise Procurement
+    Management System. Implements FRS §21 (API standards) and Appendix B inventory.
+
+    Standards (§21.2): every endpoint is authorized server-side; list APIs support
+    pagination/filtering; errors use a consistent `{ error: { message, details } }`
+    shape; PO/receipt numbering is race-safe; commercial totals are always
+    recomputed server-side (RB-017) and client-supplied totals are ignored.
+servers:
+  - url: http://localhost:4000/api
+    description: Local development
+security:
+  - bearerAuth: []
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  schemas:
+    Error:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            message: { type: string }
+            details: {}
+    LoginRequest:
+      type: object
+      required: [identifier, password]
+      properties:
+        identifier: { type: string, description: email or username }
+        password: { type: string, format: password }
+    LoginResponse:
+      type: object
+      properties:
+        accessToken: { type: string }
+        refreshToken: { type: string }
+        user: { $ref: '#/components/schemas/User' }
+    User:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        email: { type: string }
+        username: { type: string }
+        fullName: { type: string }
+        roles: { type: array, items: { type: string } }
+        divisionIds: { type: array, items: { type: string, format: uuid } }
+        permissions: { type: array, items: { type: string } }
+        isSuperAdmin: { type: boolean }
+    Section:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        code: { type: string }
+        name: { type: string }
+        department_id: { type: string, format: uuid }
+        sizing_method_id: { type: string, format: uuid }
+        display_order: { type: integer }
+        status: { type: string, enum: [active, inactive, archived] }
+    POQuantity:
+      type: object
+      required: [quantity]
+      properties:
+        sizeId: { type: string, format: uuid }
+        sizeLabel: { type: string }
+        quantity: { type: integer, minimum: 0 }
+    POLineInput:
+      type: object
+      required: [productId, purchasePrice, quantities]
+      properties:
+        productId: { type: string, format: uuid }
+        colourId: { type: string, format: uuid, nullable: true }
+        description: { type: string }
+        purchasePrice: { type: number, description: 'RB-008: >= 0' }
+        marginPercent: { type: number, description: 'RB-010 policy gate' }
+        discountType: { type: string, enum: [percent, flat, 'null'] }
+        discountValue: { type: number }
+        commercialReason: { type: string, description: 'required when over RB-009/RB-010 policy with override permission' }
+        quantities:
+          type: array
+          items: { $ref: '#/components/schemas/POQuantity' }
+    POCreateRequest:
+      type: object
+      required: [divisionId, departmentId, sectionId, supplierId, lines]
+      properties:
+        divisionId: { type: string, format: uuid }
+        departmentId: { type: string, format: uuid }
+        sectionId: { type: string, format: uuid }
+        supplierId: { type: string, format: uuid }
+        paymentTerms: { type: string }
+        deliveryTerms: { type: string }
+        taxScheme: { type: string, enum: [GST_INTRA, GST_INTER], default: GST_INTRA }
+        expectedDeliveryDate: { type: string, format: date, nullable: true }
+        remarks: { type: string }
+        orderDiscount:
+          type: object
+          nullable: true
+          properties:
+            type: { type: string, enum: [percent, flat] }
+            value: { type: number }
+            reason: { type: string }
+        charges:
+          type: array
+          items:
+            type: object
+            properties:
+              type: { type: string, enum: [freight, packing, transport, installation, assembly, other] }
+              description: { type: string }
+              amount: { type: number }
+        lines:
+          type: array
+          items: { $ref: '#/components/schemas/POLineInput' }
+    PO:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        po_number: { type: string, example: PO-DVG-2026-00418 }
+        version: { type: integer }
+        status: { type: string, enum: [draft, submitted, under_review, approved, issued, partially_received, received, closed, cancelled] }
+        subtotal: { type: number }
+        order_discount_amount: { type: number }
+        tax_amount: { type: number }
+        charges_amount: { type: number }
+        grand_total: { type: number }
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              line_no: { type: integer }
+              sku: { type: string }
+              product_name: { type: string }
+              brand_name: { type: string }
+              quantities: { type: array, items: { $ref: '#/components/schemas/POQuantity' } }
+              purchase_price: { type: number }
+              margin_percent: { type: number }
+              net_value_per_unit: { type: number }
+              discount_amount: { type: number }
+              final_value_per_unit: { type: number }
+              total_quantity: { type: integer }
+              line_total: { type: number }
+    ApprovalActionRequest:
+      type: object
+      required: [action]
+      properties:
+        action: { type: string, enum: [approved, rejected, send_back, hold, escalated] }
+        comments:
+          type: string
+          description: mandatory for rejected / send_back (RB-012)
+    ReceiptRequest:
+      type: object
+      required: [poId, lines]
+      properties:
+        poId: { type: string, format: uuid }
+        deliveryDate: { type: string, format: date }
+        invoiceNumber: { type: string }
+        invoiceDate: { type: string, format: date }
+        remarks: { type: string }
+        post: { type: boolean, default: true }
+        lines:
+          type: array
+          items:
+            type: object
+            required: [poItemId, receivedQty]
+            properties:
+              poItemId: { type: string, format: uuid }
+              receivedQty: { type: integer, minimum: 0 }
+              damagedQty: { type: integer, minimum: 0 }
+              rejectedQty: { type: integer, minimum: 0 }
+
+  responses:
+    Err:
+      description: Error envelope
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+paths:
+  /auth/login:
+    post:
+      summary: Authenticate and resolve role + division scope (§6.2)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/LoginRequest' }
+      responses:
+        '200':
+          description: Tokens + user profile
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LoginResponse' }
+        '400': { $ref: '#/components/responses/Err' }
+  /auth/refresh:
+    post:
+      summary: Rotate access token
+      security: []
+      responses: { '200': { description: New access token }, '400': { $ref: '#/components/responses/Err' } }
+  /auth/me:
+    get:
+      summary: Current user with resolved roles/permissions/division scope
+      responses: { '200': { description: User profile } }
+  /users:
+    get:
+      summary: List users (users.manage)
+      responses: { '200': { description: User list } }
+    post:
+      summary: Create user with roles + division scope (TC-01)
+      responses: { '201': { description: Created }, '400': { $ref: '#/components/responses/Err' } }
+  /users/{id}:
+    patch:
+      summary: Update user status/roles/scope or force password reset
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Updated } }
+  /divisions:
+    get: { summary: List divisions (scope-limited, RB-001), responses: { '200': { description: List } } }
+    post: { summary: Create division (masters.manage), responses: { '201': { description: Created } } }
+  /departments:
+    get: { summary: List departments, responses: { '200': { description: List } } }
+    post: { summary: Create department, responses: { '201': { description: Created } } }
+  /sections:
+    get:
+      summary: List sections (§8) with filters
+      parameters:
+        - { name: departmentId, in: query, schema: { type: string, format: uuid } }
+        - { name: status, in: query, schema: { type: string } }
+        - { name: search, in: query, schema: { type: string } }
+      responses: { '200': { description: Section list } }
+    post:
+      summary: Create section — configuration-driven, no deploy (§8.4)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Section' }
+      responses: { '201': { description: Created } }
+  /sections/{id}:
+    patch:
+      summary: Edit / activate / deactivate / archive (RB-014)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Updated } }
+    delete:
+      summary: Hard delete only when unreferenced (409 otherwise, RB-014)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '204': { description: Deleted }, '409': { $ref: '#/components/responses/Err' } }
+  /sections/{id}/sizes:
+    get:
+      summary: Size columns for the section matrix (§9.3, TC-04)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Ordered size list } }
+  /brands:
+    get: { summary: List brands (RB-005: number ≠ serial), responses: { '200': { description: List } } }
+    post:
+      summary: Create brand — duplicate detection returns existing matches (§25)
+      responses: { '201': { description: Created }, '400': { $ref: '#/components/responses/Err' } }
+  /products:
+    get:
+      summary: Search products by section/brand/keyword (RB-004 SKU uniqueness)
+      responses: { '200': { description: List } }
+    post: { summary: Create product (serial auto-generated), responses: { '201': { description: Created } } }
+  /suppliers:
+    get: { summary: List suppliers/dealers (§11.1), responses: { '200': { description: List } } }
+    post: { summary: Create supplier, responses: { '201': { description: Created } } }
+  /suppliers/{id}/history:
+    get:
+      summary: Dealer ledger — PO count, ordered and received value (§11.2)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Ledger + PO history } }
+  /purchase-orders:
+    get:
+      summary: List POs — division-scoped (RB-018), filterable, paginated
+      parameters:
+        - { name: status, in: query, schema: { type: string } }
+        - { name: divisionId, in: query, schema: { type: string, format: uuid } }
+        - { name: search, in: query, schema: { type: string } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: page, in: query, schema: { type: integer, default: 1 } }
+        - { name: pageSize, in: query, schema: { type: integer, default: 20, maximum: 100 } }
+      responses: { '200': { description: Paged PO list } }
+    post:
+      summary: Create draft PO — server recomputes all totals (RB-017, SYS-01)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/POCreateRequest' }
+      responses:
+        '201':
+          description: Draft created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PO' }
+        '400': { $ref: '#/components/responses/Err' }
+        '403': { $ref: '#/components/responses/Err' }
+  /purchase-orders/{id}:
+    get:
+      summary: Full PO bundle — header, lines+matrix, taxes, charges, approvals, receipts, timeline
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200':
+          description: Detail bundle
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PO' }
+    put:
+      summary: Edit draft (RB-011 — drafts only)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Recomputed totals } }
+  /purchase-orders/{id}/submit:
+    post:
+      summary: Submit — recompute (RB-017), snapshot (§20.3), route to approval (§14.1)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses:
+        '200': { description: Submitted; exceptionQueue=true when no rule matched (SA-06) }
+        '400': { $ref: '#/components/responses/Err' }
+  /purchase-orders/{id}/approval-action:
+    post:
+      summary: Approve / Reject / Send Back / Hold / Escalate (§14.2, RB-012)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ApprovalActionRequest' }
+      responses: { '200': { description: Action recorded } }
+  /purchase-orders/{id}/issue:
+    post:
+      summary: Issue an approved PO (§14.1, §18 event 5)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Issued } }
+  /purchase-orders/{id}/amend:
+    post:
+      summary: Create amendment version (§14.3, PM-02) — returns new draft id
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '201': { description: Amendment draft id } }
+  /purchase-orders/{id}/close:
+    post:
+      summary: Close PO (§31.1)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Closed } }
+  /purchase-orders/{id}/versions:
+    get:
+      summary: Amendment version chain (AU-02)
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Version list } }
+  /approvals/queue:
+    get:
+      summary: Open approval instances at my level (AP-01)
+      responses: { '200': { description: Queue } }
+  /receipts:
+    get: { summary: List receipts, responses: { '200': { description: List } } }
+    post:
+      summary: Create (+post) receipt against an issued PO — over-receipt blocked (RB-013)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/ReceiptRequest' }
+      responses:
+        '201': { description: Receipt created/posted; inventory + PO status updated (§15.2) }
+        '400': { $ref: '#/components/responses/Err' }
+  /receipts/pending/{poId}:
+    get:
+      summary: Per-line ordered vs accepted vs pending for the receiving screen
+      parameters: [{ name: poId, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Pending lines } }
+  /receipts/{id}/post:
+    post:
+      summary: Post a draft receipt — writes inventory transactions and reconciles PO status
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: Posted } }
+  /inventory/balances:
+    get:
+      summary: Stock balances per division/product/size
+      responses: { '200': { description: Balances } }
+  /inventory/transactions:
+    get: { summary: Movement log, responses: { '200': { description: Transactions } } }
+  /reports/dashboard:
+    get:
+      summary: Dashboard KPIs + breakdowns (§16.1/§16.2)
+      responses: { '200': { description: Dashboard payload } }
+  /reports/{name}:
+    get:
+      summary: Reports catalogue with optional CSV export (§16.3)
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema: { type: string, enum: [po-register, purchase-summary, dealer, size, margin, receiving] }
+        - { name: format, in: query, schema: { type: string, enum: [json, csv] } }
+      responses: { '200': { description: Report rows or CSV file } }
+  /audit-logs:
+    get:
+      summary: Immutable audit stream with filters (§17.1, AU-01)
+      responses: { '200': { description: Paged audit events } }
+  /notifications:
+    get: { summary: My notifications (§18), responses: { '200': { description: List + unread count } } }
+  /notifications/{id}/read:
+    post:
+      summary: Mark read
+      parameters: [{ name: id, in: path, required: true, schema: { type: string, format: uuid } }]
+      responses: { '200': { description: OK } }
+  /settings:
+    get: { summary: Read settings, responses: { '200': { description: Settings } } }
+  /settings/{key}:
+    put:
+      summary: Upsert setting (settings.manage)
+      parameters: [{ name: key, in: path, required: true, schema: { type: string } }]
+      responses: { '200': { description: Saved } }
