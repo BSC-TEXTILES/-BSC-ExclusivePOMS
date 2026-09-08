@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import api, { errMessage } from '../api.js';
 import Modal from '../components/Modal.jsx';
 
@@ -11,6 +11,8 @@ export default function Brands() {
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({ brandNumber: '', brandSerial: '', brandName: '', brandCode: '', manufacturer: '' });
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(null);
+  const fileRef = useRef({});
 
   const load = () => {
     api.get('/brands', { params: { page, limit: 20, search } })
@@ -28,6 +30,22 @@ export default function Brands() {
     setSaving(false);
   };
 
+  const uploadLogo = async (brandId, file) => {
+    setUploading(brandId);
+    try {
+      const fd = new FormData();
+      fd.append('file', file);
+      await api.post(`/brands/${brandId}/logo`, fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+      load();
+    } catch (e) { setError(errMessage(e)); }
+    setUploading(null);
+  };
+
+  const getInitials = (name) => {
+    if (!name) return '?';
+    return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+  };
+
   return (
     <div className="content">
       <div className="page-header">
@@ -39,23 +57,45 @@ export default function Brands() {
         <label className="field" style={{ maxWidth: 300 }}><span className="field-label">Search</span>
           <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search brands…" />
         </label>
-        <table className="grid">
-          <thead><tr><th>Number</th><th>Serial</th><th>Name</th><th>Code</th><th>Manufacturer</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody>
-            {rows.map((b) => (
-              <tr key={b.id}>
-                <td className="mono">{b.brand_number}</td>
-                <td className="mono">{b.brand_serial}</td>
-                <td style={{ fontWeight: 600 }}>{b.brand_name}</td>
-                <td>{b.brand_code || '—'}</td>
-                <td>{b.manufacturer || '—'}</td>
-                <td><span className={`chip st-${b.status}`}>{b.status}</span></td>
-                <td><button className="btn sm" onClick={() => { setForm({ brandNumber: b.brand_number, brandSerial: b.brand_serial, brandName: b.brand_name, brandCode: b.brand_code || '', manufacturer: b.manufacturer || '', id: b.id }); setModal('edit'); }}>Edit</button></td>
-              </tr>
-            ))}
-            {!rows.length && <tr><td colSpan={7} style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>No brands found</td></tr>}
-          </tbody>
-        </table>
+        <div className="brands-grid">
+          {rows.map((b) => (
+            <div className="brand-card" key={b.id}>
+              <div className="brand-card-logo" onClick={() => fileRef.current[b.id]?.click()}>
+                {b.logo_url ? (
+                  <img src={b.logo_url} alt={b.brand_name} />
+                ) : (
+                  <span className="brand-card-initials">{getInitials(b.brand_name)}</span>
+                )}
+                <div className="brand-card-upload-overlay">
+                  {uploading === b.id ? '…' : '📷'}
+                </div>
+                <input
+                  type="file"
+                  accept="image/*"
+                  ref={(el) => { fileRef.current[b.id] = el; }}
+                  style={{ display: 'none' }}
+                  onChange={(e) => { if (e.target.files[0]) uploadLogo(b.id, e.target.files[0]); e.target.value = ''; }}
+                />
+              </div>
+              <div className="brand-card-info">
+                <div className="brand-card-name">{b.brand_name}</div>
+                <div className="brand-card-meta">
+                  <span className="mono">{b.brand_number}</span>
+                  {b.brand_code && <span>· {b.brand_code}</span>}
+                </div>
+                {b.manufacturer && <div className="brand-card-mfr">{b.manufacturer}</div>}
+                <div className="brand-card-footer">
+                  <span className={`chip st-${b.status}`}>{b.status}</span>
+                  <span className="brand-card-count">{b.product_count ?? 0} products</span>
+                </div>
+              </div>
+              <button className="brand-card-edit" onClick={() => { setForm({ brandNumber: b.brand_number, brandSerial: b.brand_serial, brandName: b.brand_name, brandCode: b.brand_code || '', manufacturer: b.manufacturer || '', id: b.id }); setModal('edit'); }}>
+                Edit
+              </button>
+            </div>
+          ))}
+          {!rows.length && <div className="brands-empty">No brands found</div>}
+        </div>
       </div>
       {modal && (
         <Modal title={modal === 'create' ? 'Add Brand' : 'Edit Brand'} onClose={() => setModal(null)}>

@@ -3,6 +3,7 @@ import { query, withTransaction, pool } from '../config/db.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
 import { badRequest, ah } from '../utils/httpError.js';
 import { logAudit } from '../utils/audit.js';
+import { upload, publicUrl, removeStored, uploadsDir } from '../utils/storage.js';
 
 // Grouped master-data routes — FRS §7 (Master Data Management), §8–§11.
 // Lifecycle: active / inactive / archived; hard delete blocked by FK errors → RB-014 archive.
@@ -242,12 +243,24 @@ r.post('/brands', MANAGE, ah(async (req, res) => {
   res.status(201).json({ data: rows[0] });
 }));
 
+r.post('/brands/:id/logo', MANAGE, upload.single('file'), ah(async (req, res) => {
+  if (!req.file) throw badRequest('file is required (multipart field "file")');
+  const brand = (await query(`SELECT id, logo_url FROM brands WHERE id=$1`, [req.params.id])).rows[0];
+  if (!brand) throw badRequest('Brand not found');
+  if (brand.logo_url) removeStored(brand.logo_url.replace('/uploads/', ''));
+  const storageKey = req.file.path.replace(uploadsDir, '').replace(/^[/\\]/, '');
+  const url = `/uploads/${storageKey}`;
+  const { rows } = await query(`UPDATE brands SET logo_url=$2 WHERE id=$1 RETURNING *`, [req.params.id, url]);
+  res.json({ data: rows[0] });
+}));
+
 r.patch('/brands/:id', MANAGE, ah(async (req, res) => {
-  const { brandName, brandCode, manufacturer, status } = req.body || {};
+  const { brandName, brandCode, manufacturer, status, logoUrl } = req.body || {};
   const { rows } = await query(
     `UPDATE brands SET brand_name=COALESCE($2,brand_name), brand_code=COALESCE($3,brand_code),
-            manufacturer=COALESCE($4,manufacturer), status=COALESCE($5,status) WHERE id=$1 RETURNING *`,
-    [req.params.id, brandName || null, brandCode || null, manufacturer || null, status || null]);
+            manufacturer=COALESCE($4,manufacturer), status=COALESCE($5,status),
+            logo_url=COALESCE($6,logo_url) WHERE id=$1 RETURNING *`,
+    [req.params.id, brandName || null, brandCode || null, manufacturer || null, status || null, logoUrl || null]);
   if (!rows[0]) throw badRequest('Brand not found');
   res.json({ data: rows[0] });
 }));
