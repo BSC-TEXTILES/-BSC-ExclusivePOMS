@@ -18,13 +18,6 @@ import Chat from './pages/Chat.jsx';
 import Users from './pages/Users.jsx';
 import Reports from './pages/Reports.jsx';
 import AuditLogs from './pages/AuditLogs.jsx';
-import Customers from './pages/Customers.jsx';
-import OrderList from './pages/OrderList.jsx';
-import OrderCreate from './pages/OrderCreate.jsx';
-import OrderDetails from './pages/OrderDetails.jsx';
-import Production from './pages/Production.jsx';
-import CompanySettings from './pages/CompanySettings.jsx';
-import CsvExports from './pages/CsvExports.jsx';
 
 function RequireAuth({ children, permission }) {
   const { user, hasPermission } = useAuth();
@@ -79,13 +72,6 @@ export default function App() {
             <Route path="/users" element={<RequireAuth permission="users.manage"><Users /></RequireAuth>} />
             <Route path="/reports" element={<RequireAuth permission="reports.view"><Reports /></RequireAuth>} />
             <Route path="/audit-logs" element={<RequireAuth permission="audit.view"><AuditLogs /></RequireAuth>} />
-            <Route path="/customers" element={<RequireAuth permission="order.create"><Customers /></RequireAuth>} />
-            <Route path="/om-orders" element={<RequireAuth><OrderList /></RequireAuth>} />
-            <Route path="/om-orders/new" element={<RequireAuth permission="order.create"><OrderCreate /></RequireAuth>} />
-            <Route path="/om-orders/:id" element={<RequireAuth><OrderDetails /></RequireAuth>} />
-            <Route path="/production" element={<RequireAuth permission="production.read"><Production /></RequireAuth>} />
-            <Route path="/company-settings" element={<RequireAuth permission="settings.manage"><CompanySettings /></RequireAuth>} />
-            <Route path="/csv-exports" element={<RequireAuth permission="csv.export"><CsvExports /></RequireAuth>} />
             <Route path="*" element={<Navigate to="/dashboard" replace />} />
           </Routes>
         </main>

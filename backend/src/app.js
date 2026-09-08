@@ -15,13 +15,6 @@ import miscRoutes from './routes/misc.js';
 import chatRoutes from './routes/chat.js';
 import uploadRoutes from './routes/uploads.js';
 import searchRoutes from './routes/search.js';
-import customerRoutes from './routes/customers.js';
-import omOrderRoutes from './routes/omOrders.js';
-import productionRoutes from './routes/production.js';
-import companySettingsRoutes from './routes/companySettings.js';
-import pdfDocsRoutes from './routes/pdfDocs.js';
-import csvExportsRoutes from './routes/csvExports.js';
-import productSheetsRoutes from './routes/productSheets.js';
 
 selfTest(); // RB-017 guard: engine must reproduce FRS §13.3 exactly at boot
 
@@ -58,13 +51,6 @@ app.use('/api/reports', reportRoutes);
 app.use('/api', miscRoutes); // /api/audit-logs, /api/notifications, /api/settings
 app.use('/api/chat', chatRoutes);
 app.use('/api', searchRoutes); // /api/search
-app.use('/api/customers', customerRoutes);
-app.use('/api/om-orders', omOrderRoutes);
-app.use('/api/production', productionRoutes);
-app.use('/api/company-settings', companySettingsRoutes);
-app.use('/api/om-orders', pdfDocsRoutes); // /api/om-orders/:id/pdfs, /generate-pdf
-app.use('/api/csv-exports', csvExportsRoutes);
-app.use('/api/product-sheets', productSheetsRoutes);
 
 // ---- Serve the built React client (single-origin full-stack site) ----
 import path from 'node:path';

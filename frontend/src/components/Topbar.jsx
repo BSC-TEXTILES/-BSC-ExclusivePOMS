@@ -84,10 +84,8 @@ export default function Topbar({ collapsed, onToggle }) {
   function goSearch(item, kind) {
     setOpenMenu(null); setQ(''); setResults(null);
     if (kind === 'po') navigate(`/purchase-orders/${item.id}`);
-    if (kind === 'order') navigate(`/om-orders/${item.id}`);
     if (kind === 'product') navigate(`/catalogue?q=${encodeURIComponent(item.sku)}`);
     if (kind === 'user' && hasPermission('users.manage')) navigate('/users');
-    if (kind === 'customer') navigate('/customers');
   }
 
   async function markAll() {
