@@ -130,6 +130,32 @@ table.grid td.num, table.grid th.num { text-align: right; font-variant-numeric: 
 .login-brand .brand-mark { margin: 0 auto 10px; }
 .demo-creds { font-size: 11.5px; color: var(--muted); background: #f6f7fa; border-radius: 8px; padding: 10px 12px; margin-top: 16px; line-height: 1.7; }
 
+/* ---------- Login loading / spinner ---------- */
+.login-loading {
+  display: flex; align-items: center; gap: 14px;
+  background: #f0f4ff; border: 1px solid #c7d7fe; border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 8px;
+}
+.login-spinner {
+  width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+  border: 4px solid #c7d7fe; border-top-color: var(--accent);
+  animation: loginSpin 0.8s linear infinite;
+}
+@keyframes loginSpin { to { transform: rotate(360deg); } }
+.login-loading-text {
+  font-size: 14px; font-weight: 600; color: var(--brand-ink);
+  display: flex; flex-direction: column; gap: 3px;
+}
+.login-loading-sub { font-size: 11.5px; font-weight: 400; color: var(--muted); }
+.login-btn { height: 42px; font-size: 14.5px; font-weight: 600; transition: all 0.2s; }
+.login-btn:disabled { opacity: 0.85; cursor: wait; }
+.login-btn-loading { display: flex; align-items: center; justify-content: center; gap: 10px; }
+.login-btn-spinner {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2.5px solid rgba(255,255,255,0.35); border-top-color: #fff;
+  animation: loginSpin 0.7s linear infinite;
+}
+
 .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--line); margin-bottom: 16px; flex-wrap: wrap; }
 .tab { padding: 9px 16px; cursor: pointer; border: none; background: none; font-size: 13.5px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -2px; }
 .tab.active { color: var(--brand-ink); font-weight: 700; border-bottom-color: var(--accent); }

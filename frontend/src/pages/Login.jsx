@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth.jsx';
 import { errMessage } from '../api.js';
@@ -10,9 +10,20 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [dots, setDots] = useState('');
+
+  useEffect(() => {
+    if (!busy) { setDots(''); return; }
+    const id = setInterval(() => setDots((d) => d.length >= 3 ? '' : d + '.'), 400);
+    return () => clearInterval(id);
+  }, [busy]);
 
   async function submit(e) {
     e.preventDefault();
+    if (!identifier.trim() || !password.trim()) {
+      setError('Please enter both email/username and password');
+      return;
+    }
     setError(''); setBusy(true);
     try {
       await login(identifier, password);
@@ -33,16 +44,44 @@ export default function Login() {
           <div className="muted">Purchase Order Management System</div>
         </div>
         {error && <div className="alert error">{error}</div>}
+        {busy && (
+          <div className="login-loading">
+            <div className="login-spinner" />
+            <div className="login-loading-text">
+              Authenticating{dots}
+              <span className="login-loading-sub">Verifying credentials and loading your session</span>
+            </div>
+          </div>
+        )}
         <label className="field">
           <span className="field-label">Email or username</span>
-          <input autoFocus value={identifier} onChange={(e) => setIdentifier(e.target.value)} placeholder="admin@bsc.local" />
+          <input
+            autoFocus
+            value={identifier}
+            onChange={(e) => setIdentifier(e.target.value)}
+            placeholder="admin@bsc.local"
+            disabled={busy}
+            autoComplete="username"
+          />
         </label>
         <label className="field">
           <span className="field-label">Password</span>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
+          <input
+            type="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••"
+            disabled={busy}
+            autoComplete="current-password"
+          />
         </label>
-        <button className="btn primary" style={{ width: '100%' }} disabled={busy}>
-          {busy ? 'Signing in…' : 'Sign in'}
+        <button className="btn primary login-btn" type="submit" disabled={busy}>
+          {busy ? (
+            <span className="login-btn-loading">
+              <span className="login-btn-spinner" />
+              Signing in{dots}
+            </span>
+          ) : 'Sign in'}
         </button>
         <div className="demo-creds">
           <strong>Demo accounts (after seed):</strong><br />
