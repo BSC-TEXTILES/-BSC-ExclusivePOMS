@@ -38,7 +38,7 @@ export default function Sidebar({ collapsed, onToggle }) {
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
       <div className="brand">
-        <div className="brand-mark">B</div>
+        <img src="/bsc-logo.png" alt="BSC" className="brand-mark-img" />
         {!collapsed && (
           <div>
             <div className="brand-name">BSC EXCLUSIVE</div>

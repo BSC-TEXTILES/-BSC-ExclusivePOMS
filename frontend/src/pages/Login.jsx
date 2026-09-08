@@ -92,7 +92,9 @@ export default function Login() {
       <div className="login-right">
         <form className="login-form" onSubmit={submit}>
           <div className="login-form-header">
-            <div className="login-form-logo">B</div>
+            <div className="login-form-logo">
+            <img src="/bsc-logo.png" alt="BSC" />
+          </div>
             <h2>Welcome back</h2>
             <p>Sign in to your account</p>
           </div>

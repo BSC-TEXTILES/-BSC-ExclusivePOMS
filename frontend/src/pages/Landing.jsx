@@ -44,7 +44,7 @@ export default function Landing() {
       <nav className="lp-nav">
         <div className="lp-nav-inner">
           <div className="lp-nav-brand">
-            <div className="lp-nav-logo">B</div>
+            <img src="/bsc-logo.png" alt="BSC" className="lp-nav-logo-img" />
             <span>BSC Exclusive</span>
           </div>
           <div className="lp-nav-links">
@@ -213,7 +213,7 @@ export default function Landing() {
       <footer className="lp-footer">
         <div className="lp-footer-inner">
           <div className="lp-footer-brand">
-            <div className="lp-nav-logo">B</div>
+            <img src="/bsc-logo.png" alt="BSC" className="lp-nav-logo-img" />
             <span>BSC Exclusive</span>
           </div>
           <div className="lp-footer-links">

@@ -25,6 +25,7 @@ body { margin: 0; font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
 .sidebar-scroll::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.25); }
 .brand { display: flex; gap: 10px; align-items: center; padding: 4px 6px 18px; }
 .brand-mark { width: 38px; height: 38px; border-radius: 8px; background: var(--accent); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 20px; }
+.brand-mark-img { width: 38px; height: 38px; border-radius: 8px; object-fit: contain; flex-shrink: 0; }
 .brand-name { font-weight: 700; letter-spacing: .06em; font-size: 13px; color: #fff; }
 .brand-sub { font-size: 11px; color: #93a3b3; }
 .sidebar-scroll nav { display: flex; flex-direction: column; gap: 2px; flex: 1; }
@@ -186,11 +187,10 @@ table.grid td.num, table.grid th.num { text-align: right; font-variant-numeric: 
 .login-form { width: 100%; max-width: 380px; }
 .login-form-header { text-align: center; margin-bottom: 28px; }
 .login-form-logo {
-  width: 52px; height: 52px; border-radius: 14px; margin: 0 auto 14px;
-  background: linear-gradient(135deg, #0b1a2e, #1a3a5c);
-  color: #b98a2f; font-weight: 800; font-size: 22px;
-  display: grid; place-items: center;
+  width: 72px; height: 72px; border-radius: 16px; margin: 0 auto 14px;
+  overflow: hidden; display: grid; place-items: center;
 }
+.login-form-logo img { width: 100%; height: 100%; object-fit: contain; }
 .login-form-header h2 { margin: 0 0 4px; font-size: 22px; color: #0b1a2e; }
 .login-form-header p { margin: 0; font-size: 13.5px; color: #718096; }
 
@@ -472,11 +472,11 @@ table.grid td.num, table.grid th.num { text-align: right; font-variant-numeric: 
 .lp-nav-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 14px 32px; }
 .lp-nav-brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 700; color: #0b1a2e; }
 .lp-nav-logo {
-  width: 36px; height: 36px; border-radius: 10px;
-  background: linear-gradient(135deg, #0b1a2e, #1a3a5c);
-  color: #b98a2f; font-weight: 800; font-size: 16px;
-  display: grid; place-items: center;
+  width: 36px; height: 36px; border-radius: 10px; overflow: hidden;
+  display: grid; place-items: center; flex-shrink: 0;
 }
+.lp-nav-logo img, .lp-nav-logo-img { width: 100%; height: 100%; object-fit: contain; }
+.lp-nav-logo-img { width: 36px; height: 36px; border-radius: 10px; }
 .lp-nav-links { display: flex; gap: 28px; }
 .lp-nav-links a { text-decoration: none; color: #64748b; font-size: 14px; font-weight: 500; transition: color .15s; }
 .lp-nav-links a:hover { color: #0b1a2e; }
