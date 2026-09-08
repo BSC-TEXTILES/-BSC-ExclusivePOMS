@@ -27,6 +27,9 @@ const NAV = [
   { to: '/roles', label: 'Roles', icon: 'shield', permission: 'users.manage' },
   { to: '/settings', label: 'Settings', icon: 'settings', permission: 'settings.manage' },
   { to: '/audit-logs', label: 'Audit Trail', icon: 'audit', permission: 'audit.view' },
+  { to: '/collections', label: 'Collections', icon: 'masters', permission: 'collections.view' },
+  { to: '/dealers', label: 'Dealers', icon: 'building', permission: 'dealers.view' },
+  { to: '/company', label: 'Company Settings', icon: 'settings', permission: 'company.view' },
 ];
 
 // Role-filtered navigation. Collapses to an icon rail (hamburger toggles, state

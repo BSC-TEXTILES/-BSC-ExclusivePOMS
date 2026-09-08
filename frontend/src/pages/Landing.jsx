@@ -1,6 +1,22 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../auth.jsx';
 
+const STEPS = [
+  { num: '01', title: 'Pick from the catalogue', body: 'Our catalogue has over 1,100 products — jewellery, sarees, kurtis, menswear, footwear, home goods. Each product has its brand, manufacturer, HSN code, tax class, and approved dealer already linked.', img: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&h=400&fit=crop' },
+  { num: '02', title: 'Build the purchase order', body: 'Buyers select colours and sizes, and the system calculates margins, discounts, and taxes in real time. No spreadsheets, no manual math.', img: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=600&h=400&fit=crop' },
+  { num: '03', title: 'Approval goes to the right people', body: 'Once submitted, the PO enters the approval chain. Managers review, approve or reject with mandatory comments. Every action is recorded.', img: 'https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=600&h=400&fit=crop' },
+  { num: '04', title: 'Goods arrive, stock updates', body: 'When goods reach the warehouse, the receiving team logs them against the PO. Partial deliveries are supported. Over-receipt is blocked.', img: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&h=400&fit=crop' },
+];
+
+const FEATURES = [
+  { title: 'Live dashboards', desc: 'KPIs, order status, spend by section, supplier performance — all updated in real time.', img: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=500&h=320&fit=crop' },
+  { title: 'Purchase order versioning', desc: 'Draft → amend → v2 with full diff tracking. Approved POs are locked and cannot be changed.', img: 'https://images.unsplash.com/photo-1568992687947-868a62a9f521?w=500&h=320&fit=crop' },
+  { title: 'Approval chains', desc: 'Multi-level approval routing with mandatory comments on rejection. No approval can be skipped.', img: 'https://images.unsplash.com/photo-1579621970563-ebec7560ff3e?w=500&h=320&fit=crop' },
+  { title: 'Inventory tracking', desc: 'Goods receipts adjust stock automatically. Partial deliveries and over-receipt controls are built in.', img: 'https://images.unsplash.com/photo-1553413077-190dd305871c?w=500&h=320&fit=crop' },
+  { title: 'Full audit trail', desc: 'Every action — who did what, when, before and after — is logged and cannot be edited or deleted.', img: 'https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=500&h=320&fit=crop' },
+  { title: 'Team chat', desc: 'Division-scoped chat built into the system. Discuss orders, share files, resolve issues in context.', img: 'https://images.unsplash.com/photo-1552664730-d307ca884978?w=500&h=320&fit=crop' },
+];
+
 export default function Landing() {
   const { user } = useAuth();
   return (
@@ -16,8 +32,7 @@ export default function Landing() {
           <div className="lp-nav-links">
             <a href="#about">About</a>
             <a href="#workflow">How it Works</a>
-            <a href="#team">Our Team</a>
-            <a href="#contact">Contact</a>
+            <a href="#features">Features</a>
           </div>
           <div className="lp-nav-actions">
             {user
@@ -29,36 +44,36 @@ export default function Landing() {
 
       {/* ---- Hero ---- */}
       <section className="lp-hero">
+        <img className="lp-hero-bg" src="https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1600&h=900&fit=crop" alt="" />
+        <div className="lp-hero-overlay" />
         <div className="lp-hero-inner">
           <div className="lp-hero-content">
             <span className="lp-hero-tag">Est. 2024 · BSC Exclusive Pvt. Ltd.</span>
-            <h1>We manage procurement<br/>so you can focus on<br/><em>growing the business</em></h1>
-            <p className="lp-hero-desc">POMS is the internal tool our purchase teams use every day — from selecting products in the catalogue to receiving goods at the warehouse. Built for how we actually work, not how a vendor thinks we should.</p>
+            <h1>Purchase Order<br/>Management System</h1>
+            <p className="lp-hero-desc">Streamline your entire procurement workflow — from product catalogue to goods receipt. Create, approve, track, and manage all your purchase orders in one powerful platform built exclusively for BSC Exclusive.</p>
+            <div className="lp-hero-features">
+              <div className="lp-hero-feature">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>1,130+ Products</span>
+              </div>
+              <div className="lp-hero-feature">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>33 Brands</span>
+              </div>
+              <div className="lp-hero-feature">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>Multi-Level Approvals</span>
+              </div>
+              <div className="lp-hero-feature">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>Real-Time Tracking</span>
+              </div>
+            </div>
             <div className="lp-hero-btns">
               {user
                 ? <Link className="lp-btn-primary big" to="/dashboard">Go to Dashboard →</Link>
                 : <Link className="lp-btn-primary big" to="/login">Sign In to POMS →</Link>}
-              <a className="lp-btn-ghost" href="#about">Learn more</a>
-            </div>
-          </div>
-          <div className="lp-hero-visual">
-            <div className="lp-hero-dash-preview">
-              <div className="lp-dash-bar"><span /><span /><span /></div>
-              <div className="lp-dash-body">
-                <div className="lp-dash-side" />
-                <div className="lp-dash-main">
-                  <div className="lp-dash-kpi-row">
-                    <div className="lp-dash-kpi" />
-                    <div className="lp-dash-kpi" />
-                    <div className="lp-dash-kpi" />
-                    <div className="lp-dash-kpi" />
-                  </div>
-                  <div className="lp-dash-chart" />
-                  <div className="lp-dash-table-rows">
-                    <div /><div /><div /><div /><div />
-                  </div>
-                </div>
-              </div>
+              <a className="lp-btn-ghost-light" href="#about">Learn more</a>
             </div>
           </div>
         </div>
@@ -68,28 +83,31 @@ export default function Landing() {
       <section className="lp-about" id="about">
         <div className="lp-section-inner">
           <div className="lp-about-grid">
+            <div className="lp-about-image">
+              <img src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600&h=500&fit=crop" alt="Team working together" />
+            </div>
             <div className="lp-about-text">
               <span className="lp-section-tag">About POMS</span>
               <h2>Not a product we bought.<br/>A system we built.</h2>
               <p>Before POMS, our purchase teams tracked everything in spreadsheets and WhatsApp groups. Orders got lost, approvals took days, and nobody had a clear view of what was ordered, what was received, or what was spent.</p>
               <p>We built POMS to fix that — a single place where every purchase order is created, approved, and tracked with full accountability.</p>
-            </div>
-            <div className="lp-about-stats">
-              <div className="lp-about-stat">
-                <div className="lp-about-stat-num">1,130+</div>
-                <div className="lp-about-stat-label">Products in the catalogue</div>
-              </div>
-              <div className="lp-about-stat">
-                <div className="lp-about-stat-num">4</div>
-                <div className="lp-about-stat-label">Division offices connected</div>
-              </div>
-              <div className="lp-about-stat">
-                <div className="lp-about-stat-num">33</div>
-                <div className="lp-about-stat-label">Active brands managed</div>
-              </div>
-              <div className="lp-about-stat">
-                <div className="lp-about-stat-num">Zero</div>
-                <div className="lp-about-stat-label">Unchecked approvals</div>
+              <div className="lp-about-stats">
+                <div className="lp-about-stat">
+                  <div className="lp-about-stat-num">1,130+</div>
+                  <div className="lp-about-stat-label">Products</div>
+                </div>
+                <div className="lp-about-stat">
+                  <div className="lp-about-stat-num">4</div>
+                  <div className="lp-about-stat-label">Divisions</div>
+                </div>
+                <div className="lp-about-stat">
+                  <div className="lp-about-stat-num">33</div>
+                  <div className="lp-about-stat-label">Brands</div>
+                </div>
+                <div className="lp-about-stat">
+                  <div className="lp-about-stat-num">Zero</div>
+                  <div className="lp-about-stat-label">Unchecked</div>
+                </div>
               </div>
             </div>
           </div>
@@ -103,141 +121,39 @@ export default function Landing() {
           <h2>How an order moves through the system</h2>
           <p className="lp-section-sub">Every purchase goes through the same controlled path — no shortcuts, no exceptions.</p>
           <div className="lp-steps">
-            <div className="lp-step">
-              <div className="lp-step-num">1</div>
-              <div className="lp-step-content">
-                <h3>Pick from the catalogue</h3>
-                <p>Our catalogue has over 1,100 products — jewellery, sarees, kurtis, menswear, footwear, home goods. Each product has its brand, manufacturer, HSN code, tax class, and approved dealer already linked.</p>
+            {STEPS.map((s) => (
+              <div className="lp-step" key={s.num}>
+                <div className="lp-step-image">
+                  <img src={s.img} alt={s.title} />
+                  <div className="lp-step-num-badge">{s.num}</div>
+                </div>
+                <div className="lp-step-content">
+                  <h3>{s.title}</h3>
+                  <p>{s.body}</p>
+                </div>
               </div>
-            </div>
-            <div className="lp-step">
-              <div className="lp-step-num">2</div>
-              <div className="lp-step-content">
-                <h3>Build the purchase order</h3>
-                <p>Buyers select colours and sizes, and the system calculates margins, discounts, and taxes in real time. No spreadsheets, no manual math.</p>
-              </div>
-            </div>
-            <div className="lp-step">
-              <div className="lp-step-num">3</div>
-              <div className="lp-step-content">
-                <h3>Approval goes to the right people</h3>
-                <p>Once submitted, the PO enters the approval chain. Managers review, approve or reject with mandatory comments. Every action is recorded.</p>
-              </div>
-            </div>
-            <div className="lp-step">
-              <div className="lp-step-num">4</div>
-              <div className="lp-step-content">
-                <h3>Goods arrive, stock updates</h3>
-                <p>When goods reach the warehouse, the receiving team logs them against the PO. Partial deliveries are supported. Over-receipt is blocked. Inventory adjusts instantly.</p>
-              </div>
-            </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* ---- Team / Roles ---- */}
-      <section className="lp-team" id="team">
+      {/* ---- Features ---- */}
+      <section className="lp-features" id="features">
         <div className="lp-section-inner">
-          <span className="lp-section-tag">Who uses it</span>
-          <h2>Every role has a purpose</h2>
-          <p className="lp-section-sub">POMS shows each person exactly what they need — no more, no less.</p>
-          <div className="lp-team-grid">
-            <div className="lp-team-card">
-              <div className="lp-team-header" style={{ borderLeftColor: '#b98a2f' }}>
-                <h3>Super Admin</h3>
-              </div>
-              <p>Manages the entire system — users, roles, divisions, all master data. Sees everything across every office.</p>
-            </div>
-            <div className="lp-team-card">
-              <div className="lp-team-header" style={{ borderLeftColor: '#2563eb' }}>
-                <h3>Purchase Executive</h3>
-              </div>
-              <p>Creates and submits purchase orders for their division. Works with the catalogue, sets quantities, attaches dealer quotes.</p>
-            </div>
-            <div className="lp-team-card">
-              <div className="lp-team-header" style={{ borderLeftColor: '#059669' }}>
-                <h3>Approver</h3>
-              </div>
-              <p>Reviews submitted POs, checks pricing and quantities, approves or rejects with comments. Can send back for revision.</p>
-            </div>
-            <div className="lp-team-card">
-              <div className="lp-team-header" style={{ borderLeftColor: '#7c3aed' }}>
-                <h3>Receiving User</h3>
-              </div>
-              <p>Logs incoming goods against approved POs. Handles partial deliveries and flags discrepancies before they become problems.</p>
-            </div>
-          </div>
-          <div className="lp-team-note">
-            <strong>Access is enforced server-side.</strong> A buyer in Davanagere cannot see or touch a Shivamogga order — the API blocks it and the attempt is logged.
-          </div>
-        </div>
-      </section>
-
-      {/* ---- What we built ---- */}
-      <section className="lp-built">
-        <div className="lp-section-inner">
-          <span className="lp-section-tag">Under the hood</span>
+          <span className="lp-section-tag">Features</span>
           <h2>What POMS actually does</h2>
-          <div className="lp-built-grid">
-            <div className="lp-built-item">
-              <div className="lp-built-title">Live dashboards</div>
-              <p>KPIs, order status, spend by section, supplier performance — all updated in real time.</p>
-            </div>
-            <div className="lp-built-item">
-              <div className="lp-built-title">Purchase order versioning</div>
-              <p>Draft → amend → v2 with full diff tracking. Approved POs are locked and cannot be changed.</p>
-            </div>
-            <div className="lp-built-item">
-              <div className="lp-built-title">Approval chains</div>
-              <p>Multi-level approval routing with mandatory comments on rejection. No approval can be skipped.</p>
-            </div>
-            <div className="lp-built-item">
-              <div className="lp-built-title">Inventory tracking</div>
-              <p>Goods receipts adjust stock automatically. Partial deliveries and over-receipt controls are built in.</p>
-            </div>
-            <div className="lp-built-item">
-              <div className="lp-built-title">Full audit trail</div>
-              <p>Every action — who did what, when, before and after — is logged and cannot be edited or deleted.</p>
-            </div>
-            <div className="lp-built-item">
-              <div className="lp-built-title">Team chat</div>
-              <p>Division-scoped chat built into the system. Discuss orders, share files, resolve issues in context.</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ---- CTA ---- */}
-      <section className="lp-cta-section" id="contact">
-        <div className="lp-section-inner">
-          <div className="lp-cta-box">
-            <h2>Want to see it in action?</h2>
-            <p>Sign in with a demo account and explore the full system — dashboards, orders, approvals, everything.</p>
-            <div className="lp-cta-accounts">
-              <div className="lp-cta-account">
-                <strong>admin@bsc.local</strong>
-                <span>Admin@123</span>
-                <em>Super Admin</em>
+          <div className="lp-features-grid">
+            {FEATURES.map((f) => (
+              <div className="lp-feature-card" key={f.title}>
+                <div className="lp-feature-img">
+                  <img src={f.img} alt={f.title} />
+                </div>
+                <div className="lp-feature-body">
+                  <h3>{f.title}</h3>
+                  <p>{f.desc}</p>
+                </div>
               </div>
-              <div className="lp-cta-account">
-                <strong>buyer.dvg@bsc.local</strong>
-                <span>PE@12345</span>
-                <em>Purchase Executive</em>
-              </div>
-              <div className="lp-cta-account">
-                <strong>approver.dvg@bsc.local</strong>
-                <span>AP@12345</span>
-                <em>Approver</em>
-              </div>
-              <div className="lp-cta-account">
-                <strong>receiver.dvg@bsc.local</strong>
-                <span>RC@12345</span>
-                <em>Receiving User</em>
-              </div>
-            </div>
-            {user
-              ? <Link className="lp-btn-primary big" to="/dashboard">Open Dashboard →</Link>
-              : <Link className="lp-btn-accent big" to="/login">Sign In to POMS →</Link>}
+            ))}
           </div>
         </div>
       </section>

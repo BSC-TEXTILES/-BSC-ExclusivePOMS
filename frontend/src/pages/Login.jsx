@@ -3,13 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth.jsx';
 import { errMessage } from '../api.js';
 
-const DEMO_USERS = [
-  { name: 'Rajeshwar V. Rao', email: 'admin@bsc.local', password: 'Admin@123', role: 'Super Admin', color: '#b98a2f' },
-  { name: 'Arjun Mehta', email: 'buyer.dvg@bsc.local', password: 'PE@12345', role: 'Purchase Executive', color: '#2563eb' },
-  { name: 'Vikram Singh', email: 'approver.dvg@bsc.local', password: 'AP@12345', role: 'Approver', color: '#059669' },
-  { name: 'Priya Nair', email: 'receiver.dvg@bsc.local', password: 'RC@12345', role: 'Receiving User', color: '#7c3aed' },
-];
-
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -19,7 +12,6 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [dots, setDots] = useState('');
   const [showPwd, setShowPwd] = useState(false);
-  const [autoUser, setAutoUser] = useState(null);
 
   useEffect(() => {
     if (!busy) { setDots(''); return; }
@@ -27,10 +19,9 @@ export default function Login() {
     return () => clearInterval(id);
   }, [busy]);
 
-  function autofill(user) {
-    setAutoUser(user);
-    setIdentifier(user.email);
-    setPassword(user.password);
+  function autofill() {
+    setIdentifier('admin@bsc.local');
+    setPassword('Admin@123');
     setError('');
   }
 
@@ -116,7 +107,7 @@ export default function Login() {
                 <input
                   autoFocus
                   value={identifier}
-                  onChange={(e) => { setIdentifier(e.target.value); setAutoUser(null); }}
+                  onChange={(e) => setIdentifier(e.target.value)}
                   placeholder="admin@bsc.local"
                   disabled={busy}
                   autoComplete="username"
@@ -130,7 +121,7 @@ export default function Login() {
                 <input
                   type={showPwd ? 'text' : 'password'}
                   value={password}
-                  onChange={(e) => { setPassword(e.target.value); setAutoUser(null); }}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="Enter your password"
                   disabled={busy}
                   autoComplete="current-password"
@@ -154,23 +145,14 @@ export default function Login() {
             ) : 'Sign in'}
           </button>
           <div className="login-divider"><span>Quick login</span></div>
-          <div className="login-users-grid">
-            {DEMO_USERS.map((u) => (
-              <button
-                type="button"
-                key={u.email}
-                className={`login-user-card ${autoUser?.email === u.email ? 'active' : ''}`}
-                onClick={() => autofill(u)}
-                disabled={busy}
-              >
-                <div className="login-user-avatar" style={{ background: u.color }}>{u.name.charAt(0)}</div>
-                <div className="login-user-details">
-                  <div className="login-user-name">{u.name}</div>
-                  <div className="login-user-role">{u.role}</div>
-                </div>
-              </button>
-            ))}
-          </div>
+          <button type="button" className="login-admin-chip" onClick={autofill} disabled={busy}>
+            <div className="login-admin-chip-avatar">A</div>
+            <div className="login-admin-chip-info">
+              <div className="login-admin-chip-name">Rajeshwar V. Rao</div>
+              <div className="login-admin-chip-email">admin@bsc.local</div>
+            </div>
+            <div className="login-admin-chip-badge">Super Admin</div>
+          </button>
           <a className="login-back" href="/landing">← Back to overview</a>
         </form>
       </div>
