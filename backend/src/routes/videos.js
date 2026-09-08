@@ -11,7 +11,7 @@ import path from 'node:path';
 const r = Router();
 r.use(authenticate);
 
-const CATEGORIES = ['training', 'product', 'process', 'marketing', 'other'];
+const CATEGORIES = ['training', 'product', 'process', 'marketing', 'general', 'other'];
 
 function rowPayload(row) {
   return {

@@ -53,7 +53,7 @@ r.get('/dashboard', ah(async (req, res) => {
   const recentAudit = (await query(
     `SELECT al.occurred_at, al.action_type, al.entity_type, al.entity_id::text, COALESCE(u.full_name,'System') AS actor
        FROM audit_logs al LEFT JOIN users u ON u.id = al.user_id
-      WHERE (${s.all ? 'al.division_id IS NULL' : 'al.division_id = ANY($1::uuid[])'} OR al.division_id IS NULL)
+      WHERE (${s.all ? 'TRUE' : 'al.division_id = ANY($1::uuid[])'} OR al.division_id IS NULL)
       ORDER BY al.occurred_at DESC LIMIT 12`, params)).rows;
 
   const divisionAdmins = (await query(
@@ -137,13 +137,13 @@ r.get('/:name', ah(async (req, res) => {
     'dealer': `SELECT sup.company_name AS dealer, d.name AS division, count(*)::int AS pos, COALESCE(SUM(po.grand_total),0) AS ordered_value
                       FROM purchase_orders po JOIN suppliers sup ON sup.id=po.supplier_id JOIN divisions d ON d.id=po.division_id
                      WHERE TRUE ${W} GROUP BY sup.company_name, d.name ORDER BY ordered_value DESC`,
-    'size': `SELECT p.sku, p.name AS product, COALESCE(z.size_label,'—') AS size, SUM(q.quantity)::int AS qty
+    'size': `SELECT p.sku, p.name AS product, COALESCE(z.label,'—') AS size, SUM(q.quantity)::int AS qty
                       FROM purchase_order_quantities q
                       JOIN purchase_order_items i ON i.id = q.po_item_id
                       JOIN purchase_orders po ON po.id = i.po_id
                       JOIN products p ON p.id = i.product_id
                       LEFT JOIN sizes z ON z.id = q.size_id
-                     WHERE TRUE ${W} GROUP BY p.sku, p.name, z.size_label ORDER BY p.sku, z.size_label`,
+                     WHERE TRUE ${W} GROUP BY p.sku, p.name, z.label ORDER BY p.sku, z.label`,
     'margin': `SELECT p.name AS product, s.name AS section, d.name AS division,
                       SUM(i.total_quantity)::int AS qty,
                       ROUND(AVG(i.purchase_price),2) AS avg_purchase_price,

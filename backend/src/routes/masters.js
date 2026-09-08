@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { query, withTransaction, pool } from '../config/db.js';
-import { authenticate, requirePermission, scopeDivision } from '../middleware/auth.js';
+import { authenticate, requirePermission } from '../middleware/auth.js';
 import { badRequest, ah } from '../utils/httpError.js';
 import { logAudit } from '../utils/audit.js';
 

@@ -19,6 +19,8 @@ import manufacturerRoutes from './routes/manufacturers.js';
 import roleRoutes from './routes/roles.js';
 import pricingRoutes from './routes/pricing.js';
 import videoRoutes from './routes/videos.js';
+import locationRoutes from './routes/locations.js';
+import productTypeRoutes from './routes/productTypes.js';
 
 selfTest(); // RB-017 guard: engine must reproduce FRS §13.3 exactly at boot
 
@@ -59,6 +61,8 @@ app.use('/api/manufacturers', manufacturerRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/videos', videoRoutes);
+app.use('/api/locations', locationRoutes);
+app.use('/api/product-types', productTypeRoutes);
 
 // ---- Serve the built React client (single-origin full-stack site) ----
 import path from 'node:path';

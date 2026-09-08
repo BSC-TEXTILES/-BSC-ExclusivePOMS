@@ -407,12 +407,11 @@ r.put('/:id', requirePermission('po.edit'), ah(async (req, res) => {
     const before = { subtotal: po.subtotal, grand_total: po.grand_total };
     await client.query(
       `UPDATE purchase_orders SET division_id=$2, department_id=$3, section_id=$4, supplier_id=$5,
-              payment_terms=$6, delivery_terms=$7, tax_scheme=$8, expected_delivery_date=$9, remarks=$10,
-              order_discount = $11::jsonb
+              payment_terms=$6, delivery_terms=$7, tax_scheme=$8, expected_delivery_date=$9, remarks=$10
         WHERE id=$1`,
       [po.id, h.divisionId || po.division_id, h.departmentId || po.department_id, h.sectionId || po.section_id,
        h.supplierId || po.supplier_id, h.paymentTerms, h.deliveryTerms, h.taxScheme,
-       h.expectedDeliveryDate, h.remarks, h.orderDiscount ? JSON.stringify(h.orderDiscount) : po.order_discount ? JSON.stringify(po.order_discount) : null]);
+       h.expectedDeliveryDate, h.remarks]);
     const fresh = { ...po, ...h };
     const totals = await persistLines(client, fresh, h.lines, req, policy);
     await logAudit(client, {
