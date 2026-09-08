@@ -5,12 +5,17 @@ import { useAuth } from '../auth.jsx';
 const NAV = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard', end: true },
   { to: '/purchase-orders', label: 'Purchase Orders', icon: 'po' },
-  { to: '/calendar', label: 'PO Calendar', icon: 'calendar' },
+  { to: '/om-orders', label: 'Customer Orders', icon: 'orders' },
+  { to: '/production', label: 'Production', icon: 'production' },
+  { to: '/customers', label: 'Customers', icon: 'customers', permission: 'order.create' },
   { to: '/catalogue', label: 'Catalogue', icon: 'catalogue' },
+  { to: '/calendar', label: 'PO Calendar', icon: 'calendar' },
   { to: '/chat', label: 'Team Chat', icon: 'chat' },
   { to: '/approvals', label: 'Approval Queue', icon: 'approvals', permission: 'approvals.view' },
   { to: '/receipts', label: 'Receiving', icon: 'receipts', permission: 'receipt.view' },
   { to: '/masters', label: 'Masters', icon: 'masters', permission: 'masters.view' },
+  { to: '/csv-exports', label: 'CSV Exports', icon: 'download', permission: 'csv.export' },
+  { to: '/company-settings', label: 'Company Settings', icon: 'settings', permission: 'settings.manage' },
   { to: '/reports', label: 'Reports', icon: 'reports', permission: 'reports.view' },
   { to: '/users', label: 'Users & Roles', icon: 'users', permission: 'users.manage' },
   { to: '/audit-logs', label: 'Audit Trail', icon: 'audit', permission: 'audit.view' },
@@ -47,7 +52,7 @@ export default function Sidebar({ collapsed, onToggle }) {
         <Icon name="plus" size={16} />
         {!collapsed && <span>Create Master PO</span>}
       </button>
-      {!collapsed && <div className="sidebar-foot">POMS v2.0 · role-scoped</div>}
+      {!collapsed && <div className="sidebar-foot">POMS v3.0 · Product & Order Management</div>}
     </aside>
   );
 }

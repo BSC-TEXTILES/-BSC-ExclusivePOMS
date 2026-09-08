@@ -1,9 +1,25 @@
-# POMS — Purchase Order & Merchandise Procurement Management System
+# POMS — Product, Role & Order Management System
 
-**BSC Exclusive Edition** — full-stack implementation of FRS v2.0 (31 sections + 4 appendices).
+**BSC Exclusive Edition** — full-stack implementation of Product, Role & Order Management System.
 
 Stack: **Node.js + Express + React (Vite) + PostgreSQL** — the MERN stack with PostgreSQL
 replacing MongoDB, using the project's supplied SQL schema (`database/schema.sql`) as-is.
+
+## Features
+
+- **Authentication & RBAC** — JWT auth, 10 role types, 35+ granular permissions
+- **Purchase Order Management** — Full PO lifecycle with approval workflows
+- **Customer Order Management** — Multi-step order creation, approval, production workflow
+- **Men Section Management** — Supervisor → Production User hierarchy
+- **Production Tracking** — Task assignment, status updates, daily activity tracking
+- **Product Management** — Products with images, sheets/colors, sizes XS–4XL
+- **Customer Management** — Full CRUD with search
+- **PDF Generation** — Company-branded order PDFs with product images
+- **CSV Export** — Export orders, users, production data with history
+- **Dashboard** — Role-specific dashboards with live KPIs
+- **Audit Trail** — Immutable event logging
+- **Notifications** — In-app notifications with WebSocket push
+- **Company Settings** — Configurable company info, PDF templates, order prefixes
 
 ## Quick start (Windows)
 
@@ -50,6 +66,10 @@ npm run build                       # production build → frontend/dist (what t
 | dvg.admin@bsc.local | Admin@123 | Domain Admin (Davanagere) |
 | pm.dvg@bsc.local | PM@12345 | Purchase Manager (Davanagere) |
 | buyer.dvg@bsc.local | PE@12345 | Purchase Executive (Davanagere) |
+| supervisor.men@bsc.local | SUP@12345 | Men Section Supervisor |
+| prod1@bsc.local | PROD@123 | Men Production User |
+| prod2@bsc.local | PROD@123 | Men Production User |
+| prod3@bsc.local | PROD@123 | Men Production User |
 | approver.dvg@bsc.local | AP@12345 | Approver (Davanagere) |
 | receiver.dvg@bsc.local | RC@12345 | Receiving User (Davanagere) |
 | viewer@bsc.local | VW@12345 | Viewer |

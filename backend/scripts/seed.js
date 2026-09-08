@@ -32,6 +32,22 @@ async function main() {
     ['audit.view', 'audit', 'View immutable audit trail'],
     ['users.manage', 'user', 'Manage users, roles and division scope'],
     ['settings.manage', 'settings', 'Manage system settings'],
+    ['order.create', 'order', 'Create customer orders'],
+    ['order.read', 'order', 'View customer orders'],
+    ['order.update', 'order', 'Update customer orders'],
+    ['order.delete', 'order', 'Delete customer orders'],
+    ['order.approve', 'order', 'Approve customer orders'],
+    ['order.cancel', 'order', 'Cancel customer orders'],
+    ['order.assign', 'order', 'Assign production users to orders'],
+    ['production.read', 'production', 'View production tasks'],
+    ['production.update', 'production', 'Update production task status'],
+    ['pdf.generate', 'pdf', 'Generate order PDFs'],
+    ['pdf.share', 'pdf', 'Share order PDFs'],
+    ['pdf.download', 'pdf', 'Download order PDFs'],
+    ['csv.export', 'csv', 'Export data to CSV'],
+    ['csv.read', 'csv', 'View CSV export history'],
+    ['men_section.manage', 'men_section', 'Manage Men Section and production users'],
+    ['men_section.view', 'men_section', 'View Men Section dashboard'],
   ];
   for (const [code, module, description] of PERMISSIONS) {
     await query(`INSERT INTO permissions (code, module, description) VALUES ($1,$2,$3) ON CONFLICT (code) DO NOTHING`, [code, module, description]);
@@ -48,6 +64,8 @@ async function main() {
     ['receiving_user', 'Receiving User'],
     ['viewer', 'Viewer'],
     ['auditor', 'Auditor'],
+    ['men_section_supervisor', 'Men Section Supervisor'],
+    ['men_production_user', 'Men Production User'],
   ];
   for (const [code, name] of ROLES) {
     await query(`INSERT INTO roles (code, name) VALUES ($1,$2) ON CONFLICT (code) DO NOTHING`, [code, name]);
@@ -55,13 +73,15 @@ async function main() {
 
   const ROLE_PERMS = {
     super_admin: ALL_PERMS,
-    domain_admin: ['masters.view', 'masters.manage', 'po.view', 'po.create', 'po.edit', 'po.submit', 'po.amend', 'po.issue', 'po.close', 'po.commercial.override', 'approvals.view', 'approvals.act', 'receipt.view', 'receipt.create', 'inventory.view', 'reports.view', 'audit.view'],
-    purchase_manager: ['masters.view', 'po.view', 'po.create', 'po.edit', 'po.submit', 'po.amend', 'po.issue', 'po.close', 'po.commercial.override', 'approvals.view', 'approvals.act', 'reports.view'],
-    purchase_executive: ['masters.view', 'po.view', 'po.create', 'po.edit', 'po.submit'],
-    approver: ['po.view', 'approvals.view', 'approvals.act'],
+    domain_admin: ['masters.view', 'masters.manage', 'po.view', 'po.create', 'po.edit', 'po.submit', 'po.amend', 'po.issue', 'po.close', 'po.commercial.override', 'approvals.view', 'approvals.act', 'receipt.view', 'receipt.create', 'inventory.view', 'reports.view', 'audit.view', 'order.create', 'order.read', 'order.update', 'order.approve', 'order.assign', 'production.read', 'production.update', 'pdf.generate', 'pdf.share', 'pdf.download', 'csv.export', 'csv.read', 'men_section.manage', 'men_section.view'],
+    purchase_manager: ['masters.view', 'po.view', 'po.create', 'po.edit', 'po.submit', 'po.amend', 'po.issue', 'po.close', 'po.commercial.override', 'approvals.view', 'approvals.act', 'reports.view', 'order.create', 'order.read', 'order.update', 'order.approve', 'pdf.generate', 'csv.export'],
+    purchase_executive: ['masters.view', 'po.view', 'po.create', 'po.edit', 'po.submit', 'order.create', 'order.read'],
+    approver: ['po.view', 'approvals.view', 'approvals.act', 'order.read', 'order.approve'],
     receiving_user: ['po.view', 'receipt.view', 'receipt.create', 'inventory.view'],
-    viewer: ['po.view', 'reports.view', 'inventory.view'],
-    auditor: ['po.view', 'audit.view', 'reports.view'],
+    viewer: ['po.view', 'reports.view', 'inventory.view', 'order.read'],
+    auditor: ['po.view', 'audit.view', 'reports.view', 'csv.read', 'order.read'],
+    men_section_supervisor: ['men_section.view', 'production.read', 'production.update', 'order.read', 'order.assign', 'reports.view', 'pdf.generate', 'pdf.share', 'csv.export'],
+    men_production_user: ['production.read', 'production.update', 'order.read'],
   };
   for (const [roleCode, permCodes] of Object.entries(ROLE_PERMS)) {
     for (const code of permCodes) {
@@ -261,6 +281,10 @@ async function main() {
     ['receiver.dvg@bsc.local', 'receiver.dvg', 'Davanagere Receiving User', ['receiving_user'], ['DVG'], 'RC@12345'],
     ['viewer@bsc.local', 'viewer', 'Enterprise Viewer', ['viewer'], ['DVG', 'SMG', 'BLG'], 'VW@12345'],
     ['auditor@bsc.local', 'auditor', 'Enterprise Auditor', ['auditor'], ['DVG', 'SMG', 'BLG'], 'AU@12345'],
+    ['supervisor.men@bsc.local', 'supervisor.men', 'Men Section Supervisor', ['men_section_supervisor'], ['DVG'], 'SUP@12345'],
+    ['prod1@bsc.local', 'prod.user1', 'Arjun Kumar (Production)', ['men_production_user'], ['DVG'], 'PROD@123'],
+    ['prod2@bsc.local', 'prod.user2', 'Ravi Patel (Production)', ['men_production_user'], ['DVG'], 'PROD@123'],
+    ['prod3@bsc.local', 'prod.user3', 'Suresh Singh (Production)', ['men_production_user'], ['DVG'], 'PROD@123'],
   ];
   for (const [email, username, fullName, roleCodes, divCodes, password] of USERS) {
     const { rows } = await query(
@@ -279,6 +303,105 @@ async function main() {
   // ---------- SCALE-UP: 30+ brands with providers, 1000+ products, team chat ----------
   await scaleCatalogue();
   await seedChat();
+
+  // ---------- Company Settings ----------
+  const csExists = (await query(`SELECT 1 FROM company_settings LIMIT 1`)).rows.length > 0;
+  if (!csExists) {
+    await query(
+      `INSERT INTO company_settings (company_name, address, phone, email, website, gst_number, order_prefix, authorized_signatory, pdf_footer)
+       VALUES ('BSC Exclusive', 'Davanagere, Karnataka, India', '+91 98765 43210', 'info@bscexclusive.com', 'https://bscexclusive.com', '29AABCB1234C1Z5', 'ORD', 'Rajeshwar V. Rao', 'Thank you for your business. Terms and conditions apply.')`);
+    console.log('✔ Company settings seeded');
+  }
+
+  // ---------- Product Sheets ----------
+  const sheetsExist = (await query(`SELECT 1 FROM product_sheets LIMIT 1`)).rows.length > 0;
+  if (!sheetsExist) {
+    const SHEETS = [
+      ['SHEET-001', 'Premium Matte', 'Navy Blue', 'NB-01', '#1B2A4A', 'Matte', 'Cotton Blend'],
+      ['SHEET-002', 'Premium Matte', 'Black', 'BK-01', '#111111', 'Matte', 'Cotton Blend'],
+      ['SHEET-003', 'Premium Matte', 'White', 'WH-01', '#F5F5F5', 'Matte', 'Cotton Blend'],
+      ['SHEET-004', 'Premium Matte', 'Grey', 'GR-01', '#757575', 'Matte', 'Cotton Blend'],
+      ['SHEET-005', 'Premium Matte', 'Maroon', 'MR-01', '#5E1224', 'Matte', 'Cotton Blend'],
+      ['SHEET-006', 'Premium Glossy', 'Red', 'RD-01', '#C62828', 'Glossy', 'Silk Blend'],
+      ['SHEET-007', 'Premium Glossy', 'Gold', 'GD-01', '#C9A227', 'Glossy', 'Silk Blend'],
+      ['SHEET-008', 'Standard Cotton', 'Beige', 'BG-01', '#D9C7A7', 'Plain', 'Pure Cotton'],
+      ['SHEET-009', 'Standard Cotton', 'Green', 'GN-01', '#1B5E20', 'Plain', 'Pure Cotton'],
+      ['SHEET-010', 'Denim Wash', 'Indigo', 'IN-01', '#3F51B5', 'Washed', 'Denim'],
+    ];
+    for (const [code, name, color, ccode, hex, finish, material] of SHEETS) {
+      await query(
+        `INSERT INTO product_sheets (sheet_code, sheet_name, color_name, color_code, swatch_hex, finish, material)
+         VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (sheet_code) DO NOTHING`,
+        [code, name, color, ccode, hex, finish, material]);
+    }
+    console.log('✔ Product sheets seeded');
+  }
+
+  // ---------- Customers ----------
+  const custExist = (await query(`SELECT 1 FROM customers LIMIT 1`)).rows.length > 0;
+  if (!custExist) {
+    const CUSTOMERS = [
+      ['CUST-0001', 'Mumbai Fashion House', 'MFH Pvt Ltd', 'Priya Sharma', '9876543210', 'priya@mfh.in', 'Andheri West, Mumbai', 'Mumbai', 'Maharashtra', '29AABCM1234C1Z5'],
+      ['CUST-0002', 'Bangalore Trends', 'BT Retail', 'Karthik Reddy', '9876543211', 'karthik@blr.in', 'MG Road, Bangalore', 'Bangalore', 'Karnataka', '29AABCB5678D1Z5'],
+      ['CUST-0003', 'Delhi Garments Corp', 'DGC Trading', 'Amit Singh', '9876543212', 'amit@dgc.in', 'Karol Bagh, New Delhi', 'New Delhi', 'Delhi', '29AABCD9012E1Z5'],
+      ['CUST-0004', 'Chennai Silks & Sarees', 'CSS Exports', 'Lakshmi N', '9876543213', 'lakshmi@css.in', 'T Nagar, Chennai', 'Chennai', 'Tamil Nadu', '29AABCE3456F1Z5'],
+      ['CUST-0005', 'Pune Lifestyle Store', 'PLS Retail', 'Sneha Patil', '9876543214', 'sneha@pls.in', 'FC Road, Pune', 'Pune', 'Maharashtra', '29AABCF7890G1Z5'],
+    ];
+    for (const [code, name, company, contact, phone, email, address, city, state, gst] of CUSTOMERS) {
+      await query(
+        `INSERT INTO customers (customer_code, name, company, contact_person, phone, email, address, city, state, gst_number)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT (customer_code) DO NOTHING`,
+        [code, name, company, contact, phone, email, address, city, state, gst]);
+    }
+    console.log('✔ Customers seeded');
+  }
+
+  // ---------- Sample Orders (OM) ----------
+  const ordersExist = (await query(`SELECT 1 FROM om_orders LIMIT 1`)).rows.length > 0;
+  if (!ordersExist) {
+    const adminId = (await query(`SELECT id FROM users WHERE email='admin@bsc.local'`)).rows[0]?.id;
+    const supId = (await query(`SELECT id FROM users WHERE email='supervisor.men@bsc.local'`)).rows[0]?.id;
+    const prod1Id = (await query(`SELECT id FROM users WHERE email='prod1@bsc.local'`)).rows[0]?.id;
+    const prod2Id = (await query(`SELECT id FROM users WHERE email='prod2@bsc.local'`)).rows[0]?.id;
+    const cust1 = (await query(`SELECT id FROM customers WHERE customer_code='CUST-0001'`)).rows[0]?.id;
+    const cust2 = (await query(`SELECT id FROM customers WHERE customer_code='CUST-0002'`)).rows[0]?.id;
+    const prod1 = (await query(`SELECT id FROM products WHERE product_serial='PRD-00001'`)).rows[0]?.id;
+    const prod2 = (await query(`SELECT id FROM products WHERE product_serial='PRD-00002'`)).rows[0]?.id;
+    const sheet1 = (await query(`SELECT id FROM product_sheets WHERE sheet_code='SHEET-001'`)).rows[0]?.id;
+    const sheet2 = (await query(`SELECT id FROM product_sheets WHERE sheet_code='SHEET-002'`)).rows[0]?.id;
+    if (adminId && cust1 && prod1) {
+      const { rows: [o1] } = await query(
+        `INSERT INTO om_orders (order_number, customer_id, order_date, created_by, assigned_supervisor_id, priority, status, notes, subtotal, tax_amount, grand_total)
+         VALUES ('ORD-2026-000001', $1, current_date, $2, $3, 'high', 'approved', 'Urgent order for Mumbai', 15000, 2700, 17700) RETURNING id`,
+        [cust1, adminId, supId]);
+      if (o1) {
+        await query(
+          `INSERT INTO om_order_items (order_id, line_no, product_id, size_label, quantity, unit_price, tax_percent, tax_amount, total)
+           VALUES ($1, 1, $2, 'M', 10, 1500, 18, 2700, 17700)`, [o1.id, prod1]);
+        if (prod1Id) {
+          await query(`INSERT INTO production_tasks (order_id, order_item_id, assigned_user_id, assigned_by, supervisor_id, priority, status, due_date)
+                       VALUES ($1, (SELECT id FROM om_order_items WHERE order_id=$1 LIMIT 1), $2, $3, $4, 'high', 'pending', current_date + 7)`,
+            [o1.id, prod1Id, adminId, supId]);
+        }
+        await query(`INSERT INTO order_status_history (order_id, new_status, changed_by, remarks) VALUES ($1, 'draft', $2, 'Created')`, [o1.id, adminId]);
+        await query(`INSERT INTO order_status_history (order_id, previous_status, new_status, changed_by, remarks) VALUES ($1, 'draft', 'submitted', $2, 'Submitted')`, [o1.id, adminId]);
+        await query(`UPDATE om_orders SET submitted_at=now() WHERE id=$1`, [o1.id]);
+        await query(`INSERT INTO order_status_history (order_id, previous_status, new_status, changed_by, remarks) VALUES ($1, 'submitted', 'approved', $2, 'Approved')`, [o1.id, adminId]);
+        await query(`UPDATE om_orders SET approved_at=now() WHERE id=$1`, [o1.id]);
+        await query(`INSERT INTO order_status_history (order_id, previous_status, new_status, changed_by, remarks) VALUES ($1, 'approved', 'assigned', $2, 'Assigned to production')`, [o1.id, adminId]);
+      }
+      const { rows: [o2] } = await query(
+        `INSERT INTO om_orders (order_number, customer_id, order_date, created_by, priority, status, notes, subtotal, tax_amount, grand_total)
+         VALUES ('ORD-2026-000002', $1, current_date, $2, 'normal', 'draft', 'Regular order', 8500, 1530, 10030) RETURNING id`,
+        [cust2, adminId]);
+      if (o2) {
+        await query(
+          `INSERT INTO om_order_items (order_id, line_no, product_id, size_label, quantity, unit_price, tax_percent, tax_amount, total)
+           VALUES ($1, 1, $2, 'L', 5, 1700, 18, 1530, 10030)`, [o2.id, prod2 || prod1]);
+      }
+      console.log('✔ Sample orders seeded');
+    }
+  }
 
   console.log('✔ Users seeded');
 

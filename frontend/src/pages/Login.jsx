@@ -3,6 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth.jsx';
 import { errMessage } from '../api.js';
 
+const DEMO_ACCOUNTS = [
+  { email: 'admin@bsc.local', password: 'Admin@123', role: 'Super Admin' },
+  { email: 'supervisor.men@bsc.local', password: 'SUP@12345', role: 'Men Section Supervisor' },
+  { email: 'prod1@bsc.local', password: 'PROD@123', role: 'Men Production User' },
+  { email: 'buyer.dvg@bsc.local', password: 'PE@12345', role: 'Purchase Executive' },
+  { email: 'approver.dvg@bsc.local', password: 'AP@12345', role: 'Approver' },
+  { email: 'viewer@bsc.local', password: 'VW@12345', role: 'Viewer' },
+];
+
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -24,13 +33,19 @@ export default function Login() {
     }
   }
 
+  function fillDemo(acct) {
+    setIdentifier(acct.email);
+    setPassword(acct.password);
+    setError('');
+  }
+
   return (
     <div className="login-wrap">
       <form className="login-card" onSubmit={submit}>
         <div className="login-brand">
           <div className="brand-mark">B</div>
           <h1>BSC Exclusive — POMS</h1>
-          <div className="muted">Purchase Order Management System</div>
+          <div className="muted">Product, Role & Order Management System</div>
         </div>
         {error && <div className="alert error">{error}</div>}
         <label className="field">
@@ -45,11 +60,15 @@ export default function Login() {
           {busy ? 'Signing in…' : 'Sign in'}
         </button>
         <div className="demo-creds">
-          <strong>Demo accounts (after seed):</strong><br />
-          admin@bsc.local / Admin@123 — Super Admin<br />
-          buyer.dvg@bsc.local / PE@12345 — Purchase Executive<br />
-          approver.dvg@bsc.local / AP@12345 — Approver<br />
-          receiver.dvg@bsc.local / RC@12345 — Receiving User
+          <strong>Quick fill — click any account:</strong>
+          <div className="demo-list">
+            {DEMO_ACCOUNTS.map((acct) => (
+              <button key={acct.email} type="button" className="demo-item" onClick={() => fillDemo(acct)}>
+                <span className="demo-email">{acct.email}</span>
+                <span className="demo-role">{acct.role}</span>
+              </button>
+            ))}
+          </div>
         </div>
         <a className="back-to-landing" href="/landing">← Back to the overview page</a>
       </form>
