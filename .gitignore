@@ -4,3 +4,4 @@ dist/
 pgdata/
 *.log
 backend/uploads/
+.claude/

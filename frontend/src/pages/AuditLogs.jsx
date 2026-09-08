@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import api, { errMessage } from '../api.js';
 
 export default function AuditLogs() {
@@ -41,8 +41,8 @@ export default function AuditLogs() {
           </thead>
           <tbody>
             {rows.map((a) => (
-              <>
-                <tr key={a.id} className="clickable" onClick={() => setExpanded(expanded === a.id ? null : a.id)}>
+              <Fragment key={a.id}>
+                <tr className="clickable" onClick={() => setExpanded(expanded === a.id ? null : a.id)}>
                   <td className="mono">{new Date(a.occurred_at).toLocaleString('en-IN')}</td>
                   <td>{a.user_name || 'System'}</td>
                   <td className="muted">{a.user_role}</td>
@@ -61,7 +61,7 @@ export default function AuditLogs() {
                     </div>
                   </td></tr>
                 )}
-              </>
+              </Fragment>
             ))}
             {!rows.length && <tr><td colSpan={7} className="muted">No audit events match.</td></tr>}
           </tbody>

@@ -15,6 +15,10 @@ import miscRoutes from './routes/misc.js';
 import chatRoutes from './routes/chat.js';
 import uploadRoutes from './routes/uploads.js';
 import searchRoutes from './routes/search.js';
+import manufacturerRoutes from './routes/manufacturers.js';
+import roleRoutes from './routes/roles.js';
+import pricingRoutes from './routes/pricing.js';
+import videoRoutes from './routes/videos.js';
 
 selfTest(); // RB-017 guard: engine must reproduce FRS §13.3 exactly at boot
 
@@ -51,6 +55,10 @@ app.use('/api/reports', reportRoutes);
 app.use('/api', miscRoutes); // /api/audit-logs, /api/notifications, /api/settings
 app.use('/api/chat', chatRoutes);
 app.use('/api', searchRoutes); // /api/search
+app.use('/api/manufacturers', manufacturerRoutes);
+app.use('/api/roles', roleRoutes);
+app.use('/api/pricing', pricingRoutes);
+app.use('/api/videos', videoRoutes);
 
 // ---- Serve the built React client (single-origin full-stack site) ----
 import path from 'node:path';

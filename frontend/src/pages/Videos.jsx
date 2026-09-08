@@ -15,7 +15,8 @@ function fmtDate(d) {
 }
 
 export default function Videos() {
-  const { hasPermission, isSuperAdmin } = useAuth();
+  const { hasPermission, user } = useAuth();
+  const isSuperAdmin = user?.isSuperAdmin;
   const [videos, setVideos] = useState(null);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');

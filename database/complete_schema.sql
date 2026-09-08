@@ -1,7 +1,6 @@
 -- ============================================================
 -- POMS — COMPLETE SQL SCRIPT (fresh install, one shot)
--- Contains: schema.sql (v1.0 core) + migrations/001_chat.sql
---           + migrations/002_ui_upgrade.sql
+-- Contains: schema.sql (v1.0 core) + migrations 001-006
 -- Usage: createdb -h localhost -p 5433 -U postgres poms
 --        psql   -h localhost -p 5433 -U postgres -d poms -f complete_schema.sql
 --        (then: cd backend && npm run seed)
@@ -588,3 +587,89 @@ INSERT INTO settings (key, value, description)
 VALUES ('uploads.policy', '{"maxSizeMb": 200, "allowed": "*"}'::jsonb,
         'Universal attachment policy: every file type accepted up to the size cap')
 ON CONFLICT (key) DO NOTHING;
+
+-- ============================================================
+-- MIGRATION 003: Men's Apparel Collection Management
+-- ============================================================
+CREATE TABLE IF NOT EXISTS manufacturers (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  code           text NOT NULL UNIQUE,
+  name           text NOT NULL,
+  contact_person text,
+  phone          text,
+  email          text,
+  address        text,
+  city           text,
+  state          text,
+  country        text DEFAULT 'India',
+  gstin          text,
+  notes          text,
+  status         entity_status NOT NULL DEFAULT 'active',
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  updated_at     timestamptz NOT NULL DEFAULT now()
+);
+DO $$ BEGIN CREATE TRIGGER trg_manufacturers_upd BEFORE UPDATE ON manufacturers FOR EACH ROW EXECUTE FUNCTION set_updated_at(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+CREATE TABLE IF NOT EXISTS product_manufacturers (product_id uuid NOT NULL REFERENCES products(id) ON DELETE CASCADE, manufacturer_id uuid NOT NULL REFERENCES manufacturers(id), PRIMARY KEY (product_id, manufacturer_id));
+ALTER TABLE products ADD COLUMN IF NOT EXISTS material text;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS pattern text;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS fit text;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS neck_type text;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS sleeve_type text;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS season text;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS gender text DEFAULT 'men';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS collection text DEFAULT 'mens_wear';
+ALTER TABLE products ADD COLUMN IF NOT EXISTS purchase_price numeric(12,2) DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS selling_price numeric(12,2) DEFAULT 0;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode text;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS internal_ref text;
+DO $$ BEGIN ALTER TABLE products ADD COLUMN profit_amount numeric(12,2) GENERATED ALWAYS AS (selling_price - purchase_price) STORED; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE products ADD COLUMN profit_margin numeric(5,2) GENERATED ALWAYS AS (CASE WHEN purchase_price > 0 THEN ROUND(((selling_price - purchase_price) / purchase_price) * 100, 2) ELSE 0 END) STORED; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+CREATE INDEX IF NOT EXISTS idx_products_gender ON products(gender);
+CREATE INDEX IF NOT EXISTS idx_products_collection ON products(collection);
+CREATE INDEX IF NOT EXISTS idx_products_category ON products(category_id);
+CREATE INDEX IF NOT EXISTS idx_products_material ON products(material);
+CREATE INDEX IF NOT EXISTS idx_products_status ON products(status);
+INSERT INTO roles (code, name) VALUES ('admin', 'Admin'), ('men_collection_manager', 'Men''s Collection Manager'), ('purchaser_manager', 'Purchaser Manager') ON CONFLICT (code) DO NOTHING;
+INSERT INTO permissions (code, module, description) VALUES ('products.view', 'product', 'View products'), ('products.create', 'product', 'Create products'), ('products.edit', 'product', 'Edit products'), ('products.delete', 'product', 'Delete/archive products'), ('categories.manage', 'category', 'Manage categories'), ('brands.manage', 'brand', 'Manage brands'), ('manufacturers.manage', 'manufacturer', 'Manage manufacturers'), ('colors.manage', 'color', 'Manage colors'), ('sizes.manage', 'size', 'Manage sizes'), ('attributes.manage', 'attribute', 'Manage product attributes'), ('pricing.view', 'pricing', 'View pricing information'), ('pricing.manage', 'pricing', 'Manage pricing'), ('orders.create', 'order', 'Create purchase orders'), ('orders.view', 'order', 'View purchase orders'), ('orders.manage', 'order', 'Manage order statuses'), ('reports.export', 'report', 'Export reports as PDF/CSV'), ('settings.manage', 'settings', 'Manage system settings') ON CONFLICT (code) DO NOTHING;
+INSERT INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.code = 'admin' ON CONFLICT DO NOTHING;
+INSERT INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.code = 'men_collection_manager' AND p.code IN ('products.view', 'products.create', 'products.edit', 'categories.manage', 'brands.manage', 'manufacturers.manage', 'colors.manage', 'sizes.manage', 'attributes.manage', 'pricing.view', 'pricing.manage', 'reports.view', 'reports.export') ON CONFLICT DO NOTHING;
+INSERT INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.code = 'purchaser_manager' AND p.code IN ('products.view', 'orders.create', 'orders.view', 'reports.view', 'reports.export') ON CONFLICT DO NOTHING;
+INSERT INTO settings (key, value, description) VALUES ('currency', '"INR"', 'Default currency'), ('currency_symbol', '"₹"', 'Currency symbol'), ('app_name', '"BSC Exclusive POMS"', 'Application name'), ('app_version', '"1.0.0"', 'Version') ON CONFLICT (key) DO NOTHING;
+
+-- ============================================================
+-- MIGRATION 004: Apparel product junctions
+-- ============================================================
+CREATE TABLE IF NOT EXISTS product_sizes (product_id uuid NOT NULL REFERENCES products(id) ON DELETE CASCADE, size_id uuid NOT NULL REFERENCES sizes(id), PRIMARY KEY (product_id, size_id));
+CREATE TABLE IF NOT EXISTS product_colours (product_id uuid NOT NULL REFERENCES products(id) ON DELETE CASCADE, colour_id uuid NOT NULL REFERENCES colours(id), PRIMARY KEY (product_id, colour_id));
+CREATE INDEX IF NOT EXISTS idx_product_sizes_size ON product_sizes(size_id);
+CREATE INDEX IF NOT EXISTS idx_product_colours_colour ON product_colours(colour_id);
+
+-- ============================================================
+-- MIGRATION 005: Training / Media Video Library
+-- ============================================================
+CREATE TABLE IF NOT EXISTS videos (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), title text NOT NULL, description text, category text NOT NULL DEFAULT 'general', module text, file_name text NOT NULL, mime_type text NOT NULL, size_bytes bigint NOT NULL, storage_key text NOT NULL, thumbnail_key text, duration_seconds integer, status entity_status NOT NULL DEFAULT 'active', uploaded_by uuid REFERENCES users(id), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE INDEX IF NOT EXISTS idx_videos_category ON videos(category, status);
+CREATE INDEX IF NOT EXISTS idx_videos_created ON videos(created_at DESC);
+DO $$ BEGIN CREATE TRIGGER trg_videos_upd BEFORE UPDATE ON videos FOR EACH ROW EXECUTE FUNCTION set_updated_at(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+INSERT INTO permissions (code, module, description) VALUES ('videos.view', 'video', 'View video library'), ('videos.manage', 'video', 'Upload/edit/archive videos') ON CONFLICT (code) DO NOTHING;
+INSERT INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.code IN ('super_admin', 'admin', 'domain_admin', 'men_collection_manager') AND p.code IN ('videos.view', 'videos.manage') ON CONFLICT DO NOTHING;
+INSERT INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.code IN ('super_admin', 'admin', 'domain_admin', 'purchase_manager', 'purchase_executive', 'viewer') AND p.code = 'videos.view' ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- MIGRATION 006: Locations, Brand assets, Product types, Colour images
+-- ============================================================
+CREATE TABLE IF NOT EXISTS locations (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), code text NOT NULL UNIQUE, name text NOT NULL, address text, city text, state text, country text DEFAULT 'India', latitude numeric(10,7), longitude numeric(10,7), contact_person text, phone text, notes text, status entity_status NOT NULL DEFAULT 'active', created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+DO $$ BEGIN CREATE TRIGGER trg_locations_upd BEFORE UPDATE ON locations FOR EACH ROW EXECUTE FUNCTION set_updated_at(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE purchase_orders ADD COLUMN location_id uuid REFERENCES locations(id); EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE brands ADD COLUMN logo_url text; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE brands ADD COLUMN image_url text; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE brands ADD COLUMN description text; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE colours ADD COLUMN image_url text; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE colours ADD COLUMN description text; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+CREATE TABLE IF NOT EXISTS product_types (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), section_id uuid NOT NULL REFERENCES sections(id), category_id uuid REFERENCES categories(id), subcategory_id uuid REFERENCES categories(id), code text NOT NULL, name text NOT NULL, status entity_status NOT NULL DEFAULT 'active', created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(), CONSTRAINT uq_product_type UNIQUE (section_id, category_id, subcategory_id, code));
+DO $$ BEGIN CREATE TRIGGER trg_product_types_upd BEFORE UPDATE ON product_types FOR EACH ROW EXECUTE FUNCTION set_updated_at(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE products ADD COLUMN product_type_id uuid REFERENCES product_types(id); EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+DO $$ BEGIN ALTER TABLE products ADD COLUMN manual_size text; EXCEPTION WHEN duplicate_column THEN NULL; END $$;
+INSERT INTO locations (code, name, address, city, state, country, latitude, longitude) VALUES ('DVG', 'Davangere', 'Davangere, Karnataka', 'Davangere', 'Karnataka', 'India', 14.4673600, 74.9966800), ('SMG', 'Shivamogga', 'Shivamogga, Karnataka', 'Shivamogga', 'Karnataka', 'India', 13.9299300, 75.5681000), ('BGV', 'Bhigervi', 'Bhigervi, Karnataka', 'Bhigervi', 'Karnataka', 'India', NULL, NULL) ON CONFLICT (code) DO NOTHING;
+INSERT INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.code = 'admin' ON CONFLICT DO NOTHING;
+INSERT INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.code = 'super_admin' AND p.code IN ('products.view', 'products.create', 'products.edit', 'products.delete', 'categories.manage', 'brands.manage', 'manufacturers.manage', 'colors.manage', 'sizes.manage', 'attributes.manage', 'pricing.view', 'pricing.manage', 'orders.create', 'orders.view', 'orders.manage', 'reports.export', 'settings.manage') ON CONFLICT DO NOTHING;

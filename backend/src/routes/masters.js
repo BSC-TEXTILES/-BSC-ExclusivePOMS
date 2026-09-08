@@ -161,7 +161,7 @@ r.get('/categories', VIEW, ah(async (req, res) => {
   const { sectionId } = req.query;
   const params = sectionId ? [sectionId] : [];
   const { rows } = await query(
-    `SELECT * FROM categories WHERE status <> 'archived' ${sectionId ? 'WHERE section_id=$1' : ''} ORDER BY code`, params);
+    `SELECT * FROM categories WHERE status <> 'archived' ${sectionId ? 'AND section_id=$1' : ''} ORDER BY code`, params);
   res.json({ data: rows });
 }));
 

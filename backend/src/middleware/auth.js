@@ -73,6 +73,14 @@ export function requirePermission(code) {
   };
 }
 
+export function requireAnyPermission(codes) {
+  return (req, res, next) => {
+    if (req.user.isSuperAdmin) return next();
+    if (codes.some(c => req.user.permissions.includes(c))) return next();
+    next(forbidden(`Missing any of permissions: ${codes.join(', ')}`));
+  };
+}
+
 // RB-001: user may act only within divisions granted by authorization policy.
 export function scopeDivision(req, divisionId) {
   if (req.user.isSuperAdmin) return;
