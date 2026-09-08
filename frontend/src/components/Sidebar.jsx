@@ -46,21 +46,23 @@ export default function Sidebar({ collapsed, onToggle }) {
           </div>
         )}
       </div>
-      <nav>
-        {items.map((n) => (
-          <NavLink key={n.to} to={n.to} end={n.end} title={n.label}
-            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
-            <Icon name={n.icon} size={18} />
-            {!collapsed && <span>{n.label}</span>}
-          </NavLink>
-        ))}
-      </nav>
-      <button className="btn primary create-po" title="Create Master PO"
-        onClick={() => (window.location.href = '/purchase-orders/new')}>
-        <Icon name="plus" size={16} />
-        {!collapsed && <span>Create Master PO</span>}
-      </button>
-      {!collapsed && <div className="sidebar-foot">POMS v2.0 · role-scoped</div>}
+      <div className="sidebar-scroll">
+        <nav>
+          {items.map((n) => (
+            <NavLink key={n.to} to={n.to} end={n.end} title={n.label}
+              className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}>
+              <Icon name={n.icon} size={18} />
+              {!collapsed && <span>{n.label}</span>}
+            </NavLink>
+          ))}
+        </nav>
+        <button className="btn primary create-po" title="Create Master PO"
+          onClick={() => (window.location.href = '/purchase-orders/new')}>
+          <Icon name="plus" size={16} />
+          {!collapsed && <span>Create Master PO</span>}
+        </button>
+        {!collapsed && <div className="sidebar-foot">POMS v2.0 · role-scoped</div>}
+      </div>
     </aside>
   );
 }
