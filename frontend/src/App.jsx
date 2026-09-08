@@ -39,6 +39,7 @@ import NotFound from './pages/NotFound.jsx';
 import Collections from './pages/Collections.jsx';
 import Dealers from './pages/Dealers.jsx';
 import CompanySettings from './pages/CompanySettings.jsx';
+import Attachments from './pages/Attachments.jsx';
 
 function RequireAuth({ children, permission }) {
   const { user, hasPermission } = useAuth();
@@ -96,6 +97,7 @@ export default function App() {
         <Route path="/collections" element={<RequireAuth permission="collections.view"><Collections /></RequireAuth>} />
         <Route path="/dealers" element={<RequireAuth permission="dealers.view"><Dealers /></RequireAuth>} />
         <Route path="/company" element={<RequireAuth permission="company.view"><CompanySettings /></RequireAuth>} />
+        <Route path="/attachments" element={<RequireAuth permission="masters.view"><Attachments /></RequireAuth>} />
             <Route path="/products" element={<RequireAuth permission="masters.view"><Products /></RequireAuth>} />
             <Route path="/products/new" element={<RequireAuth permission="masters.manage"><ProductForm /></RequireAuth>} />
             <Route path="/products/:id" element={<RequireAuth permission="masters.view"><ProductDetail /></RequireAuth>} />

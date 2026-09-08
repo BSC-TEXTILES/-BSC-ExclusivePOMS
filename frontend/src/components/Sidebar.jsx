@@ -30,6 +30,7 @@ const NAV = [
   { to: '/collections', label: 'Collections', icon: 'masters', permission: 'collections.view' },
   { to: '/dealers', label: 'Dealers', icon: 'building', permission: 'dealers.view' },
   { to: '/company', label: 'Company Settings', icon: 'settings', permission: 'company.view' },
+  { to: '/attachments', label: 'Attachments', icon: 'catalogue', permission: 'masters.view' },
 ];
 
 // Role-filtered navigation. Collapses to an icon rail (hamburger toggles, state
