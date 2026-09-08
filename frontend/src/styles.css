@@ -156,6 +156,39 @@ table.grid td.num, table.grid th.num { text-align: right; font-variant-numeric: 
   animation: loginSpin 0.7s linear infinite;
 }
 
+/* ---------- Password toggle ---------- */
+.pwd-wrap { position: relative; display: flex; }
+.pwd-wrap input { flex: 1; padding-right: 42px; }
+.pwd-toggle {
+  position: absolute; right: 1px; top: 1px; bottom: 1px;
+  width: 40px; display: grid; place-items: center;
+  border: none; background: transparent; color: var(--muted);
+  cursor: pointer; border-radius: 0 7px 7px 0;
+}
+.pwd-toggle:hover { color: var(--brand-ink); background: rgba(0,0,0,.04); }
+
+/* ---------- Quick user chips ---------- */
+.demo-users-section { margin-top: 16px; }
+.demo-users-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 8px; }
+.demo-users-grid { display: flex; flex-direction: column; gap: 6px; }
+.demo-user-chip {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; background: #fff; cursor: pointer;
+  transition: all 0.15s ease; text-align: left;
+}
+.demo-user-chip:hover { border-color: var(--accent); background: #fefbf1; }
+.demo-user-chip.active { border-color: var(--accent); background: #fffbe6; box-shadow: 0 0 0 2px rgba(185,138,47,.15); }
+.demo-user-avatar {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  display: grid; place-items: center;
+  font-weight: 700; font-size: 13px; flex-shrink: 0;
+}
+.demo-user-info { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.demo-user-name { font-size: 12.5px; font-weight: 600; color: var(--brand-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.demo-user-role { font-size: 10.5px; color: var(--muted); }
+
 .tabs { display: flex; gap: 4px; border-bottom: 2px solid var(--line); margin-bottom: 16px; flex-wrap: wrap; }
 .tab { padding: 9px 16px; cursor: pointer; border: none; background: none; font-size: 13.5px; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -2px; }
 .tab.active { color: var(--brand-ink); font-weight: 700; border-bottom-color: var(--accent); }
