@@ -1,8 +1,8 @@
 -- ============================================================
 -- POMS — COMPLETE SQL SCRIPT (fresh install, one shot)
--- Contains: schema.sql (v1.0 core) + migrations 001-006
--- Usage: createdb -h localhost -p 5433 -U postgres poms
---        psql   -h localhost -p 5433 -U postgres -d poms -f complete_schema.sql
+-- Contains: schema.sql (v1.0 core) + migrations 001-013
+-- Usage: createdb -h localhost -p 5432 -U postgres poms
+--        psql   -h localhost -p 5432 -U postgres -d poms -f complete_schema.sql
 --        (then: cd backend && npm run seed)
 -- Applied databases can instead run only migrations/ files they lack.
 -- ============================================================
@@ -673,3 +673,198 @@ DO $$ BEGIN ALTER TABLE products ADD COLUMN manual_size text; EXCEPTION WHEN dup
 INSERT INTO locations (code, name, address, city, state, country, latitude, longitude) VALUES ('DVG', 'Davangere', 'Davangere, Karnataka', 'Davangere', 'Karnataka', 'India', 14.4673600, 74.9966800), ('SMG', 'Shivamogga', 'Shivamogga, Karnataka', 'Shivamogga', 'Karnataka', 'India', 13.9299300, 75.5681000), ('BGV', 'Bhigervi', 'Bhigervi, Karnataka', 'Bhigervi', 'Karnataka', 'India', NULL, NULL) ON CONFLICT (code) DO NOTHING;
 INSERT INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.code = 'admin' ON CONFLICT DO NOTHING;
 INSERT INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.code = 'super_admin' AND p.code IN ('products.view', 'products.create', 'products.edit', 'products.delete', 'categories.manage', 'brands.manage', 'manufacturers.manage', 'colors.manage', 'sizes.manage', 'attributes.manage', 'pricing.view', 'pricing.manage', 'orders.create', 'orders.view', 'orders.manage', 'reports.export', 'settings.manage') ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- MIGRATION 007: Brand logo (already added in 006)
+-- ============================================================
+
+-- ============================================================
+-- MIGRATION 008: Collections, Dealers, Company Settings
+-- ============================================================
+CREATE TABLE IF NOT EXISTS collections (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  code          text NOT NULL UNIQUE,
+  name          text NOT NULL,
+  description   text,
+  display_order integer NOT NULL DEFAULT 0,
+  status        entity_status NOT NULL DEFAULT 'active',
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS user_collections (
+  user_id       uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  collection_id uuid NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+  PRIMARY KEY (user_id, collection_id)
+);
+
+CREATE TABLE IF NOT EXISTS brand_collections (
+  brand_id      uuid NOT NULL REFERENCES brands(id) ON DELETE CASCADE,
+  collection_id uuid NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+  PRIMARY KEY (brand_id, collection_id)
+);
+
+CREATE TABLE IF NOT EXISTS dealers (
+  id              uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  code            text NOT NULL UNIQUE,
+  company_name    text NOT NULL,
+  contact_person  text,
+  phone           text,
+  email           text,
+  address         text,
+  city            text,
+  state           text,
+  gstin           text,
+  pan             text,
+  payment_terms   payment_terms NOT NULL DEFAULT 'net_30',
+  notes           text,
+  status          entity_status NOT NULL DEFAULT 'active',
+  created_at      timestamptz NOT NULL DEFAULT now(),
+  updated_at      timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS company_settings (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  company_name  text NOT NULL DEFAULT 'BSC Exclusive Pvt. Ltd.',
+  logo_url      text,
+  address       text,
+  city          text,
+  state         text,
+  pin_code      text,
+  phone         text,
+  email         text,
+  gst_number    text,
+  website       text,
+  created_at    timestamptz NOT NULL DEFAULT now(),
+  updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+DO $$ BEGIN CREATE TRIGGER trg_collections_upd BEFORE UPDATE ON collections FOR EACH ROW EXECUTE FUNCTION set_updated_at(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER trg_dealers_upd BEFORE UPDATE ON dealers FOR EACH ROW EXECUTE FUNCTION set_updated_at(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE TRIGGER trg_company_settings_upd BEFORE UPDATE ON company_settings FOR EACH ROW EXECUTE FUNCTION set_updated_at(); EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+INSERT INTO collections (code, name, display_order) VALUES
+  ('mens_wear',        'Men',               1),
+  ('womens_wear',      'Women',             2),
+  ('kids_wear',        'Kids',              3),
+  ('home_furnishing',  'Home Furnishing',   4),
+  ('jewellery',        'Jewellery',         5),
+  ('wedding',          'Wedding Collection',6),
+  ('suits',            'Suits',             7),
+  ('dothis_dozolo',    'Dothis / Dozolo',   8),
+  ('towels',           'Towels',            9),
+  ('other',            'Other Collections', 10)
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO company_settings (company_name, address, city, state, phone, email)
+VALUES ('BSC Exclusive Pvt. Ltd.', 'Davanagere, Karnataka', 'Davanagere', 'Karnataka', '+91-9876543210', 'info@bscexclusive.in')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO permissions (code, module, description) VALUES
+  ('collections.view',   'collections',   'View collections'),
+  ('collections.manage', 'collections',   'Manage collections'),
+  ('dealers.view',       'dealers',       'View dealers'),
+  ('dealers.manage',     'dealers',       'Manage dealers'),
+  ('company.view',       'company',       'View company settings'),
+  ('company.manage',     'company',       'Manage company settings')
+ON CONFLICT (code) DO NOTHING;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id FROM roles r, permissions p
+WHERE r.code IN ('admin', 'super_admin')
+  AND p.code IN ('collections.view','collections.manage','dealers.view','dealers.manage','company.view','company.manage')
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- MIGRATION 009: Remove non-admin users (data cleanup, skip on fresh install)
+-- ============================================================
+
+-- ============================================================
+-- MIGRATION 010: File Attachments
+-- ============================================================
+CREATE TABLE IF NOT EXISTS file_attachments (
+  id          uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  file_name   text NOT NULL,
+  mime_type   text NOT NULL DEFAULT 'application/octet-stream',
+  size_bytes  bigint NOT NULL,
+  storage_key text NOT NULL,
+  description text,
+  uploaded_by uuid NOT NULL REFERENCES users(id),
+  uploaded_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS idx_file_attachments_uploaded ON file_attachments (uploaded_at DESC);
+
+-- ============================================================
+-- MIGRATION 011: Account Manager role + Vladimir user
+-- ============================================================
+INSERT INTO roles (code, name, description)
+VALUES ('account_manager', 'Account & Category Manager',
+        'Creates user accounts and manages category sections. Roles and access scope are decided by the Administrator.')
+ON CONFLICT (code) DO UPDATE SET name = EXCLUDED.name, description = EXCLUDED.description;
+
+INSERT INTO role_permissions (role_id, permission_id)
+SELECT r.id, p.id
+  FROM roles r, permissions p
+ WHERE r.code = 'account_manager'
+   AND p.code IN ('users.manage', 'masters.view', 'masters.manage')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO users (email, username, password_hash, full_name, status, force_password_reset)
+VALUES ('vladimir@bsc.local', 'vladimir',
+        '$2a$10$0mdtUMxM3J2Ae8CpjtbKpu0dOd32FsPjFD9ql2DeFeVMsOcxdgcCe',
+        'Vladimir', 'active', false)
+ON CONFLICT (email) DO UPDATE
+   SET password_hash = EXCLUDED.password_hash,
+       username      = EXCLUDED.username,
+       full_name     = EXCLUDED.full_name,
+       status        = 'active',
+       force_password_reset = true;
+
+INSERT INTO user_roles (user_id, role_id)
+SELECT u.id, r.id
+  FROM users u, roles r
+ WHERE u.email = 'vladimir@bsc.local' AND r.code = 'account_manager'
+ON CONFLICT DO NOTHING;
+
+-- ============================================================
+-- MIGRATION 012: User Sessions, Profile Tracking, Security Settings
+-- ============================================================
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_updated_at timestamptz;
+
+CREATE TABLE IF NOT EXISTS user_sessions (
+  id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id       uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tab_id        text NOT NULL,
+  login_at      timestamptz NOT NULL DEFAULT now(),
+  logout_at     timestamptz,
+  last_seen_at  timestamptz NOT NULL DEFAULT now(),
+  ip_address    text,
+  user_agent    text,
+  device_type   text,
+  browser       text,
+  os            text,
+  screen        text,
+  current_route text,
+  current_title text,
+  latitude      double precision,
+  longitude     double precision,
+  location_accuracy double precision,
+  devtools_seen boolean NOT NULL DEFAULT false,
+  ended_reason  text,
+  CONSTRAINT uq_user_session_tab UNIQUE (user_id, tab_id)
+);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_seen ON user_sessions(last_seen_at);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user ON user_sessions(user_id);
+
+INSERT INTO settings (key, value, description)
+VALUES ('security', '{"devtoolsBlock": true}'::jsonb,
+        'DevTools blocking — when on, opening browser developer tools blocks login and ends the session')
+ON CONFLICT (key) DO NOTHING;
+
+-- ============================================================
+-- MIGRATION 013: Performance Indexes
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_audit_occurred ON audit_logs (occurred_at DESC);
+CREATE INDEX IF NOT EXISTS idx_receipt_items_po_item ON receipt_items (po_item_id);
+CREATE INDEX IF NOT EXISTS idx_po_items_po ON purchase_order_items (po_id);
+CREATE INDEX IF NOT EXISTS idx_po_created ON purchase_orders (created_at DESC);
