@@ -83,6 +83,15 @@ export function renderReportPDF({ title, generatedBy, filters = [], columns = []
   prims.push({ type: 'line', x1: M, y1: y, x2: W - M, y2: y, color: LINE });
   y += 12;
 
+  // ---- Properly formatted dates in PDF reports (no raw ISO/UTC timestamps) ----
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function fmtPdfDate(v) {
+    if (v === null || v === undefined || v === '') return v;
+    const d = (v instanceof Date) ? v : (/^\d{4}-\d{2}-\d{2}/.test(String(v)) ? new Date(v) : null);
+    if (!d || isNaN(d.getTime())) return v;
+    return `${String(d.getDate()).padStart(2, '0')}-${MONTHS[d.getMonth()]}-${d.getFullYear()}`;
+  }
+
   drawTableHeader();
 
   rows.forEach((row, i) => {
@@ -99,6 +108,7 @@ export function renderReportPDF({ title, generatedBy, filters = [], columns = []
       if (val === null || val === undefined) val = '';
       if (col.money) val = formatINR(Number(val));
       else if (col.num) val = Number(val).toLocaleString('en-IN');
+      else if (col.key && /date/i.test(col.key)) val = fmtPdfDate(val);
       const text = fitText(val, col.width - 8, 8);
       prims.push({ type: 'text', text, x: col.num || col.money ? x + col.width - 8 - text.length * 4 : x, y: y + 11, size: 8, color: INK });
       x += col.width;

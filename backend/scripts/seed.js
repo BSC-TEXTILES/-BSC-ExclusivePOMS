@@ -48,6 +48,7 @@ async function main() {
     ['receiving_user', 'Receiving User'],
     ['viewer', 'Viewer'],
     ['auditor', 'Auditor'],
+    ['division_supervisor', 'Division Supervisor'],
   ];
   for (const [code, name] of ROLES) {
     await query(`INSERT INTO roles (code, name) VALUES ($1,$2) ON CONFLICT (code) DO NOTHING`, [code, name]);
@@ -61,6 +62,11 @@ async function main() {
     approver: ['po.view', 'approvals.view', 'approvals.act'],
     receiving_user: ['po.view', 'receipt.view', 'receipt.create', 'inventory.view'],
     viewer: ['po.view', 'reports.view', 'inventory.view'],
+    // Division Supervisor: strictly read-only, section-scoped (Men's section only
+    // in the demo seed). Can browse the catalogue (read-only) and view PO
+    // details and the restricted summary — no create/edit/submit/approve
+    // rights at all (RB-001 / RB-018).
+    division_supervisor: ['masters.view', 'po.view', 'reports.view'],
     auditor: ['po.view', 'audit.view', 'reports.view'],
   };
   for (const [roleCode, permCodes] of Object.entries(ROLE_PERMS)) {
@@ -264,6 +270,7 @@ async function main() {
     ['viewer@bsc.local', 'viewer', 'Enterprise Viewer', ['viewer'], ['DVG', 'SMG', 'BLG'], [], 'VW@12345'],
     ['auditor@bsc.local', 'auditor', 'Enterprise Auditor', ['auditor'], ['DVG', 'SMG', 'BLG'], [], 'AU@12345'],
     ['sureshmen', 'sureshmen', 'Suresh Men', ['purchase_executive'], ['DVG'], ['MEN-SHIRTS'], 'Buyer@12345'],
+    ['men.supervisor@bsc.local', 'men.supervisor', "Men's Section Division Supervisor", ['division_supervisor'], ['DVG'], ['MEN-SHIRTS', 'MEN-TROUSERS', 'MEN-TSHIRTS', 'MEN-ETHNIC', 'MEN-INNERWEAR', 'FOOTWEAR-M'], 'DS@12345'],
   ];
   for (const [email, username, fullName, roleCodes, divCodes, secCodes, password] of USERS) {
     const { rows } = await query(

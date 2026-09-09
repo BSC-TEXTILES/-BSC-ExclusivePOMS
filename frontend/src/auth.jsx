@@ -1,4 +1,54 @@
-import { createContext, useContext, useState } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
+
+// Cart context — pending purchase orders placed by ANY role (admin, supervisor,
+// purchase executive). Shown in the top-navigation cart icon; reviewed and
+// crosschecked at checkout before the order is finally placed, after which a
+// complete summary invoice is generated. Persisted per browser.
+const CartContext = createContext(null);
+
+const KEY = 'poms_cart';
+
+export function CartProvider({ children }) {
+  const [items, setItems] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch { return []; }
+  });
+
+  useEffect(() => {
+    try { localStorage.setItem(KEY, JSON.stringify(items)); } catch { /* ignore */ }
+  }, [items]);
+
+  function addItem(po) {
+    if (!po?.id) return;
+    setItems((list) => (list.some((i) => i.id === po.id)
+      ? list
+      : [...list, {
+        id: po.id,
+        poNumber: po.po_number,
+        sectionName: po.section_name || '',
+        supplierName: po.supplier_name || '',
+        itemCount: po.item_count || null,
+        grandTotal: po.grand_total ?? null,
+        status: po.status || 'draft',
+        addedAt: new Date().toISOString(),
+      }]));
+  }
+
+  function removeItem(id) {
+    setItems((list) => list.filter((i) => i.id !== id));
+  }
+
+  function clear() {
+    setItems([]);
+  }
+
+  return (
+    <CartContext.Provider value={{ items, addItem, removeItem, clear, count: items.length }}>
+      {children}
+    </CartContext.Provider>
+  );
+}
+
+export const useCart = () => useContext(CartContext);
 import api from './api.js';
 import { getTabId } from './utils/devtools.js';
 

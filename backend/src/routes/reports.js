@@ -136,6 +136,31 @@ r.get('/dashboard', ah(async (req, res) => {
   res.json({ kpis, byDivision, byStatus, bySection, bySupplier, recentAudit, divisionAdmins, monthly, recentPOs, workProgress, mySections });
 }));
 
+// GET /api/reports/men-summary — restricted Division Supervisor summary (RB-018).
+// Shows ONLY: net purchase margin, total quantity purchased, discount and the
+// individual selling price of each item — scoped to the user's own sections.
+r.get('/men-summary', ah(async (req, res) => {
+  if (req.user.isSuperAdmin) return badRequest('Supervisor summary is for section-scoped users');
+  const { params, W } = poScope(req);
+  const totals = (await query(
+    `SELECT COALESCE(SUM(i.total_quantity),0)::int AS total_quantity,
+            COALESCE(SUM((i.net_value_per_unit - i.purchase_price) * i.total_quantity),0) AS net_purchase_margin,
+            COALESCE(SUM(i.discount_amount * i.total_quantity),0) AS total_discount,
+            COALESCE(SUM(i.line_total),0) AS purchase_value
+       FROM purchase_order_items i
+       JOIN purchase_orders po ON po.id = i.po_id
+      WHERE ${W}`, params)).rows[0];
+  const sellingPrices = (await query(
+    `SELECT i.product_name, i.sku, i.brand_name, i.colour_name, i.purchase_price,
+            i.margin_percent, i.net_value_per_unit, i.discount_amount, i.final_value_per_unit,
+            i.total_quantity, i.line_total
+       FROM purchase_order_items i
+       JOIN purchase_orders po ON po.id = i.po_id
+      WHERE ${W}
+      ORDER BY po.created_at DESC LIMIT 50`, params)).rows;
+  res.json({ totals, sellingPrices });
+}));
+
 // ---------- PO CALENDAR (§16 + day-wise drill-down) ----------
 // GET /api/reports/calendar?year=2026&month=9 → per-day PO counts + values
 r.get('/calendar', ah(async (req, res) => {
@@ -241,13 +266,56 @@ r.get('/:name', ah(async (req, res) => {
   const { rows } = await query(sql, params);
 
   if (req.query.format === 'csv') {
-    if (!rows.length) { res.setHeader('Content-Type', 'text/csv'); return res.send(''); }
-    const cols = Object.keys(rows[0]);
+    // Report-style CSV: title block → data table → OVERALL SUMMARY block, so the
+    // downloaded file opens in Excel exactly like a formatted report (§16.3).
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${name}-${new Date().toISOString().slice(0, 10)}.csv"`);
     const esc = (v) => v === null || v === undefined ? '' : `"${String(v).replace(/"/g, '""')}"`;
-    const csv = [cols.join(','), ...rows.map((r2) => cols.map((c) => esc(r2[c])).join(','))].join('\n');
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', `attachment; filename="${name}.csv"`);
-    return res.send(csv);
+    // Properly formatted dates — no raw ISO/UTC "star" timestamps in downloads.
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const fmtDate = (v) => {
+      if (v === null || v === undefined || v === '') return '';
+      const d = new Date(v);
+      if (isNaN(d.getTime())) return v;
+      return `${String(d.getDate()).padStart(2, '0')}-${MONTHS[d.getMonth()]}-${d.getFullYear()}`;
+    };
+    const isDateCol = (c) => /(^|_)(date|at)$/i.test(c) || /date/i.test(c);
+    const fmtVal = (c, v) => (isDateCol(c) ? fmtDate(v) : v);
+    const L = [];
+    const REPORT_LABELS = {
+      'po-register': 'Purchase Order Register',
+      'purchase-summary': 'Purchase Summary by Division / Department / Section',
+      'dealer': 'Dealer-wise Order Report',
+      'size': 'Size-wise Quantity Report',
+      'margin': 'Product Margin Report',
+      'receiving': 'Goods Receiving / Pending Report',
+    };
+    // ── Title block ──
+    L.push(['BSC EXCLUSIVE — PURCHASE ORDER MANAGEMENT SYSTEM'].map(esc).join(','));
+    L.push([REPORT_LABELS[name] || name].map(esc).join(','));
+    L.push([`Generated: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST`].map(esc).join(','));
+    const rangeLabel = from || to ? `Date Range: ${from || 'Start'} to ${to || 'Today'}${divisionId ? ` | Division: ${divisionId}` : ''}` : 'Date Range: All records';
+    L.push([rangeLabel].map(esc).join(','));
+    L.push('');
+    if (!rows.length) {
+      L.push(['No records found for the selected filters.'].map(esc).join(','));
+      return res.send(L.join('\n'));
+    }
+    // ── Data table ──
+    const cols = Object.keys(rows[0]);
+    const numCols = cols.filter((c) => rows.every((r2) => r2[c] === null || typeof r2[c] === 'number'));
+    L.push(cols.map((c) => esc(c.replace(/_/g, ' ').toUpperCase())).join(','));
+    rows.forEach((r2) => L.push(cols.map((c) => esc(fmtVal(c, r2[c]))).join(',')));
+    // ── OVERALL SUMMARY block ──
+    L.push('');
+    L.push(['OVERALL SUMMARY'].map(esc).join(','));
+    L.push(['Total Records', rows.length].map(esc).join(','));
+    const fmt = (n) => (Number.isInteger(Number(n)) ? String(Number(n)) : Number(n).toFixed(2));
+    numCols.forEach((c) => {
+      const sum = rows.reduce((a, r2) => a + (Number(r2[c]) || 0), 0);
+      L.push([`Total ${c.replace(/_/g, ' ')}`, fmt(sum)].map(esc).join(','));
+    });
+    return res.send(L.join('\n'));
   }
   res.json({ name, columns: rows.length ? Object.keys(rows[0]) : [], data: rows });
 }));

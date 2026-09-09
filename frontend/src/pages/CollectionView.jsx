@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import api, { API_BASE, API_ORIGIN, errMessage } from '../api.js';
-import { useAuth } from '../auth.jsx';
+import { useAuth, useCart } from '../auth.jsx';
 import Modal from '../components/Modal.jsx';
 import Icon from '../components/Icon.jsx';
 import CollectionIcon from '../components/CollectionIcon.jsx';
@@ -112,6 +112,7 @@ const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
 
 export default function CollectionView() {
   const { deptKey } = useParams();
+  const { addItem: addToCart } = useCart();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -430,6 +431,7 @@ export default function CollectionView() {
       }
 
       setCreatedPO(created);
+      addToCart(created); // show in the top-nav cart for crosscheck & checkout
       setPoLines([]);
       setSuccessMsg(`Purchase Order ${created?.po_number || ''} created successfully!`);
     } catch (e) {
@@ -480,22 +482,14 @@ export default function CollectionView() {
 
   return (
     <div className="page collection-view-page">
-      {/* Top Department Hero Banner */}
+      {/* Top Department Banner */}
       <div className="collection-hero-card" style={{ borderLeftColor: config.themeColor }}>
         <div className="collection-hero-main">
           <div className="collection-hero-icon" style={{ background: config.accentBg, color: config.themeColor }}>
             <CollectionIcon name={config.icon} size={34} />
           </div>
           <div>
-            <div className="collection-hero-meta">
-              <span className="collection-badge" style={{ background: config.accentBg, color: config.themeColor }}>
-                Department: {config.code}
-              </span>
-              <span className="collection-badge gray">{deptSections.length} Sub-Sections</span>
-              <span className="collection-badge green">{totalProducts} SKUs Catalogued</span>
-            </div>
             <h1 className="collection-hero-title">{config.title}</h1>
-            <p className="collection-hero-subtitle">{config.subtitle}</p>
           </div>
         </div>
 

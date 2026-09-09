@@ -41,6 +41,7 @@ import Collections from './pages/Collections.jsx';
 import Dealers from './pages/Dealers.jsx';
 import CompanySettings from './pages/CompanySettings.jsx';
 import Attachments from './pages/Attachments.jsx';
+import Checkout from './pages/Checkout.jsx';
 import ProfileModal from './components/ProfileModal.jsx';
 import CookieConsent from './components/CookieConsent.jsx';
 import { PrivacyPolicy, Terms, Security } from './pages/Legal.jsx';
@@ -115,6 +116,7 @@ export default function App() {
             <Route path="/dealers" element={<RequireAuth permission="dealers.view"><Dealers /></RequireAuth>} />
             <Route path="/company" element={<RequireAuth permission="company.view"><CompanySettings /></RequireAuth>} />
             <Route path="/attachments" element={<RequireAuth permission="masters.view"><Attachments /></RequireAuth>} />
+            <Route path="/checkout" element={<RequireAuth><Checkout /></RequireAuth>} />
             <Route path="/products" element={<RequireAuth permission="masters.view"><Products /></RequireAuth>} />
             <Route path="/products/new" element={<RequireAuth permission="masters.manage"><ProductForm /></RequireAuth>} />
             <Route path="/products/:id" element={<RequireAuth permission="masters.view"><ProductDetail /></RequireAuth>} />

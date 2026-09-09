@@ -63,6 +63,16 @@ function AttachmentsPanel({ poId, onChanged }) {
                 <span className="muted">{kind.label} · {formatBytes(a.size_bytes)} · {a.uploaded_by_name || '—'} · {new Date(a.uploaded_at).toLocaleString('en-IN')}</span>
               </span>
               <span className="right attach-actions">
+                <button
+                  className="btn sm"
+                  title="View this file"
+                  onClick={() => {
+                    const inline = a.mime_type?.startsWith('image/') || a.mime_type?.startsWith('video/') || a.mime_type === 'application/pdf';
+                    if (inline) setPreview(a); else window.open(a.url, '_blank', 'noopener');
+                  }}
+                >
+                  <Icon name="file" size={13} /> View
+                </button>
                 {a.mime_type?.startsWith('video/') && <button className="btn sm" onClick={() => setPreview(a)}><Icon name="video" size={13} /> Play</button>}
                 <a className="btn sm" href={a.url} target="_blank" rel="noreferrer"><Icon name="download" size={13} /></a>
                 <button className="btn sm danger" onClick={() => remove(a)}><Icon name="trash" size={13} /></button>
@@ -209,8 +219,8 @@ export default function PODetails() {
               <tr><td className="muted">GSTIN</td><td className="mono">{po.supplier_gstin || '—'}</td></tr>
               <tr><td className="muted">Division / Department</td><td>{po.division_name} / {po.department_name}</td></tr>
               <tr><td className="muted">Section</td><td>{po.section_name}</td></tr>
-              <tr><td className="muted">PO date</td><td>{po.po_date ? new Date(po.po_date).toLocaleDateString("en-IN") : "—"}</td></tr>
-              <tr><td className="muted">Expected delivery</td><td>{po.expected_delivery_date || '—'}</td></tr>
+              <tr><td className="muted">PO date</td><td>{po.po_date ? new Date(po.po_date).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' }) : "—"}</td></tr>
+              <tr><td className="muted">Expected delivery</td><td>{po.expected_delivery_date ? new Date(po.expected_delivery_date).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td></tr>
               <tr><td className="muted">Tax scheme</td><td>{po.tax_scheme}</td></tr>
               <tr><td className="muted">Remarks</td><td>{po.remarks || '—'}</td></tr>
             </tbody>

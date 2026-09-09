@@ -44,9 +44,9 @@ const SECTIONS = [
       { to: '/chat', label: 'Team Chat', icon: 'chat' },
       { to: '/approvals', label: 'Approval Queue', icon: 'approvals', permission: 'approvals.view' },
       { to: '/receipts', label: 'Receiving', icon: 'receipts', permission: 'receipt.view' },
-      { to: '/masters', label: 'Masters', icon: 'masters', permission: 'masters.view' },
-      { to: '/pricing', label: 'Pricing', icon: 'reports', permission: 'masters.view' },
-      { to: '/export-data', label: 'Export Data', icon: 'reports', permission: 'reports.view' },
+      { to: '/masters', label: 'Masters', icon: 'masters', permission: 'masters.view', hiddenRoles: ['purchase_executive'] },
+      { to: '/pricing', label: 'Pricing', icon: 'reports', permission: 'masters.view', hiddenRoles: ['purchase_executive'] },
+      { to: '/export-data', label: 'Export Data', icon: 'reports', permission: 'reports.view', hiddenRoles: ['purchase_executive'] },
     ],
   },
   {
@@ -58,7 +58,7 @@ const SECTIONS = [
   {
     label: 'Analytics',
     items: [
-      { to: '/reports', label: 'Reports', icon: 'reports', permission: 'reports.view' },
+      { to: '/reports', label: 'Reports', icon: 'reports', permission: 'reports.view', hiddenRoles: ['purchase_executive'] },
     ],
   },
   {
@@ -71,7 +71,7 @@ const SECTIONS = [
       { to: '/collections', label: 'Collections', icon: 'masters', permission: 'collections.view' },
       { to: '/dealers', label: 'Dealers', icon: 'building', permission: 'dealers.view' },
       { to: '/company', label: 'Company Settings', icon: 'settings', permission: 'company.view' },
-      { to: '/attachments', label: 'Attachments', icon: 'catalogue', permission: 'masters.view' },
+      { to: '/attachments', label: 'Attachments', icon: 'catalogue', permission: 'masters.view', hiddenRoles: ['purchase_executive'] },
     ],
   },
 ];
@@ -131,6 +131,9 @@ const DEPARTMENT_GROUPS = [
 function canSee(item, user) {
   if (item.permission && !user.isSuperAdmin && !user.permissions?.includes(item.permission)) return false;
   if (item.superAdminOnly && !user.isSuperAdmin) return false;
+  // Role-level trimming: Purchase Executives (e.g. Sachin — DVG) get a focused
+  // workspace — catalogue + orders + chat. Back-office/admin areas are hidden.
+  if (item.hiddenRoles && !user.isSuperAdmin && user.roles?.some((r) => item.hiddenRoles.includes(r))) return false;
   return true;
 }
 
@@ -184,6 +187,14 @@ function DepartmentNavGroup({ group, collapsed, open, onToggle }) {
 export default function Sidebar({ collapsed, onToggle }) {
   const { user } = useAuth();
   const canBrowse = user.isSuperAdmin || user.permissions?.includes('masters.view');
+  // Division Supervisor: strictly restricted — Men's collection and PO viewing
+  // only. All other collections, masters and admin areas stay hidden.
+  const isSupervisor = user.roles?.includes('division_supervisor') && !user.isSuperAdmin;
+  const navSections = isSupervisor
+    ? SECTIONS.filter((s) => !s.label || ['Collections', 'Orders'].includes(s.label))
+    : SECTIONS;
+  const departmentGroups = isSupervisor ? DEPARTMENT_GROUPS.filter((g) => g.key === 'men') : DEPARTMENT_GROUPS;
+  const canCreatePO = user.isSuperAdmin || user.permissions?.includes('po.create');
   const [openGroup, setOpenGroup] = useState('men');
   const navigate = useNavigate();
 
@@ -200,7 +211,7 @@ export default function Sidebar({ collapsed, onToggle }) {
       </div>
       <div className="sidebar-scroll">
         <nav>
-          {SECTIONS.map((section, si) => {
+          {navSections.map((section, si) => {
             const visible = section.items.filter((n) => canSee(n, user));
             if (!visible.length) return null;
             return (
@@ -217,7 +228,7 @@ export default function Sidebar({ collapsed, onToggle }) {
                 {/* Categorized Department Bars (Men, Women, Kids, Home) */}
                 {section.label === 'Collections' && canBrowse && !collapsed && (
                   <div className="nav-collections">
-                    {DEPARTMENT_GROUPS.map((g) => (
+                    {departmentGroups.map((g) => (
                       <DepartmentNavGroup
                         key={g.key}
                         group={g}
@@ -232,11 +243,13 @@ export default function Sidebar({ collapsed, onToggle }) {
             );
           })}
         </nav>
-        <button className="btn primary create-po" title="Create Master PO"
-          onClick={() => navigate('/purchase-orders/new')}>
-          <Icon name="plus" size={16} />
-          {!collapsed && <span>Create Master PO</span>}
-        </button>
+        {canCreatePO && (
+          <button className="btn primary create-po" title="Create Master PO"
+            onClick={() => navigate('/purchase-orders/new')}>
+            <Icon name="plus" size={16} />
+            {!collapsed && <span>Create Master PO</span>}
+          </button>
+        )}
         {!collapsed && <div className="sidebar-foot">POMS v2.0 · role-scoped</div>}
       </div>
     </aside>

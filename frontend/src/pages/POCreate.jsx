@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api, { errMessage } from '../api.js';
-import { useAuth } from '../auth.jsx';
+import { useAuth, useCart } from '../auth.jsx';
 import { Field, Money } from '../components/DataTable.jsx';
 import Modal from '../components/Modal.jsx';
 
@@ -27,6 +27,7 @@ export default function POCreate() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { hasPermission, user, selectedSectionId } = useAuth();
+  const { addItem: addToCart } = useCart();
   const editId = searchParams.get('edit');
 
   const [step, setStep] = useState(0);
@@ -200,8 +201,13 @@ export default function POCreate() {
     setBusy(true); setError('');
     try {
       let poId = editId;
+      let created = null;
       if (editId) await api.put(`/purchase-orders/${editId}`, payload());
-      else poId = (await api.post('/purchase-orders', payload())).data.data.id;
+      else {
+        created = (await api.post('/purchase-orders', payload())).data.data;
+        poId = created.id;
+        addToCart(created); // order lands in the top-nav cart for crosscheck & checkout
+      }
       if (andSubmit) await api.post(`/purchase-orders/${poId}/submit`);
       navigate(`/purchase-orders/${poId}`, { state: { submitted: andSubmit } });
     } catch (e) { setError(errMessage(e)); } finally { setBusy(false); }

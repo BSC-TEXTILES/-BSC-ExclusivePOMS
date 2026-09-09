@@ -1,9 +1,13 @@
 import { useEffect, useState, useRef } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import api, { errMessage, assetUrl } from '../api.js';
+import { useAuth } from '../auth.jsx';
 import Modal from '../components/Modal.jsx';
 
 export default function Brands() {
+  const { user } = useAuth();
+  // Brand creation, editing and image/logo uploads are ADMIN-ONLY.
+  const isAdmin = !!user?.isSuperAdmin;
   const [searchParams] = useSearchParams();
   const sectionFilter = searchParams.get('sectionId') || '';
   const [rows, setRows] = useState([]);
@@ -60,8 +64,12 @@ export default function Brands() {
   return (
     <div className="page">
       <div className="page-header">
-        <div><h1 className="page-title">Brands</h1><p className="page-sub" style={{ margin: 0 }}>Manage product brands</p></div>
-        <button className="btn primary" onClick={() => { setForm({ brandNumber: '', brandSerial: '', brandName: '', brandCode: '', manufacturer: '' }); setModal('create'); }}>+ Add Brand</button>
+        <div><h1 className="page-title">Brands</h1><p className="page-sub" style={{ margin: 0 }}>Manage product brands — brand images & edits are Admin-only</p></div>
+        {isAdmin ? (
+          <button className="btn primary" onClick={() => { setForm({ brandNumber: '', brandSerial: '', brandName: '', brandCode: '', manufacturer: '' }); setModal('create'); }}>+ Add Brand (Admin only)</button>
+        ) : (
+          <span className="chip">🔒 Read-only — Admin manages brands</span>
+        )}
       </div>
       {sectionFilter && (
         <div className="row" style={{ marginBottom: 10 }}>
@@ -79,21 +87,28 @@ export default function Brands() {
         <div className="brands-grid">
           {rows.map((b) => (
             <div className="brand-card" key={b.id}>
-              <div className="brand-card-logo" onClick={() => fileRef.current[b.id]?.click()}>
+              <div
+                className="brand-card-logo"
+                onClick={() => { if (isAdmin) fileRef.current[b.id]?.click(); }}
+                style={{ cursor: isAdmin ? 'pointer' : 'default' }}
+                title={isAdmin ? 'Upload brand image (Admin only)' : 'Only the Admin can upload brand images'}
+              >
                 {b.logo_url ? (
                   <img src={assetUrl(b.logo_url)} alt={b.brand_name} />
                 ) : (
                   <span className="brand-card-initials">{getInitials(b.brand_name)}</span>
                 )}
-                <div className="brand-card-upload-overlay">
-                  {uploading === b.id ? '…' : '📷'}
-                </div>
+                {isAdmin && (
+                  <div className="brand-card-upload-overlay">
+                    {uploading === b.id ? '…' : '📷'}
+                  </div>
+                )}
                 <input
                   type="file"
                   accept="image/*"
                   ref={(el) => { fileRef.current[b.id] = el; }}
                   style={{ display: 'none' }}
-                  onChange={(e) => { if (e.target.files[0]) uploadLogo(b.id, e.target.files[0]); e.target.value = ''; }}
+                  onChange={(e) => { if (isAdmin && e.target.files[0]) uploadLogo(b.id, e.target.files[0]); e.target.value = ''; }}
                 />
               </div>
               <div className="brand-card-info">
@@ -108,9 +123,11 @@ export default function Brands() {
                   <span className="brand-card-count">{b.product_count ?? 0} products</span>
                 </div>
               </div>
-              <button className="brand-card-edit" onClick={() => { setForm({ brandNumber: b.brand_number, brandSerial: b.brand_serial, brandName: b.brand_name, brandCode: b.brand_code || '', manufacturer: b.manufacturer || '', id: b.id }); setModal('edit'); }}>
-                Edit
-              </button>
+              {isAdmin && (
+                <button className="brand-card-edit" onClick={() => { setForm({ brandNumber: b.brand_number, brandSerial: b.brand_serial, brandName: b.brand_name, brandCode: b.brand_code || '', manufacturer: b.manufacturer || '', id: b.id }); setModal('edit'); }}>
+                  Edit
+                </button>
+              )}
             </div>
           ))}
           {!rows.length && <div className="brands-empty">No brands found</div>}

@@ -2,7 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App.jsx';
-import { AuthProvider } from './auth.jsx';
+import { AuthProvider, CartProvider } from './auth.jsx';
 import { TrackingProvider } from './tracking.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import BackendHealthCheck from './components/BackendHealthCheck.jsx';
@@ -14,9 +14,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <BrowserRouter>
         <BackendHealthCheck>
           <AuthProvider>
-            <TrackingProvider>
-              <App />
-            </TrackingProvider>
+            <CartProvider>
+              <TrackingProvider>
+                <App />
+              </TrackingProvider>
+            </CartProvider>
           </AuthProvider>
         </BackendHealthCheck>
       </BrowserRouter>

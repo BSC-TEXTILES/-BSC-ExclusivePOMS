@@ -129,7 +129,7 @@ export default function POList() {
             {rows.map((p) => (
               <tr key={p.id} className="clickable" onClick={() => navigate(`/purchase-orders/${p.id}`)}>
                 <td className="mono">{p.po_number}</td>
-                <td>{new Date(p.po_date).toLocaleDateString("en-IN")}</td>
+                <td>{new Date(p.po_date).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                 <td>v{p.version}</td>
                 <td><StatusChip status={p.status} /></td>
                 <td>{p.supplier_name}</td>

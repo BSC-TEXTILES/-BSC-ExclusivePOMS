@@ -73,7 +73,7 @@ export default function Receipts() {
                 <td className="mono">{r.receipt_number}</td>
                 <td><Link className="mono" to={`/purchase-orders/${r.po_id}`}>{r.po_number}</Link></td>
                 <td>{r.supplier_name}</td>
-                <td>{r.delivery_date || '—'}</td>
+                <td>{r.delivery_date ? new Date(r.delivery_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td>
                 <td>{r.invoice_number || '—'}</td>
                 <td><StatusChip status={r.status} /></td>
                 <td className="num">{r.accepted_total}</td>

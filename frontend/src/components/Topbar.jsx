@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import api, { errMessage, uploadFile, API_BASE, assetUrl } from '../api.js';
-import { useAuth } from '../auth.jsx';
+import { useAuth, useCart } from '../auth.jsx';
 import Icon from './Icon.jsx';
 import ProfileModal from './ProfileModal.jsx';
 
@@ -28,6 +28,7 @@ export function Avatar({ user, size = 34 }) {
 // switch · profile menu with avatar.
 export default function Topbar({ collapsed, onToggle }) {
   const { user, logout, updateUser, hasPermission } = useAuth();
+  const cart = useCart();
   const navigate = useNavigate();
   const location = useLocation();
   const [now, setNow] = useState(new Date());
@@ -146,10 +147,6 @@ export default function Topbar({ collapsed, onToggle }) {
   const canSearchUsers = user.isSuperAdmin || hasPermission('users.manage');
   const r = results;
 
-  // Detect if we're on a PO detail page to show the cart inspection badge
-  const poMatch = location.pathname.match(/^\/purchase-orders\/(\d+)/);
-  const currentPoId = poMatch ? poMatch[1] : null;
-
   return (
     <header className="topbar" ref={boxRef}>
       <div className="topbar-left">
@@ -206,15 +203,7 @@ export default function Topbar({ collapsed, onToggle }) {
           <strong>{now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong>
         </div>
 
-        {/* Dark / bright mode switch */}
-        <button
-          className="tb-switch" title={theme === 'dark' ? 'Switch to bright mode' : 'Switch to dark mode'}
-          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label="Toggle dark mode">
-          <span className={`switch-track ${theme === 'dark' ? 'on' : ''}`}>
-            <span className="switch-thumb">{theme === 'dark' ? '🌙' : '☀️'}</span>
-          </span>
-          <span className="switch-label">{theme === 'dark' ? 'Dark' : 'Bright'}</span>
-        </button>
+        {/* (Dark / bright mode switch removed by request — light theme fixed) */}
 
         {/* Administrator-only: DevTools blocking */}
         {user.isSuperAdmin && (
@@ -258,16 +247,46 @@ export default function Topbar({ collapsed, onToggle }) {
         )}
         </div>
 
-        {/* Cart Inspection - Shows when a PO is selected */}
-        {currentPoId && (
-          <div className="tb-anchor">
-            <button className="icon-btn cart-indicator" title="PO Cart Inspection — Click to view PO details"
-              onClick={() => navigate(`/purchase-orders/${currentPoId}`)}>
-              <Icon name="po" size={19} />
-              <span className="badge cart-badge">PO</span>
-            </button>
-          </div>
-        )}
+        {/* Cart — always visible in the top navigation (right section).
+            Any role that places an order sees it here; checkout crosschecks
+            the details once more before the order is finally placed and the
+            complete summary invoice is generated. */}
+        <div className="tb-anchor">
+          <button
+            className={`icon-btn cart-indicator ${openMenu === 'cart' ? 'active' : ''}`}
+            title="Order cart — review, crosscheck and checkout"
+            onClick={() => setOpenMenu(openMenu === 'cart' ? null : 'cart')}
+          >
+            <Icon name="po" size={19} />
+            {cart.count > 0 && <span className="badge cart-badge">{cart.count}</span>}
+          </button>
+          {openMenu === 'cart' && (
+            <div className="dropdown cart-drop">
+              <div className="drop-head">🛒 Pending orders in cart</div>
+              <div className="drop-scroll">
+                {cart.items.map((it) => (
+                  <div key={it.id} className="drop-item cart-item">
+                    <span>
+                      <strong className="mono">{it.poNumber}</strong>
+                      <span className="notif-body">{it.sectionName} · {it.supplierName}</span>
+                      <span className="notif-time">Added {new Date(it.addedAt).toLocaleString('en-IN')}</span>
+                    </span>
+                    <span className="right row" style={{ gap: 6 }}>
+                      {it.grandTotal != null && <strong>₹{Number(it.grandTotal).toLocaleString('en-IN')}</strong>}
+                      <button className="btn sm danger" onClick={() => cart.removeItem(it.id)}>✕</button>
+                    </span>
+                  </div>
+                ))}
+                {!cart.items.length && <div className="drop-empty">Cart is empty — place a purchase order to add it here.</div>}
+              </div>
+              {!!cart.items.length && (
+                <button className="btn accent" style={{ margin: 8, width: 'calc(100% - 16px)' }} onClick={() => { setOpenMenu(null); navigate('/checkout'); }}>
+                  Crosscheck &amp; Checkout →
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
         <div className="tb-anchor">
           <button className="profile-btn" onClick={() => setOpenMenu(openMenu === 'profile' ? null : 'profile')}>

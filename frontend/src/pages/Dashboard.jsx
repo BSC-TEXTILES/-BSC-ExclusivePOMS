@@ -246,7 +246,68 @@ function BrandStrip({ brands }) {
   );
 }
 
+// Restricted Division Supervisor dashboard — Men's section purchase details
+// ONLY: net purchase margin, total quantity purchased, discount and the
+// individual selling price of each item. Everything else is hidden (RB-018).
+function SupervisorDashboard() {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    api.get('/reports/men-summary')
+      .then((r) => setData(r.data))
+      .catch((e) => setError(errMessage(e)));
+  }, []);
+  const t = data?.totals;
+  const fmt = (v) => '₹' + Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  return (
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Men's Section — Purchase Summary</h1>
+          <p className="page-sub" style={{ margin: 0 }}>Restricted view (Division Supervisor) — only your section's purchase details are visible.</p>
+        </div>
+      </div>
+      {error && <div className="alert error">{error}</div>}
+      <div className="stat-grid">
+        <div className="stat-card"><div className="stat-label">Total Quantity Purchased</div><div className="stat-value">{t ? Number(t.total_quantity).toLocaleString('en-IN') : '…'}</div></div>
+        <div className="stat-card"><div className="stat-label">Net Purchase Margin</div><div className="stat-value">{t ? fmt(t.net_purchase_margin) : '…'}</div></div>
+        <div className="stat-card"><div className="stat-label">Discount</div><div className="stat-value">{t ? fmt(t.total_discount) : '…'}</div></div>
+        <div className="stat-card"><div className="stat-label">Purchase Value</div><div className="stat-value">{t ? fmt(t.purchase_value) : '…'}</div></div>
+      </div>
+      <div className="panel mt">
+        <h3>Individual Selling Price</h3>
+        <table className="grid">
+          <thead><tr><th>Product</th><th>Brand</th><th>Colour</th><th className="num">Qty</th><th className="num">Purchase price</th><th className="num">Margin %</th><th className="num">Net/unit</th><th className="num">Discount</th><th className="num">Selling price</th></tr></thead>
+          <tbody>
+            {(data?.sellingPrices || []).map((s, i) => (
+              <tr key={i}>
+                <td>{s.product_name}<div className="mono muted">{s.sku}</div></td>
+                <td>{s.brand_name}</td>
+                <td>{s.colour_name || '—'}</td>
+                <td className="num">{s.total_quantity}</td>
+                <td className="num">{fmt(s.purchase_price)}</td>
+                <td className="num">{s.margin_percent}%</td>
+                <td className="num">{fmt(s.net_value_per_unit)}</td>
+                <td className="num">{Number(s.discount_amount) ? fmt(s.discount_amount) : '—'}</td>
+                <td className="num"><strong>{fmt(s.final_value_per_unit)}</strong></td>
+              </tr>
+            ))}
+            {!data?.sellingPrices?.length && <tr><td colSpan={9} style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>No purchase details in your section yet</td></tr>}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
+  const { user, hasRole } = useAuth();
+  // Division Supervisors get the restricted Men's-section summary only.
+  if (hasRole?.('division_supervisor') && !user.isSuperAdmin) return <SupervisorDashboard />;
+  return <MainDashboard />;
+}
+
+function MainDashboard() {
   const { user, hasPermission, selectedSectionId, clearSection } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -344,49 +405,68 @@ export default function Dashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>
-            <Icon name="catalogue" size={20} />
+      <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))' }}>
+        <div className="stat-card kpi-accent blue">
+          <div className="stat-card-top">
+            <div className="stat-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>
+              <Icon name="catalogue" size={20} />
+            </div>
           </div>
           <div className="stat-number">{kpis.total_pos || 0}</div>
           <div className="stat-label">Total Orders</div>
+          <div className="stat-desc">Purchase orders raised across your collections</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#fce7f3', color: '#db2777' }}>
-            <Icon name="reports" size={20} />
+        <div className="stat-card kpi-accent gold">
+          <div className="stat-card-top">
+            <div className="stat-icon" style={{ background: '#fdf6e3', color: '#b45309' }}>
+              <Icon name="reports" size={20} />
+            </div>
           </div>
           <div className="stat-number"><Money value={kpis.total_value || 0} /></div>
           <div className="stat-label">Total Purchase Value</div>
+          <div className="stat-desc">Order value including taxes and freight</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#fef3c7', color: '#d97706' }}>
-            <Icon name="po" size={20} />
+        <div className="stat-card kpi-accent amber">
+          <div className="stat-card-top">
+            <div className="stat-icon" style={{ background: '#fef3c7', color: '#d97706' }}>
+              <Icon name="po" size={20} />
+            </div>
           </div>
           <div className="stat-number">{kpis.pending_approvals || 0}</div>
           <div className="stat-label">Pending Approvals</div>
-          <div className="stat-change down">Needs attention</div>
+          <div className={`stat-desc ${kpis.pending_approvals ? 'stat-warn' : 'stat-ok'}`}>
+            {kpis.pending_approvals ? '⏳ Needs your attention' : '✓ All clear — nothing waiting'}
+          </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#ecfdf5', color: '#059669' }}>
-            <Icon name="receipts" size={20} />
+        <div className="stat-card kpi-accent green">
+          <div className="stat-card-top">
+            <div className="stat-icon" style={{ background: '#ecfdf5', color: '#059669' }}>
+              <Icon name="receipts" size={20} />
+            </div>
           </div>
           <div className="stat-number">{completedOrders}</div>
           <div className="stat-label">Completed Orders</div>
+          <div className="stat-desc">Fully received and closed orders</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>
-            <Icon name="masters" size={20} />
+        <div className="stat-card kpi-accent violet">
+          <div className="stat-card-top">
+            <div className="stat-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>
+              <Icon name="masters" size={20} />
+            </div>
           </div>
           <div className="stat-number">{categories.length}</div>
           <div className="stat-label">Categories</div>
+          <div className="stat-desc">Active product categories in the catalogue</div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#f3e8ff', color: '#7c3aed' }}>
-            <Icon name="users" size={20} />
+        <div className="stat-card kpi-accent rose">
+          <div className="stat-card-top">
+            <div className="stat-icon" style={{ background: '#f3e8ff', color: '#7c3aed' }}>
+              <Icon name="users" size={20} />
+            </div>
           </div>
           <div className="stat-number">{sizes.length}</div>
           <div className="stat-label">Sizes</div>
+          <div className="stat-desc">Size options available for order entry</div>
         </div>
       </div>
 
@@ -408,7 +488,7 @@ export default function Dashboard() {
           <span className="qa-icon" style={{ background: '#fef3c7', color: '#d97706' }}>🛒</span>
           Manage Orders
         </Link>
-        <Link to="/reports" className="quick-action">
+        <Link to="/reports" className="quick-action" style={{ display: (user.isSuperAdmin || hasPermission('reports.view')) ? 'flex' : 'none' }}>
           <span className="qa-icon" style={{ background: '#fce7f3', color: '#db2777' }}>📊</span>
           Generate Report
         </Link>

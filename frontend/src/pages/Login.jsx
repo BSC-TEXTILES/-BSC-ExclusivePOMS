@@ -4,6 +4,10 @@ import { useAuth } from '../auth.jsx';
 import { useTracking } from '../tracking.jsx';
 import api, { errMessage } from '../api.js';
 
+// Login page — fully restricted to exactly three role-based logins:
+//   1. Admin (Super Admin) — full control
+//   2. Division Supervisor (Men's Section) — read-only restricted view
+//   3. Purchase Order Executive — places purchase orders
 const DEMO_ACCOUNTS = [
   {
     id: 'admin',
@@ -16,7 +20,20 @@ const DEMO_ACCOUNTS = [
     icon: '👑',
     color: '#b98a2f',
     bg: '#fef3c7',
-    desc: 'Full system control, company profile, security & PDF/CSV export',
+    desc: 'Full system control — brands, colours, colour codes, users & approvals',
+  },
+  {
+    id: 'supervisor',
+    name: "Men's Section Supervisor",
+    role: 'Division Supervisor',
+    email: 'men.supervisor@bsc.local',
+    password: 'DS@12345',
+    badge: "Men's Section",
+    category: 'Supervisors',
+    icon: '👔',
+    color: '#0d9488',
+    bg: '#f0fdfa',
+    desc: "Restricted: Men's section PO details only — net purchase margin, total quantity, discount & selling price",
   },
   {
     id: 'buyer',
@@ -29,85 +46,7 @@ const DEMO_ACCOUNTS = [
     icon: '📝',
     color: '#2563eb',
     bg: '#eff6ff',
-    desc: 'Draft new POs, item size matrix & costing',
-  },
-  {
-    id: 'pm',
-    name: 'Davanagere Manager',
-    role: 'Purchase Manager',
-    email: 'pm.dvg@bsc.local',
-    password: 'PM@12345',
-    badge: 'Purchase Manager',
-    category: 'Procurement',
-    icon: '👔',
-    color: '#4f46e5',
-    bg: '#eef2ff',
-    desc: 'Review draft POs, validate margins & submit for approvals',
-  },
-  {
-    id: 'approver',
-    name: 'Davanagere Approver',
-    role: 'Approver',
-    email: 'approver.dvg@bsc.local',
-    password: 'AP@12345',
-    badge: 'PO Approver',
-    category: 'Procurement',
-    icon: '✅',
-    color: '#059669',
-    bg: '#ecfdf5',
-    desc: 'Review approval queue, authorize or reject POs',
-  },
-  {
-    id: 'receiver',
-    name: 'Davanagere Receiver',
-    role: 'Receiving User',
-    email: 'receiver.dvg@bsc.local',
-    password: 'RC@12345',
-    badge: 'GRN / Warehouse',
-    category: 'Operations',
-    icon: '📦',
-    color: '#0d9488',
-    bg: '#f0fdfa',
-    desc: 'Goods receipt notes (GRN), inward scan & stock reconciliation',
-  },
-  {
-    id: 'dvg_admin',
-    name: 'Davanagere Admin',
-    role: 'Domain Admin',
-    email: 'dvg.admin@bsc.local',
-    password: 'Admin@123',
-    badge: 'Domain Admin',
-    category: 'Admin',
-    icon: '🏢',
-    color: '#7c3aed',
-    bg: '#f5f3ff',
-    desc: 'Hub division masters, local users & supplier setup',
-  },
-  {
-    id: 'auditor',
-    name: 'Enterprise Auditor',
-    role: 'Auditor',
-    email: 'auditor@bsc.local',
-    password: 'AU@12345',
-    badge: 'Auditor',
-    category: 'Operations',
-    icon: '🔍',
-    color: '#e11d48',
-    bg: '#fff1f2',
-    desc: 'Immutable audit logs, security tracking & compliance reports',
-  },
-  {
-    id: 'viewer',
-    name: 'Enterprise Viewer',
-    role: 'Viewer',
-    email: 'viewer@bsc.local',
-    password: 'VW@12345',
-    badge: 'Viewer',
-    category: 'Operations',
-    icon: '👁️',
-    color: '#64748b',
-    bg: '#f8fafc',
-    desc: 'Read-only PO registers, calendar & analytics reports',
+    desc: 'Place purchase orders — draft POs, item size matrix & costing',
   },
 ];
 
@@ -350,7 +289,7 @@ export default function Login() {
           <div className="login-divider"><span>Role-Based Logins & PO Access</span></div>
 
           <div className="login-role-tabs">
-            {['All', 'Procurement', 'Operations', 'Admin'].map((tab) => (
+            {['All', 'Admin', 'Supervisors', 'Procurement'].map((tab) => (
               <button
                 key={tab}
                 type="button"
@@ -393,26 +332,6 @@ export default function Login() {
               );
             })}
           </div>
-
-          <div className="login-po-info-box">
-            <div className="login-po-info-header">
-              <span>📋 Purchase Order Lifecycle</span>
-              <span style={{ fontSize: 10, color: '#b98a2f', fontWeight: 600 }}>Sample: PO-2026-0001</span>
-            </div>
-            <div className="login-po-flow-steps">
-              <span className="login-po-step">1. Executive Draft</span>
-              <span>➔</span>
-              <span className="login-po-step">2. Manager Submit</span>
-              <span>➔</span>
-              <span className="login-po-step">3. Approval</span>
-              <span>➔</span>
-              <span className="login-po-step">4. Issued & PDF</span>
-              <span>➔</span>
-              <span className="login-po-step">5. GRN Receipt</span>
-            </div>
-          </div>
-
-          <a className="login-back" href="/landing">← Back to overview</a>
         </form>
       </div>
     </div>
