@@ -1,9 +1,12 @@
 import 'dotenv/config';
 import pg from 'pg';
 
+const isSupabase = (process.env.DATABASE_URL || '').includes('supabase');
+
 export const pool = new pg.Pool({
   connectionString: process.env.DATABASE_URL || 'postgresql://postgres@localhost:5432/poms',
   max: 10,
+  ssl: isSupabase ? { rejectUnauthorized: false } : false,
 });
 
 export const query = (text, params) => pool.query(text, params);
