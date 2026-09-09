@@ -40,7 +40,7 @@ export default function ExportData() {
   };
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">Export Data</h1><p className="page-sub" style={{ margin: 0 }}>Download reports as PDF or CSV</p></div>
       </div>

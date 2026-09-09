@@ -15,15 +15,15 @@ export default function ProductDetail() {
     api.get(`/products/${id}`).then((r) => setProduct(r.data.data || r.data)).catch((e) => setError(errMessage(e)));
   }, [id]);
 
-  if (error) return <div className="content"><div className="alert error">{error}</div><Link to="/products">← Back to Products</Link></div>;
-  if (!product) return <div className="content"><div className="loading"><span className="loading-spinner" /> Loading product…</div></div>;
+  if (error) return <div className="page"><div className="alert error">{error}</div><Link to="/products">← Back to Products</Link></div>;
+  if (!product) return <div className="page"><div className="loading"><span className="loading-spinner" /> Loading product…</div></div>;
 
   const attrs = product.attributes || {};
   const colours = product.colours || product.colors || [];
   const sizes = product.sizes || [];
 
   return (
-    <div className="content">
+    <div className="page">
       <div style={{ marginBottom: 16 }}>
         <Link to="/products" style={{ fontSize: 13, color: '#6b7280', textDecoration: 'none' }}>← Back to Products</Link>
       </div>

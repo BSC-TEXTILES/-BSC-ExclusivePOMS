@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
+import crypto from 'node:crypto';
 import { selfTest } from './utils/pricing.js';
 import { notFound, errorHandler } from './middleware/errors.js';
+import { securityHeaders, rateLimit, clientIpOf } from './middleware/security.js';
 
 import authRoutes from './routes/auth.js';
 import usersRoutes from './routes/users.js';
@@ -23,11 +25,42 @@ import locationRoutes from './routes/locations.js';
 import productTypeRoutes from './routes/productTypes.js';
 import collectionRoutes from './routes/collections.js';
 import fileRoutes from './routes/files.js';
+import trackingRoutes from './routes/tracking.js';
 
 selfTest(); // RB-017 guard: engine must reproduce FRS §13.3 exactly at boot
 
 const app = express();
-app.use(cors());
+// Render / Vercel sit behind a reverse proxy — required for correct client IPs.
+app.set('trust proxy', 1);
+
+// Production guard: refuse to boot with a weak/absent JWT secret. When unset
+// outside production we still generate an ephemeral one so local dev works.
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET must be set to at least 32 characters in production');
+  }
+  console.warn('[security] JWT_SECRET missing/short — generated an ephemeral secret (dev only)');
+  process.env.JWT_SECRET = crypto.randomBytes(48).toString('hex');
+}
+
+// CORS: same-origin and curl (no Origin header) always pass; when CORS_ORIGIN
+// is configured ONLY those origins may call the API from a browser.
+const allowedOrigins = (process.env.CORS_ORIGIN || '')
+  .split(',').map((s) => s.trim()).filter(Boolean);
+app.use(cors({
+  origin(origin, cb) {
+    if (!origin || !allowedOrigins.length || allowedOrigins.includes(origin)) return cb(null, true);
+    cb(new Error('Origin not allowed by CORS'));
+  },
+  credentials: true,
+}));
+
+app.use(securityHeaders);
+// General API budget per client IP, plus tight budgets on the auth endpoints.
+const apiLimiter = rateLimit(600, 60 * 1000);
+const loginLimiter = rateLimit(10, 5 * 60 * 1000);
+const captchaLimiter = rateLimit(60, 60 * 1000);
+
 app.use(express.json({ limit: '5mb' }));
 
 app.use((req, res, next) => {
@@ -41,6 +74,18 @@ app.use((req, res, next) => {
 });
 
 app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'poms-api', time: new Date().toISOString() }));
+
+// General per-IP budget for the whole API surface.
+app.use('/api', apiLimiter);
+
+// Public (pre-auth) flags the login page needs — DevTools blocking state only.
+app.get('/api/settings/public', async (req, res, next) => {
+  try {
+    const { query } = await import('./config/db.js');
+    const { rows } = await query(`SELECT value FROM settings WHERE key='security'`);
+    res.json({ devtoolsBlock: rows[0]?.value?.devtoolsBlock !== false });
+  } catch (e) { next(e); }
+});
 
 // Uploaded files (product images, PO attachments, avatars — every file type) as
 // read-only static assets so <img>/<video>/PDF previews work with plain URLs.
@@ -67,6 +112,7 @@ app.use('/api/locations', locationRoutes);
 app.use('/api/product-types', productTypeRoutes);
 app.use('/api', collectionRoutes); // /api/collections, /api/dealers, /api/company
 app.use('/api/files', fileRoutes); // /api/files — standalone file manager
+app.use('/api/tracking', trackingRoutes); // /api/tracking — live session monitor
 
 // ---- Serve the built React client (single-origin full-stack site) ----
 import path from 'node:path';

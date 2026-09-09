@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api, { errMessage } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import Modal from '../components/Modal.jsx';
+import StatusChip from '../components/StatusChip.jsx';
 
 export default function Locations() {
   const { hasPermission } = useAuth();
@@ -20,7 +21,7 @@ export default function Locations() {
     try {
       const { data } = await api.get('/locations');
       setLocations(data.data || []);
-    } catch (e) { console.error(e); }
+    } catch (e) { setError(errMessage(e)); }
     setLoading(false);
   }
 
@@ -92,7 +93,7 @@ export default function Locations() {
                   <td>{loc.state || '—'}</td>
                   <td>{loc.contact_person || '—'}</td>
                   <td>{loc.phone || '—'}</td>
-                  <td><span className={`status-chip ${loc.status}`}>{loc.status}</span></td>
+                  <td><StatusChip status={loc.status} /></td>
                   <td className="actions-cell">
                     <button className="btn sm" onClick={() => getDirections(loc)} title="Get Directions">Directions</button>
                     {canManage && (

@@ -1,0 +1,176 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 800" width="800" height="800">
+  <defs>
+    <!-- Linear & Radial Gradients for Authentic Luxury Metallic Gold -->
+    <linearGradient id="goldLinear" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#F9E498" />
+      <stop offset="25%" stop-color="#D4AF37" />
+      <stop offset="50%" stop-color="#AA771C" />
+      <stop offset="75%" stop-color="#E8C364" />
+      <stop offset="100%" stop-color="#8B5A14" />
+    </linearGradient>
+
+    <linearGradient id="goldLight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFF3C4" />
+      <stop offset="50%" stop-color="#D4AF37" />
+      <stop offset="100%" stop-color="#996515" />
+    </linearGradient>
+
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0E1D33" />
+      <stop offset="60%" stop-color="#081120" />
+      <stop offset="100%" stop-color="#040913" />
+    </linearGradient>
+
+    <radialGradient id="navyGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1A3359" />
+      <stop offset="70%" stop-color="#0B1626" />
+      <stop offset="100%" stop-color="#050B14" />
+    </radialGradient>
+
+    <!-- Drop Shadow Filters for Real Depth -->
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000" flood-opacity="0.45" />
+    </filter>
+    <filter id="emboss" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#FFEFA8" flood-opacity="0.6" result="highlight" />
+      <feDropShadow dx="0" dy="-2" stdDeviation="2" flood-color="#000000" flood-opacity="0.5" />
+    </filter>
+
+    <!-- Text Paths for Perfectly Curved Precision Typography -->
+    <path id="textArcTop" d="M 120,400 A 280,280 0 1,1 680,400" fill="none" />
+    <path id="textArcBottom" d="M 680,400 A 280,280 0 0,1 120,400" fill="none" />
+  </defs>
+
+  <!-- Outer Drop Shadow Circle -->
+  <circle cx="400" cy="400" r="380" fill="#040913" filter="url(#shadow)" />
+
+  <!-- Outer Gold Beaded Rim -->
+  <circle cx="400" cy="400" r="378" fill="none" stroke="url(#goldLinear)" stroke-width="4" />
+  <circle cx="400" cy="400" r="370" fill="none" stroke="url(#goldLinear)" stroke-width="1.5" stroke-dasharray="4 6" />
+
+  <!-- Main Ring (Deep Navy) -->
+  <circle cx="400" cy="400" r="356" fill="url(#navyGlow)" stroke="url(#goldLinear)" stroke-width="5" />
+
+  <!-- Inner Gold Beaded Border -->
+  <circle cx="400" cy="400" r="236" fill="none" stroke="url(#goldLinear)" stroke-width="4" />
+  <circle cx="400" cy="400" r="228" fill="none" stroke="url(#goldLinear)" stroke-width="1.5" stroke-dasharray="4 4" />
+
+  <!-- Center Core Shield / Disc -->
+  <circle cx="400" cy="400" r="220" fill="url(#shieldGrad)" stroke="url(#goldLinear)" stroke-width="2.5" />
+
+  <!-- Subtle Guilloche / Heritage Silk Weave Pattern in Center -->
+  <g opacity="0.12" stroke="url(#goldLinear)" stroke-width="1" fill="none">
+    <ellipse cx="400" cy="400" rx="200" ry="80" transform="rotate(0 400 400)" />
+    <ellipse cx="400" cy="400" rx="200" ry="80" transform="rotate(30 400 400)" />
+    <ellipse cx="400" cy="400" rx="200" ry="80" transform="rotate(60 400 400)" />
+    <ellipse cx="400" cy="400" rx="200" ry="80" transform="rotate(90 400 400)" />
+    <ellipse cx="400" cy="400" rx="200" ry="80" transform="rotate(120 400 400)" />
+    <ellipse cx="400" cy="400" rx="200" ry="80" transform="rotate(150 400 400)" />
+  </g>
+
+  <!-- ==================== CURVED TYPOGRAPHY (Top & Bottom) ==================== -->
+  <!-- Top: B. S. CHANNABASAPPA & SONS -->
+  <text fill="url(#goldLight)" font-family="'Cinzel', 'Trajan Pro', 'Georgia', serif" font-size="34" font-weight="700" letter-spacing="7" filter="url(#emboss)">
+    <textPath href="#textArcTop" startOffset="50%" text-anchor="middle">
+      B. S. CHANNABASAPPA &amp; SONS
+    </textPath>
+  </text>
+
+  <!-- Bottom: DAVANAGERE · SINCE 1938 -->
+  <text fill="url(#goldLight)" font-family="'Cinzel', 'Trajan Pro', 'Georgia', serif" font-size="28" font-weight="600" letter-spacing="8" filter="url(#emboss)">
+    <textPath href="#textArcBottom" startOffset="50%" text-anchor="middle">
+      DAVANAGERE  &#8226;  SINCE 1938
+    </textPath>
+  </text>
+
+  <!-- Side Star Emblems in Outer Ring -->
+  <g fill="url(#goldLight)">
+    <!-- Left Star -->
+    <path d="M 85,400 L 98,404 L 110,400 L 98,396 Z" />
+    <circle cx="98" cy="400" r="2.5" fill="#FFEFA8" />
+    <circle cx="75" cy="400" r="3" fill="url(#goldLight)" />
+    <circle cx="121" cy="400" r="3" fill="url(#goldLight)" />
+
+    <!-- Right Star -->
+    <path d="M 690,400 L 702,404 L 715,400 L 702,396 Z" />
+    <circle cx="702" cy="400" r="2.5" fill="#FFEFA8" />
+    <circle cx="679" cy="400" r="3" fill="url(#goldLight)" />
+    <circle cx="725" cy="400" r="3" fill="url(#goldLight)" />
+  </g>
+
+  <!-- ==================== CENTER HERALDIC MOTIF ==================== -->
+  <!-- Heritage Silk Crown / Kalasha Crest Motif at Top of Center -->
+  <g transform="translate(400, 248) scale(0.9)" filter="url(#emboss)">
+    <!-- Central Kalasha finial -->
+    <path d="M 0,-42 C 6,-32 10,-24 10,-15 C 10,-5 5,0 0,0 C -5,0 -10,-5 -10,-15 C -10,-24 -6,-32 0,-42 Z" fill="url(#goldLight)" />
+    <!-- Flanking Silk Lotus Petals -->
+    <path d="M 0,-5 C 15,-12 32,-8 40,8 C 25,12 12,8 0,-5 Z" fill="url(#goldLinear)" />
+    <path d="M 0,-5 C -15,-12 -32,-8 -40,8 C -25,12 -12,8 0,-5 Z" fill="url(#goldLinear)" />
+    <!-- Outer accent leaves -->
+    <path d="M 0,0 C 22,2 45,18 48,32 C 35,30 18,20 0,0 Z" fill="url(#goldLinear)" />
+    <path d="M 0,0 C -22,2 -45,18 -48,32 C -35,30 -18,20 0,0 Z" fill="url(#goldLinear)" />
+    <!-- Pedestal base with jewels -->
+    <path d="M -32,32 L 32,32 L 25,38 L -25,38 Z" fill="url(#goldLight)" />
+    <circle cx="0" cy="35" r="2" fill="#071326" />
+    <circle cx="-14" cy="35" r="1.5" fill="#071326" />
+    <circle cx="14" cy="35" r="1.5" fill="#071326" />
+  </g>
+
+  <!-- Interlocking Classical BSC Monogram -->
+  <!-- Shadow of Monogram -->
+  <g transform="translate(400, 400)" font-family="'Cinzel', 'Playfair Display', 'Times New Roman', serif" font-weight="900" text-anchor="middle" dominant-baseline="central">
+    <!-- 'S' in center -->
+    <text x="2" y="-6" font-size="142" fill="#02050B" opacity="0.7">S</text>
+    <text x="0" y="-8" font-size="142" fill="url(#goldLinear)" stroke="#5A3A0B" stroke-width="2" filter="url(#shadow)">S</text>
+
+    <!-- 'B' on left -->
+    <text x="-66" y="-12" font-size="118" fill="#02050B" opacity="0.7">B</text>
+    <text x="-68" y="-14" font-size="118" fill="url(#goldLight)" stroke="#6C470E" stroke-width="1.8">B</text>
+
+    <!-- 'C' on right -->
+    <text x="70" y="-12" font-size="118" fill="#02050B" opacity="0.7">C</text>
+    <text x="68" y="-14" font-size="118" fill="url(#goldLight)" stroke="#6C470E" stroke-width="1.8">C</text>
+  </g>
+
+  <!-- ==================== ELEGANT GOLD RIBBON BANNER ==================== -->
+  <g transform="translate(400, 508)" filter="url(#shadow)">
+    <!-- Ribbon Tails -->
+    <path d="M -160,20 L -195,0 L -185,-18 L -140,-12 Z" fill="#7A4E0E" />
+    <path d="M 160,20 L 195,0 L 185,-18 L 140,-12 Z" fill="#7A4E0E" />
+
+    <!-- Ribbon Fold Shadow -->
+    <path d="M -145,-12 L -130,8 L -140,16 Z" fill="#422804" />
+    <path d="M 145,-12 L 130,8 L 140,16 Z" fill="#422804" />
+
+    <!-- Main Ribbon Plate -->
+    <path d="M -140,-14 L 140,-14 Q 150,-14 150,0 Q 150,14 140,14 L -140,14 Q -150,14 -150,0 Q -150,-14 -140,-14 Z"
+          fill="url(#goldLinear)" stroke="#FFF3C4" stroke-width="1.5" />
+    
+    <!-- Ribbon Inner Inset Line -->
+    <path d="M -136,-10 L 136,-10 Q 144,-10 144,0 Q 144,10 136,10 L -136,10 Q -144,10 -144,0 Q -144,-10 -136,-10 Z"
+          fill="none" stroke="#7A4E0E" stroke-width="0.8" stroke-dasharray="3 3" />
+
+    <!-- Ribbon Text: BSC EXCLUSIVE -->
+    <text x="0" y="4.5" text-anchor="middle" dominant-baseline="central"
+          font-family="'Montserrat', 'Cinzel', 'Arial', sans-serif" font-size="17" font-weight="900" letter-spacing="4.5"
+          fill="#081426">
+      BSC EXCLUSIVE
+    </text>
+  </g>
+
+  <!-- Sub-label below Ribbon: KARNATAKA TEXTILE HERITAGE -->
+  <text x="400" y="558" text-anchor="middle"
+        font-family="'Montserrat', 'Arial', sans-serif" font-size="11.5" font-weight="600" letter-spacing="3.5"
+        fill="url(#goldLight)" opacity="0.9">
+    SILKS &#8226; SAREES &#8226; APPAREL
+  </text>
+
+  <!-- Bottom laurel filigree flourish -->
+  <g transform="translate(400, 582) scale(0.7)" fill="url(#goldLinear)" opacity="0.85">
+    <circle cx="0" cy="0" r="3.5" />
+    <path d="M 0,0 C 15,-8 35,-4 45,5 C 30,5 15,2 0,0 Z" />
+    <path d="M 0,0 C -15,-8 -35,-4 -45,5 C -30,5 -15,2 0,0 Z" />
+    <circle cx="52" cy="6" r="2" />
+    <circle cx="-52" cy="6" r="2" />
+  </g>
+</svg>

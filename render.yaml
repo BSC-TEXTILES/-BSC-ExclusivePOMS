@@ -1,0 +1,32 @@
+# Render blueprint — deploy the POMS backend as a Web Service.
+# In Render: New → Blueprint → point it at this repository (or configure manually).
+services:
+  - type: web
+    name: poms-api
+    runtime: node
+    plan: starter
+    rootDir: backend
+    buildCommand: npm ci || npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false          # set in dashboard: Supabase pooler connection string
+      - key: JWT_SECRET
+        generateValue: true  # 32+ char random secret
+      - key: JWT_EXPIRES_IN
+        value: 8h
+      - key: REFRESH_EXPIRES_IN
+        value: 7d
+      - key: CORS_ORIGIN
+        sync: false          # e.g. https://poms.vercel.app
+      - key: STORAGE_DRIVER
+        value: supabase
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_BUCKET
+        value: poms-uploads

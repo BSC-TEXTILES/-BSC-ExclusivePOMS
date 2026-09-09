@@ -1,22 +1,31 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api, { errMessage, uploadFile } from '../api.js';
+import api, { errMessage, uploadFile, API_BASE, assetUrl } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import Icon from './Icon.jsx';
+import ProfileModal from './ProfileModal.jsx';
+
+// WebSocket endpoint: same host in single-origin mode, the API origin when the
+// frontend is deployed separately (Vercel → Render).
+const WS_ORIGIN = API_BASE.startsWith('http')
+  ? API_BASE.replace(/^http/, 'ws').replace(/\/api$/, '')
+  : `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
 
 function initials(name = '') {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
 }
 
 export function Avatar({ user, size = 34 }) {
-  if (user?.profilePhotoUrl) {
-    return <img className="avatar-img" src={user.profilePhotoUrl} alt={user.fullName} style={{ width: size, height: size }} />;
+  const src = user?.profilePhotoUrl ? assetUrl(user.profilePhotoUrl) : null;
+  if (src) {
+    return <img className="avatar-img" src={src} alt={user.fullName} style={{ width: size, height: size }} />;
   }
   return <div className="avatar" style={{ width: size, height: size, fontSize: size * 0.38 }}>{initials(user?.fullName)}</div>;
 }
 
 // Top bar: hamburger → sidebar collapse · global search · live notification bell
-// (WebSocket) · running date & time · profile menu with avatar.
+// (WebSocket) · running date & time · dark/bright toggle · admin DevTools-block
+// switch · profile menu with avatar.
 export default function Topbar({ collapsed, onToggle }) {
   const { user, logout, updateUser, hasPermission } = useAuth();
   const navigate = useNavigate();
@@ -27,7 +36,37 @@ export default function Topbar({ collapsed, onToggle }) {
   const [notifications, setNotifications] = useState([]);
   const [unread, setUnread] = useState(0);
   const [toast, setToast] = useState(null);
+  const [theme, setTheme] = useState(() => localStorage.getItem('poms_theme') || 'light');
+  const [devtoolsBlock, setDevtoolsBlock] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
   const boxRef = useRef(null);
+
+  // Dark / bright mode — persisted per browser, applied on <html data-theme>.
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('poms_theme', theme);
+  }, [theme]);
+
+  // Load the admin-controlled security flags (DevTools blocking).
+  useEffect(() => {
+    if (user.isSuperAdmin) {
+      api.get('/settings').then((r) => {
+        const sec = (r.data.data || []).find((s) => s.key === 'security');
+        if (sec) setDevtoolsBlock(sec.value?.devtoolsBlock !== false);
+      }).catch(() => {});
+    }
+  }, [user.isSuperAdmin]);
+
+  async function toggleDevtoolsBlock() {
+    const next = !devtoolsBlock;
+    setDevtoolsBlock(next);
+    try {
+      await api.put('/settings/security', { value: { devtoolsBlock: next }, description: 'DevTools blocking — when on, opening browser developer tools blocks login and ends the session' });
+    } catch (e) {
+      setDevtoolsBlock(!next);
+      alert(errMessage(e));
+    }
+  }
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -46,8 +85,7 @@ export default function Topbar({ collapsed, onToggle }) {
     let sock;
     let retry;
     const connect = () => {
-      const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      sock = new WebSocket(`${proto}://${window.location.host}/ws/notify?token=${localStorage.getItem('poms_token')}`);
+      sock = new WebSocket(`${WS_ORIGIN}/ws/notify?token=${localStorage.getItem('poms_token')}`);
       sock.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data);
@@ -163,6 +201,30 @@ export default function Topbar({ collapsed, onToggle }) {
           <strong>{now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong>
         </div>
 
+        {/* Dark / bright mode switch */}
+        <button
+          className="tb-switch" title={theme === 'dark' ? 'Switch to bright mode' : 'Switch to dark mode'}
+          onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} aria-label="Toggle dark mode">
+          <span className={`switch-track ${theme === 'dark' ? 'on' : ''}`}>
+            <span className="switch-thumb">{theme === 'dark' ? '🌙' : '☀️'}</span>
+          </span>
+          <span className="switch-label">{theme === 'dark' ? 'Dark' : 'Bright'}</span>
+        </button>
+
+        {/* Administrator-only: DevTools blocking */}
+        {user.isSuperAdmin && (
+          <button
+            className="tb-switch" title={devtoolsBlock
+              ? 'DevTools blocking is ON — developer tools block login and end sessions. Click to disable.'
+              : 'DevTools blocking is OFF. Click to enable (recommended).'}
+            onClick={toggleDevtoolsBlock}>
+            <span className={`switch-track ${devtoolsBlock ? 'on' : 'off'}`}>
+              <span className="switch-thumb">{devtoolsBlock ? '🛡️' : '⚠️'}</span>
+            </span>
+            <span className="switch-label">DevTools {devtoolsBlock ? 'blocked' : 'allowed'}</span>
+          </button>
+        )}
+
         <div className="tb-anchor">
           <button className="icon-btn bell" title="Notifications" onClick={() => setOpenMenu(openMenu === 'bell' ? null : 'bell')}>
             <Icon name="bell" size={19} />
@@ -196,7 +258,7 @@ export default function Topbar({ collapsed, onToggle }) {
             <Avatar user={user} />
             <span className="profile-meta">
               <span className="user-name">{user.fullName}</span>
-              <span className="user-roles">{user.roles.join(', ')}</span>
+              <span className="user-roles">{(user.roles || []).join(', ')}</span>
             </span>
             <Icon name="chevronDown" size={14} />
           </button>
@@ -207,9 +269,12 @@ export default function Topbar({ collapsed, onToggle }) {
               <div>
                 <strong>{user.fullName}</strong>
                 <div className="muted">{user.email}</div>
-                <div className="chip" style={{ marginTop: 4 }}>{user.roles.join(', ')}</div>
+                <div className="chip" style={{ marginTop: 4 }}>{(user.roles || []).join(', ')}</div>
               </div>
             </div>
+            <button className="drop-item" onClick={() => { setOpenMenu(null); setShowProfile(true); }}>
+              <Icon name="users" size={15} /> <span>My profile</span>
+            </button>
             <label className="drop-item upload-photo">
               <Icon name="upload" size={15} /> <span>Change profile photo</span>
               <input type="file" accept="image/*" hidden onChange={async (e) => {
@@ -235,6 +300,8 @@ export default function Topbar({ collapsed, onToggle }) {
           <span><strong>{toast.title}</strong>{toast.body ? ` — ${toast.body}` : ''}</span>
         </div>
       )}
+
+      {showProfile && <ProfileModal />}
     </header>
   );
 }

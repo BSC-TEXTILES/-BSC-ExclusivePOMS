@@ -125,7 +125,7 @@ export default function ProductForm() {
   const margin = Number(form.purchasePrice) > 0 ? ((profit / Number(form.purchasePrice)) * 100).toFixed(1) : '0.0';
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <h1 className="page-title">{isEdit ? 'Edit Product' : 'Add Product'}</h1>
       </div>

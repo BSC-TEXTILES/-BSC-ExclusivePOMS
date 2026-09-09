@@ -25,7 +25,7 @@ export default function Settings() {
   };
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">Settings</h1><p className="page-sub" style={{ margin: 0 }}>System configuration</p></div>
       </div>

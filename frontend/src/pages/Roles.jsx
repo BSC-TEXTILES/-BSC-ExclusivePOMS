@@ -43,7 +43,7 @@ export default function Roles() {
   });
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">Roles & Permissions</h1><p className="page-sub" style={{ margin: 0 }}>Manage role-based access control</p></div>
       </div>

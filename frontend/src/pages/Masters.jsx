@@ -66,13 +66,14 @@ export default function Masters() {
         if (editing.id) await api.patch(`/sections/${editing.id}`, { name: form.name, sizingMethodId: form.sizingMethodId, displayOrder: Number(form.displayOrder) || 0 });
         else await api.post('/sections', { ...form, displayOrder: Number(form.displayOrder) || 0 });
       } else if (tab === 'Brands') {
-        if (editing.id) await api.patch(`/brands/${editing.id}`, { brandName: form.brandName, manufacturer: form.manufacturer });
+        if (editing.id) await api.patch(`/brands/${editing.id}`, { brandName: form.brandName, brandCode: form.brandCode, manufacturer: form.manufacturer });
         else await api.post('/brands', form);
       } else if (tab === 'Products') {
         if (editing.id) await api.patch(`/products/${editing.id}`, { name: form.name });
         else await api.post('/products', form);
       } else if (tab === 'Colours') {
-        if (!editing.id) await api.post('/colours', form);
+        if (editing.id) await api.patch(`/colours/${editing.id}`, form);
+        else await api.post('/colours', form);
       } else if (tab === 'Suppliers') {
         if (editing.id) await api.patch(`/suppliers/${editing.id}`, form);
         else await api.post('/suppliers', form);
@@ -265,7 +266,7 @@ export default function Masters() {
               </div>}
             </>
           )}
-          {tab === 'Colours' && !editing.id && (
+          {tab === 'Colours' && (
             <Field label="Colour name" hint="Case-insensitive duplicate check (§9.2); flagged custom (RB-016)">
               <input value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} />
             </Field>

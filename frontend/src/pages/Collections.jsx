@@ -28,7 +28,7 @@ export default function Collections() {
   };
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">Collections</h1><p className="page-sub" style={{ margin: 0 }}>Manage product collections (Men, Women, Kids, etc.)</p></div>
         <button className="btn primary" onClick={() => { setForm({ code: '', name: '', description: '', displayOrder: 0 }); setModal('create'); }}>+ Add Collection</button>
@@ -57,12 +57,10 @@ export default function Collections() {
       </div>
       {modal && (
         <Modal title={modal === 'create' ? 'Add Collection' : 'Edit Collection'} onClose={() => setModal(null)}>
-          <div className="modal-body">
             <label className="field"><span className="field-label">Code *</span><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} disabled={modal === 'edit'} /></label>
             <label className="field"><span className="field-label">Name *</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
             <label className="field"><span className="field-label">Description</span><input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></label>
             <label className="field"><span className="field-label">Display Order</span><input type="number" value={form.displayOrder} onChange={(e) => setForm({ ...form, displayOrder: +e.target.value })} /></label>
-          </div>
           <div className="modal-actions">
             <button className="btn" onClick={() => setModal(null)}>Cancel</button>
             <button className="btn primary" onClick={save} disabled={saving || !form.code || !form.name}>{saving ? 'Saving…' : 'Save'}</button>

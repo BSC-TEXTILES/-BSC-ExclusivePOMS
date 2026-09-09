@@ -4,14 +4,16 @@ import { ApiError, forbidden } from '../utils/httpError.js';
 
 const USER_SELECT = `
   SELECT u.id, u.email, u.username, u.full_name, u.status, u.force_password_reset,
-         u.profile_photo_url, u.designation,
+         u.profile_photo_url, u.designation, u.profile_updated_at,
          COALESCE(json_agg(DISTINCT r.code)  FILTER (WHERE r.code  IS NOT NULL), '[]')  AS roles,
          COALESCE(json_agg(DISTINCT ud.division_id::text) FILTER (WHERE ud.division_id IS NOT NULL), '[]') AS division_ids,
+         COALESCE(json_agg(DISTINCT us.section_id::text)  FILTER (WHERE us.section_id IS NOT NULL), '[]') AS section_ids,
          COALESCE(json_agg(DISTINCT p.code)  FILTER (WHERE p.code  IS NOT NULL), '[]')  AS permissions
     FROM users u
     LEFT JOIN user_roles ur ON ur.user_id = u.id
     LEFT JOIN roles r       ON r.id = ur.role_id
     LEFT JOIN user_divisions ud ON ud.user_id = u.id
+    LEFT JOIN user_sections us ON us.user_id = u.id
     LEFT JOIN role_permissions rp ON rp.role_id = r.id
     LEFT JOIN permissions p ON p.id = rp.permission_id
    WHERE u.id = $1
@@ -39,7 +41,9 @@ export async function loadUser(userId) {
     designation: u.designation,
     roles: u.roles,
     divisionIds: u.division_ids,
+    sectionIds: u.section_ids,
     permissions: u.permissions,
+    profileUpdatedAt: u.profile_updated_at,
     isSuperAdmin: u.roles.includes('super_admin'),
   };
 }
@@ -86,5 +90,16 @@ export function scopeDivision(req, divisionId) {
   if (req.user.isSuperAdmin) return;
   if (!req.user.divisionIds.includes(String(divisionId))) {
     throw forbidden('Division out of authorized scope (RB-001)');
+  }
+}
+
+// Collection (section) scope: a user assigned specific collections may only
+// operate on those. Super admin and users without a collection restriction
+// (empty scope) pass through.
+export function scopeSection(req, sectionId) {
+  if (req.user.isSuperAdmin) return;
+  const ids = req.user.sectionIds || [];
+  if (ids.length && !ids.includes(String(sectionId))) {
+    throw forbidden('Collection out of authorized scope — you are not assigned to this collection');
   }
 }

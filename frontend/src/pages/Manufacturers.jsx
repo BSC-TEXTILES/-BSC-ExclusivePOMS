@@ -43,7 +43,7 @@ export default function Manufacturers() {
   };
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">Manufacturers</h1><p className="page-sub" style={{ margin: 0 }}>Manage manufacturer/supplier information</p></div>
         <button className="btn primary" onClick={openCreate}>+ Add Manufacturer</button>
@@ -80,7 +80,6 @@ export default function Manufacturers() {
       </div>
       {modal && (
         <Modal title={modal === 'create' ? 'Add Manufacturer' : 'Edit Manufacturer'} onClose={() => setModal(null)}>
-          <div className="modal-body">
             <div className="fields-2">
               <label className="field"><span className="field-label">Code *</span><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></label>
               <label className="field"><span className="field-label">Name *</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
@@ -94,7 +93,6 @@ export default function Manufacturers() {
             </div>
             <label className="field"><span className="field-label">Address</span><textarea rows={2} value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} /></label>
             <label className="field"><span className="field-label">Notes</span><textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
-          </div>
           <div className="modal-actions">
             <button className="btn" onClick={() => setModal(null)}>Cancel</button>
             <button className="btn primary" onClick={save} disabled={saving || !form.code || !form.name}>{saving ? 'Saving…' : 'Save'}</button>

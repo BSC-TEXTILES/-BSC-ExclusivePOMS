@@ -65,7 +65,7 @@ export default function ProductTypes() {
   const getCategoryName = (id) => categories.find((c) => c.id === id)?.name || '—';
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">Product Types</h1><p className="page-sub" style={{ margin: 0 }}>Manage product types within categories</p></div>
         {canManage && <button className="btn primary" onClick={openAdd}>+ Add Product Type</button>}
@@ -101,7 +101,6 @@ export default function ProductTypes() {
 
       {modal && (
         <Modal title={editing ? 'Edit Product Type' : 'Add Product Type'} onClose={() => setModal(null)}>
-          <div className="modal-body">
             {!editing && (
               <>
                 <label className="field"><span className="field-label">Section *</span>
@@ -135,7 +134,6 @@ export default function ProductTypes() {
             {editing && (
               <label className="field"><span className="field-label">Name *</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
             )}
-          </div>
           <div className="modal-actions">
             <button className="btn" onClick={() => setModal(null)}>Cancel</button>
             <button className="btn primary" onClick={save} disabled={saving || !form.name || (!editing && (!form.sectionId || !form.code))}>{saving ? 'Saving…' : 'Save'}</button>

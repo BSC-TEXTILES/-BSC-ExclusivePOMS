@@ -81,7 +81,7 @@ export default function Videos() {
   const canManage = hasPermission('videos.manage') || isSuperAdmin;
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div>
           <h1 className="page-title">Video Library</h1>

@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { query, withTransaction, pool } from '../config/db.js';
-import { authenticate, requirePermission, scopeDivision } from '../middleware/auth.js';
+import { authenticate, requirePermission, scopeDivision, scopeSection } from '../middleware/auth.js';
 import { badRequest, forbidden, notFoundError, ah } from '../utils/httpError.js';
 import { computeLineTotals, round2 } from '../utils/pricing.js';
 import { logAudit } from '../utils/audit.js';
 import { notifyUsers, notifyRole } from '../utils/notify.js';
+import { generatePOCsv, generatePOPdf, generatePOListCsv } from '../utils/poExport.js';
 
 // Purchase Order engine — FRS §12 (PO requirements), §13 (commercials), §14 (governance), §31.1 (lifecycle).
 // All monetary values are recomputed server-side before persistence (RB-017 / SYS-01).
@@ -25,6 +26,10 @@ async function loadPO(poId) {
 function assertPOScope(req, po) {
   if (!req.user.isSuperAdmin && !req.user.divisionIds.includes(String(po.division_id))) {
     throw forbidden('PO is outside your division scope (RB-001 / RB-018)');
+  }
+  const sec = req.user.sectionIds || [];
+  if (!req.user.isSuperAdmin && sec.length && !sec.includes(String(po.section_id))) {
+    throw forbidden('PO belongs to a collection you are not assigned to (RB-001 / RB-018)');
   }
 }
 
@@ -199,8 +204,8 @@ async function persistLines(client, po, lines, req, policy) {
   const chargeRows = charges.filter((c) => Number(c.amount) > 0 || Number(c.amount) < 0);
   let chargesTotal = 0;
   for (const c of chargeRows) {
-    const amount = round2(Number(c.amount) || 0);
-    if (amount < 0) throw badRequest('Charge amounts cannot be negative');
+    const amount = round2(Number(c.amount));
+    if (isNaN(amount) || amount < 0) throw badRequest(`Invalid charge amount: ${c.amount}`);
     chargesTotal = round2(chargesTotal + amount);
     await client.query(
       `INSERT INTO purchase_order_charges (po_id, charge_type, description, amount)
@@ -253,6 +258,10 @@ r.get('/', ah(async (req, res) => {
   const { divisionId, departmentId, sectionId, status, supplierId, search, from, to, page = 1, pageSize = 20 } = req.query;
   const clauses = []; const params = [];
   if (!req.user.isSuperAdmin) { params.push(req.user.divisionIds); clauses.push(`po.division_id = ANY($${params.length}::uuid[])`); }
+  if (!req.user.isSuperAdmin && (req.user.sectionIds || []).length) {
+    params.push(req.user.sectionIds);
+    clauses.push(`po.section_id = ANY($${params.length}::uuid[])`);
+  }
   if (divisionId) { params.push(divisionId); clauses.push(`po.division_id = $${params.length}`); }
   if (departmentId) { params.push(departmentId); clauses.push(`po.department_id = $${params.length}`); }
   if (sectionId) { params.push(sectionId); clauses.push(`po.section_id = $${params.length}`); }
@@ -292,6 +301,7 @@ r.post('/', requirePermission('po.create'), ah(async (req, res) => {
   }
   if (!h.lines?.length) throw badRequest('At least one product line is required');
   scopeDivision(req, h.divisionId);
+  scopeSection(req, h.sectionId);
 
   const policy = {
     gst_percent: await getSetting('gst_percent', PO_POLICY_DEFAULTS.gst_percent),
@@ -321,6 +331,45 @@ r.post('/', requirePermission('po.create'), ah(async (req, res) => {
     return { ...created, ...totals };
   });
   res.status(201).json({ data: po });
+}));
+
+// ---------- GET /api/purchase-orders/export/csv — batch CSV export ----------
+r.get('/export/csv', ah(async (req, res) => {
+  const { divisionId, departmentId, sectionId, status, supplierId, search, from, to } = req.query;
+  const clauses = []; const params = [];
+  if (!req.user.isSuperAdmin) { params.push(req.user.divisionIds); clauses.push(`po.division_id = ANY($${params.length}::uuid[])`); }
+  if (!req.user.isSuperAdmin && (req.user.sectionIds || []).length) {
+    params.push(req.user.sectionIds);
+    clauses.push(`po.section_id = ANY($${params.length}::uuid[])`);
+  }
+  if (divisionId) { params.push(divisionId); clauses.push(`po.division_id = $${params.length}`); }
+  if (departmentId) { params.push(departmentId); clauses.push(`po.department_id = $${params.length}`); }
+  if (sectionId) { params.push(sectionId); clauses.push(`po.section_id = $${params.length}`); }
+  if (status) { params.push(status); clauses.push(`po.status = $${params.length}`); }
+  if (supplierId) { params.push(supplierId); clauses.push(`po.supplier_id = $${params.length}`); }
+  if (from) { params.push(from); clauses.push(`po.po_date >= $${params.length}`); }
+  if (to) { params.push(to); clauses.push(`po.po_date <= $${params.length}`); }
+  if (search) {
+    params.push(`%${search}%`);
+    clauses.push(`(po.po_number ILIKE $${params.length} OR sup.company_name ILIKE $${params.length} OR s.name ILIKE $${params.length})`);
+  }
+  const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
+  const { rows } = await query(
+    `SELECT po.id, po.po_number, po.version, po.po_date, po.status, po.grand_total, po.subtotal,
+            po.expected_delivery_date, d.code AS division_code, d.name AS division_name,
+            dep.name AS department_name, s.name AS section_name, sup.company_name AS supplier_name,
+            (SELECT COALESCE(SUM(total_quantity),0) FROM purchase_order_items i WHERE i.po_id = po.id) AS total_quantity
+       FROM purchase_orders po
+       JOIN divisions d ON d.id = po.division_id
+       JOIN departments dep ON dep.id = po.department_id
+       JOIN sections s ON s.id = po.section_id
+       JOIN suppliers sup ON sup.id = po.supplier_id
+       ${where} ORDER BY po.created_at DESC LIMIT 1000`, params);
+
+  const csv = generatePOListCsv(rows);
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="purchase_orders_${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send(csv);
 }));
 
 // ---------- GET /api/purchase-orders/:id — full detail bundle ----------
@@ -389,6 +438,78 @@ r.get('/:id', ah(async (req, res) => {
   res.json({ data: { ...header, items, discounts, taxes, charges, approvals, approvalActions, receipts, timeline } });
 }));
 
+// Helper to bundle all PO details + company settings for export
+async function getFullPOBundle(poId) {
+  const [header] = (
+    await query(
+      `SELECT po.*, d.name AS division_name, d.code AS division_code, dep.name AS department_name,
+              s.name AS section_name, s.id AS section_uuid,
+              sup.company_name AS supplier_name, sup.code AS supplier_code, sup.gstin AS supplier_gstin,
+              sup.address AS supplier_address, sup.contact_person AS supplier_contact_person,
+              sup.mobile AS supplier_phone, sup.email AS supplier_email, sup.pan AS supplier_pan,
+              loc.name AS location_name, loc.code AS location_code, loc.address AS location_address,
+              u.full_name AS created_by_name
+         FROM purchase_orders po
+         JOIN divisions d ON d.id = po.division_id
+         JOIN departments dep ON dep.id = po.department_id
+         JOIN sections s ON s.id = po.section_id
+         JOIN suppliers sup ON sup.id = po.supplier_id
+         LEFT JOIN locations loc ON loc.id = po.location_id
+         JOIN users u ON u.id = po.created_by
+        WHERE po.id = $1`, [poId])
+  ).rows;
+
+  if (!header) throw notFoundError('Purchase order not found');
+
+  const items = (await query(
+    `SELECT i.*, p.sku,
+            COALESCE(i.product_snapshot->>'name', p.name) AS product_name,
+            COALESCE(i.brand_snapshot->>'brand_name', b.brand_name) AS brand_name,
+            COALESCE(i.brand_snapshot->>'brand_number', b.brand_number) AS brand_number,
+            COALESCE(i.colour_snapshot->>'name', c.name) AS colour_name,
+            (SELECT json_agg(json_build_object('sizeLabel', q.size_label, 'quantity', q.quantity) ORDER BY q.size_label)
+               FROM purchase_order_quantities q WHERE q.po_item_id = i.id) AS quantities,
+            (SELECT COALESCE(SUM(ri.accepted_qty),0) FROM receipt_items ri JOIN receipts rc ON rc.id = ri.receipt_id
+              WHERE ri.po_item_id = i.id AND rc.status = 'posted') AS accepted_qty
+       FROM purchase_order_items i
+       JOIN products p ON p.id = i.product_id
+       JOIN brands b ON b.id = p.brand_id
+       LEFT JOIN colours c ON c.id = i.colour_id
+      WHERE i.po_id = $1 ORDER BY i.line_no`, [poId])).rows;
+
+  const taxes = (await query(`SELECT * FROM purchase_order_taxes WHERE po_id=$1`, [poId])).rows;
+  const charges = (await query(`SELECT * FROM purchase_order_charges WHERE po_id=$1`, [poId])).rows;
+
+  const [company] = (await query(`SELECT * FROM company_settings LIMIT 1`)).rows || [{}];
+
+  return { header, items, taxes, charges, company: company || {} };
+}
+
+// ---------- GET /api/purchase-orders/:id/export/csv — export single PO to CSV ----------
+r.get('/:id/export/csv', ah(async (req, res) => {
+  const po = await loadPO(req.params.id);
+  assertPOScope(req, po);
+  const bundle = await getFullPOBundle(po.id);
+  const csv = generatePOCsv(bundle);
+  const filename = `${po.po_number || 'PO'}_${new Date().toISOString().slice(0, 10)}.csv`;
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.send(csv);
+}));
+
+// ---------- GET /api/purchase-orders/:id/export/pdf — export single PO to PDF ----------
+r.get('/:id/export/pdf', ah(async (req, res) => {
+  const po = await loadPO(req.params.id);
+  assertPOScope(req, po);
+  const bundle = await getFullPOBundle(po.id);
+  const pdfBuffer = generatePOPdf(bundle);
+  const filename = `${po.po_number || 'PO'}_v${po.version || 1}.pdf`;
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Content-Length', pdfBuffer.length);
+  res.send(pdfBuffer);
+}));
+
 // ---------- PUT /api/purchase-orders/:id — edit draft only (RB-011) ----------
 r.put('/:id', requirePermission('po.edit'), ah(async (req, res) => {
   const po = await loadPO(req.params.id);
@@ -396,6 +517,7 @@ r.put('/:id', requirePermission('po.edit'), ah(async (req, res) => {
   if (po.status !== 'draft') throw forbidden('RB-011: only draft POs are editable — approved/issued POs require an amendment (§14.3)');
   const h = extractHeader(req.body || {});
   scopeDivision(req, h.divisionId || po.division_id);
+  scopeSection(req, h.sectionId || po.section_id);
 
   const policy = {
     gst_percent: await getSetting('gst_percent', PO_POLICY_DEFAULTS.gst_percent),
@@ -586,7 +708,7 @@ r.post('/:id/approval-action', requirePermission('approvals.act'), ah(async (req
     }
 
     // rejected / send_back → back to draft for correction; instance closed, history retained
-    await client.query(`UPDATE approval_instances SET resolved_at=now(), status='draft' WHERE id=$1`, [inst.id]);
+    await client.query(`UPDATE approval_instances SET resolved_at=now(), status=$2 WHERE id=$1`, [inst.id, action === 'rejected' ? 'rejected' : 'sent_back']);
     await client.query(`UPDATE purchase_orders SET status='draft' WHERE id=$1`, [po.id]);
     await notifyUsers(client, [po.created_by], {
       eventType: action === 'rejected' ? 'po_rejected' : 'po_sent_back', entityType: 'purchase_order', entityId: po.id,

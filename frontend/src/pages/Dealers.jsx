@@ -31,7 +31,7 @@ export default function Dealers() {
   };
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">Dealers</h1><p className="page-sub" style={{ margin: 0 }}>Manage dealers and suppliers for purchase orders</p></div>
         <button className="btn primary" onClick={() => { setForm({ ...blank }); setModal('create'); }}>+ Add Dealer</button>
@@ -63,7 +63,6 @@ export default function Dealers() {
       {total > 20 && <div className="panel" style={{ textAlign: 'center' }}><button className="btn sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>← Prev</button><span style={{ margin: '0 12px', fontSize: 13 }}>Page {page} of {Math.ceil(total / 20)}</span><button className="btn sm" disabled={page * 20 >= total} onClick={() => setPage((p) => p + 1)}>Next →</button></div>}
       {modal && (
         <Modal title={modal === 'create' ? 'Add Dealer' : 'Edit Dealer'} onClose={() => setModal(null)}>
-          <div className="modal-body">
             <div className="fields-2">
               <label className="field"><span className="field-label">Code *</span><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} disabled={modal === 'edit'} /></label>
               <label className="field"><span className="field-label">Company Name *</span><input value={form.companyName} onChange={(e) => setForm({ ...form, companyName: e.target.value })} /></label>
@@ -84,7 +83,6 @@ export default function Dealers() {
               </label>
             </div>
             <label className="field"><span className="field-label">Notes</span><input value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></label>
-          </div>
           <div className="modal-actions">
             <button className="btn" onClick={() => setModal(null)}>Cancel</button>
             <button className="btn primary" onClick={save} disabled={saving || !form.code || !form.companyName}>{saving ? 'Saving…' : 'Save'}</button>

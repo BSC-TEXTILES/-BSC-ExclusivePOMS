@@ -39,7 +39,7 @@ export default function Products({ gender }) {
   };
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">{gender === 'men' ? "Men's Products" : 'Products'}</h1><p className="page-sub" style={{ margin: 0 }}>{gender === 'men' ? "Manage men's apparel collection" : 'Manage product catalogue'}</p></div>
         {(user?.isSuperAdmin || user?.permissions?.includes('products.create')) && (

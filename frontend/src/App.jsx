@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom';
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from './auth.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Topbar from './components/Topbar.jsx';
@@ -13,6 +13,7 @@ import Approvals from './pages/Approvals.jsx';
 import Receipts from './pages/Receipts.jsx';
 import Masters from './pages/Masters.jsx';
 import Catalogue from './pages/Catalogue.jsx';
+import CollectionView from './pages/CollectionView.jsx';
 import Calendar from './pages/Calendar.jsx';
 import Chat from './pages/Chat.jsx';
 import Users from './pages/Users.jsx';
@@ -40,10 +41,16 @@ import Collections from './pages/Collections.jsx';
 import Dealers from './pages/Dealers.jsx';
 import CompanySettings from './pages/CompanySettings.jsx';
 import Attachments from './pages/Attachments.jsx';
+import ProfileModal from './components/ProfileModal.jsx';
+import CookieConsent from './components/CookieConsent.jsx';
+import { PrivacyPolicy, Terms, Security } from './pages/Legal.jsx';
 
-function RequireAuth({ children, permission }) {
+function RequireAuth({ children, permission, superAdmin }) {
   const { user, hasPermission } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
+  if (superAdmin && !user.isSuperAdmin) {
+    return <div className="page"><div className="alert error">Only the Administrator can manage roles and permissions.</div></div>;
+  }
   if (permission && !hasPermission(permission)) {
     return <div className="page"><div className="alert error">You do not have permission to view this screen ({permission}).</div></div>;
   }
@@ -59,14 +66,21 @@ export default function App() {
     localStorage.setItem('poms_sidebar', collapsed ? '1' : '0');
   }, [collapsed]);
 
-  // Public routes: landing page + login (login keeps its own full-screen layout).
+  // Public routes: landing page, login and the legal pages.
+  // (Login keeps its own full-screen layout; legal pages get the cookie notice.)
   if (!user) {
     return (
-      <Routes>
-        <Route path="/landing" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/landing" replace />} />
-      </Routes>
+      <>
+        <Routes>
+          <Route path="/landing" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/privacy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<Terms />} />
+          <Route path="/security" element={<Security />} />
+          <Route path="*" element={<Navigate to="/landing" replace />} />
+        </Routes>
+        <CookieConsent />
+      </>
     );
   }
   if (location.pathname === '/login' || location.pathname === '/landing') {
@@ -79,6 +93,8 @@ export default function App() {
       <div className="main">
         <Topbar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
         <main className="content">
+          {/* Mandatory profile completion for admin-created accounts */}
+          {user && !user.profileUpdatedAt && <ProfileModal />}
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
@@ -90,6 +106,7 @@ export default function App() {
             <Route path="/receipts" element={<RequireAuth permission="receipt.view"><Receipts /></RequireAuth>} />
             <Route path="/masters" element={<RequireAuth permission="masters.view"><Masters /></RequireAuth>} />
             <Route path="/catalogue" element={<RequireAuth><Catalogue /></RequireAuth>} />
+            <Route path="/collection/:deptKey" element={<RequireAuth><CollectionView /></RequireAuth>} />
             <Route path="/chat" element={<RequireAuth><Chat /></RequireAuth>} />
             <Route path="/users" element={<RequireAuth permission="users.manage"><Users /></RequireAuth>} />
             <Route path="/reports" element={<RequireAuth permission="reports.view"><Reports /></RequireAuth>} />
@@ -112,7 +129,10 @@ export default function App() {
             <Route path="/videos" element={<RequireAuth permission="videos.view"><Videos /></RequireAuth>} />
             <Route path="/videos/:id" element={<RequireAuth permission="videos.view"><VideoDetail /></RequireAuth>} />
             <Route path="/settings" element={<RequireAuth permission="settings.manage"><Settings /></RequireAuth>} />
-            <Route path="/roles" element={<RequireAuth permission="users.manage"><Roles /></RequireAuth>} />
+            <Route path="/roles" element={<RequireAuth permission="users.manage" superAdmin><Roles /></RequireAuth>} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<Terms />} />
+            <Route path="/security" element={<Security />} />
             <Route path="/manufacturers" element={<RequireAuth permission="masters.view"><Manufacturers /></RequireAuth>} />
             <Route path="/locations" element={<RequireAuth permission="masters.view"><Locations /></RequireAuth>} />
             <Route path="/pricing" element={<RequireAuth permission="masters.view"><Pricing /></RequireAuth>} />

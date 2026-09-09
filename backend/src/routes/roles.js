@@ -1,16 +1,28 @@
 import { Router } from 'express';
 import { query } from '../config/db.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
-import { badRequest, notFoundError, ah } from '../utils/httpError.js';
+import { badRequest, notFoundError, forbidden, ah } from '../utils/httpError.js';
 
 const r = Router();
 r.use(authenticate, requirePermission('users.manage'));
+
+// RBAC: defining roles and their permissions is the Administrator's decision.
+const requireSuperAdmin = (req, res, next) => {
+  if (req.user.isSuperAdmin) return next();
+  next(forbidden('Only the Administrator can manage roles and permissions'));
+};
 
 // List all roles with permission count
 r.get('/', ah(async (req, res) => {
   const { rows } = await query(
     `SELECT r.*, (SELECT count(*)::int FROM role_permissions rp WHERE rp.role_id = r.id) AS permission_count
      FROM roles r ORDER BY r.code`);
+  res.json({ data: rows });
+}));
+
+// List all available permissions (MUST be before /:id to avoid shadowing)
+r.get('/meta/permissions', ah(async (req, res) => {
+  const { rows } = await query(`SELECT * FROM permissions ORDER BY module, code`);
   res.json({ data: rows });
 }));
 
@@ -23,14 +35,8 @@ r.get('/:id', ah(async (req, res) => {
   res.json({ data: { ...roles[0], permissions: perms } });
 }));
 
-// List all available permissions
-r.get('/meta/permissions', ah(async (req, res) => {
-  const { rows } = await query(`SELECT * FROM permissions ORDER BY module, code`);
-  res.json({ data: rows });
-}));
-
-// Create role
-r.post('/', ah(async (req, res) => {
+// Create role (Administrator only)
+r.post('/', requireSuperAdmin, ah(async (req, res) => {
   const { code, name, description } = req.body || {};
   if (!code || !name) throw badRequest('code and name are required');
   const { rows } = await query(
@@ -39,8 +45,8 @@ r.post('/', ah(async (req, res) => {
   res.status(201).json({ data: rows[0] });
 }));
 
-// Update role name/description
-r.patch('/:id', ah(async (req, res) => {
+// Update role name/description (Administrator only)
+r.patch('/:id', requireSuperAdmin, ah(async (req, res) => {
   const { rows: existing } = await query(`SELECT * FROM roles WHERE id=$1`, [req.params.id]);
   if (!existing.length) throw notFoundError('Role');
   if (existing[0].code === 'super_admin') throw badRequest('Cannot modify Super Admin role');
@@ -51,8 +57,8 @@ r.patch('/:id', ah(async (req, res) => {
   res.json({ data: rows[0] });
 }));
 
-// Replace role permissions (full set)
-r.put('/:id/permissions', ah(async (req, res) => {
+// Replace role permissions (full set, Administrator only)
+r.put('/:id/permissions', requireSuperAdmin, ah(async (req, res) => {
   const { rows: existing } = await query(`SELECT * FROM roles WHERE id=$1`, [req.params.id]);
   if (!existing.length) throw notFoundError('Role');
   if (existing[0].code === 'super_admin') throw badRequest('Cannot modify Super Admin permissions');

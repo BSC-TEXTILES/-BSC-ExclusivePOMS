@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams, Link } from 'react-router-dom';
 import api, { errMessage } from '../api.js';
 import Modal from '../components/Modal.jsx';
 
 export default function Categories() {
+  const [searchParams] = useSearchParams();
+  const sectionFilter = searchParams.get('sectionId') || '';
   const [rows, setRows] = useState([]);
   const [sections, setSections] = useState([]);
   const [error, setError] = useState('');
@@ -11,10 +14,11 @@ export default function Categories() {
   const [saving, setSaving] = useState(false);
 
   const load = () => {
-    api.get('/categories').then((r) => setRows(r.data.data || [])).catch((e) => setError(errMessage(e)));
+    api.get('/categories', { params: sectionFilter ? { sectionId: sectionFilter } : {} })
+      .then((r) => setRows(r.data.data || [])).catch((e) => setError(errMessage(e)));
     api.get('/sections').then((r) => setSections(r.data.data || [])).catch(() => {});
   };
-  useEffect(load, []);
+  useEffect(load, [sectionFilter]);
 
   const save = async () => {
     setSaving(true); setError('');
@@ -28,11 +32,19 @@ export default function Categories() {
   const getSectionName = (id) => sections.find((s) => s.id === id)?.name || '—';
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">Categories</h1><p className="page-sub" style={{ margin: 0 }}>Manage product categories (hierarchical)</p></div>
         <button className="btn primary" onClick={() => { setForm({ sectionId: '', parentCategoryId: '', code: '', name: '' }); setModal('create'); }}>+ Add Category</button>
       </div>
+      {sectionFilter && (
+        <div className="row" style={{ marginBottom: 10 }}>
+          <span className="chip section-chip">
+            Filtered to collection: {sections.find((s) => s.id === sectionFilter)?.name || sectionFilter}
+            {' '}<Link to="/categories" style={{ color: 'inherit', fontWeight: 700 }}>✕</Link>
+          </span>
+        </div>
+      )}
       {error && <div className="alert error">{error}</div>}
       <div className="panel">
         <table className="grid">
@@ -53,7 +65,6 @@ export default function Categories() {
       </div>
       {modal && (
         <Modal title="Add Category" onClose={() => setModal(null)}>
-          <div className="modal-body">
             <label className="field"><span className="field-label">Section *</span>
               <select value={form.sectionId} onChange={(e) => setForm({ ...form, sectionId: e.target.value })}>
                 <option value="">— select —</option>
@@ -70,7 +81,6 @@ export default function Categories() {
               <label className="field"><span className="field-label">Code *</span><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></label>
               <label className="field"><span className="field-label">Name *</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
             </div>
-          </div>
           <div className="modal-actions">
             <button className="btn" onClick={() => setModal(null)}>Cancel</button>
             <button className="btn primary" onClick={save} disabled={saving || !form.sectionId || !form.code || !form.name}>{saving ? 'Saving…' : 'Save'}</button>

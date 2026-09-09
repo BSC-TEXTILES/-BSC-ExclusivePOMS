@@ -1,6 +1,24 @@
 import axios from 'axios';
 
-const api = axios.create({ baseURL: '/api' });
+// Cross-origin deployments (Vercel frontend → Render backend) set
+// VITE_API_BASE to e.g. https://poms-api.onrender.com/api ; single-origin
+// deployments leave it unset and the same server serves both.
+export const API_BASE = import.meta.env.VITE_API_BASE || '/api';
+// Origin of the API server — used to build absolute URLs for locally-stored
+// files (Supabase-stored files already carry absolute public URLs).
+export const API_ORIGIN = API_BASE.startsWith('http')
+  ? new URL(API_BASE).origin
+  : '';
+
+// Prefix app-relative file URLs (/uploads/...) with the API origin when the
+// frontend runs on a different origin than the backend.
+export const assetUrl = (url) => {
+  if (!url) return url;
+  if (/^(https?:|data:|blob:)/.test(url)) return url;
+  return `${API_ORIGIN}${url}`;
+};
+
+const api = axios.create({ baseURL: API_BASE });
 
 api.interceptors.request.use((cfg) => {
   const token = localStorage.getItem('poms_token');

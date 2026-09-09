@@ -32,8 +32,17 @@ async function req(method, path, body, expect = 200) {
   }
 }
 
-// 1. Login
-const login = await req('POST', '/auth/login', { identifier: 'admin@bsc.local', password: 'Admin@123' });
+// 1. Fetch Captcha Challenge
+const capRes = await fetch(BASE + '/auth/captcha?reveal=1');
+const cap = await capRes.json();
+
+// 2. Login
+const login = await req('POST', '/auth/login', {
+  identifier: 'admin@bsc.local',
+  password: 'Admin@123',
+  captchaId: cap.id,
+  captchaText: cap.answer,
+});
 if (login.json?.accessToken) {
   token = login.json.accessToken;
   console.log('Logged in as', login.json.user?.email, 'roles:', login.json.user?.roles?.join(','));

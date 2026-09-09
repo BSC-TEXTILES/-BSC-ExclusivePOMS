@@ -74,7 +74,7 @@ export default function VideoDetail() {
 
   if (error) {
     return (
-      <div className="content">
+      <div className="page">
         <div className="alert error">{error}</div>
         <Link to="/videos" className="btn ghost"><Icon name="chevronLeft" size={15} /> Back to Videos</Link>
       </div>
@@ -82,7 +82,7 @@ export default function VideoDetail() {
   }
   if (!video) {
     return (
-      <div className="content">
+      <div className="page">
         <div className="detail-loading"><span className="loading-spinner" /> Loading video…</div>
       </div>
     );
@@ -102,7 +102,7 @@ export default function VideoDetail() {
   ];
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="breadcrumbs">
         <Link to="/videos">Video Library</Link>
         <Icon name="chevronRight" size={13} />

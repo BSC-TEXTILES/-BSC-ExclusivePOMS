@@ -12,11 +12,27 @@ function scopeParams(req) {
   return { all: false, ids: req.user.divisionIds };
 }
 
+// Dashboard scoping: division scope (RB-001) AND collection scope. A user
+// assigned only the Men's collection sees Men's numbers only — no leakage.
+function poScope(req) {
+  const clauses = [];
+  const params = [];
+  if (!req.user.isSuperAdmin) {
+    params.push(req.user.divisionIds || []);
+    clauses.push(`po.division_id = ANY($${params.length}::uuid[])`);
+    const sec = req.user.sectionIds || [];
+    if (sec.length) {
+      params.push(sec);
+      clauses.push(`po.section_id = ANY($${params.length}::uuid[])`);
+    }
+  }
+  return { params, W: clauses.length ? clauses.join(' AND ') : 'TRUE' };
+}
+
 // GET /api/reports/dashboard — §16.1 / §16.2 combined dashboard payload
 r.get('/dashboard', ah(async (req, res) => {
   const s = scopeParams(req);
-  const params = s.all ? [] : [s.ids];
-  const W = s.all ? 'TRUE' : 'po.division_id = ANY($1::uuid[])';
+  const { params, W } = poScope(req);
 
   const kpis = (await query(
     `SELECT count(*)::int AS total_pos,
@@ -54,7 +70,7 @@ r.get('/dashboard', ah(async (req, res) => {
     `SELECT al.occurred_at, al.action_type, al.entity_type, al.entity_id::text, COALESCE(u.full_name,'System') AS actor
        FROM audit_logs al LEFT JOIN users u ON u.id = al.user_id
       WHERE (${s.all ? 'TRUE' : 'al.division_id = ANY($1::uuid[])'} OR al.division_id IS NULL)
-      ORDER BY al.occurred_at DESC LIMIT 12`, params)).rows;
+      ORDER BY al.occurred_at DESC LIMIT 12`, s.all ? [] : [s.ids])).rows;
 
   const divisionAdmins = (await query(
     `SELECT d.id AS division_id, d.code AS division_code, d.name AS division_name,
@@ -68,7 +84,52 @@ r.get('/dashboard', ah(async (req, res) => {
       WHERE d.status <> 'archived' ${s.all ? '' : 'AND d.id = ANY($1::uuid[])'}
       GROUP BY d.id, d.code, d.name ORDER BY d.code`, s.all ? [] : [s.ids])).rows;
 
-  res.json({ kpis, byDivision, byStatus, bySection, bySupplier, recentAudit, divisionAdmins });
+  // Real monthly series — last 12 months, scoped, zero-filled (no synthetic data).
+  const monthly = (await query(
+    `WITH months AS (
+       SELECT generate_series(date_trunc('month', now()) - interval '11 months',
+                              date_trunc('month', now()), interval '1 month') AS m
+     ), agg AS (
+       SELECT date_trunc('month', po.po_date) AS m, count(*)::int AS orders,
+              COALESCE(SUM(po.grand_total),0) AS value
+         FROM purchase_orders po
+        WHERE ${W} AND po.po_date >= date_trunc('month', now()) - interval '11 months'
+        GROUP BY 1
+     )
+     SELECT to_char(mm.m, 'Mon') AS label, to_char(mm.m, 'YYYY-MM') AS key,
+            COALESCE(a.orders, 0)::int AS orders, COALESCE(a.value, 0)::float8 AS value
+       FROM months mm LEFT JOIN agg a ON a.m = mm.m
+      ORDER BY mm.m`, params)).rows;
+
+  // Real recent purchase orders for the dashboard table.
+  const recentPOs = (await query(
+    `SELECT po.id, po.po_number, po.po_date, po.status, po.grand_total,
+            s.name AS section_name, sup.company_name AS supplier_name, d.name AS division_name,
+            (SELECT COALESCE(SUM(total_quantity),0) FROM purchase_order_items i WHERE i.po_id = po.id) AS total_quantity
+       FROM purchase_orders po
+       JOIN divisions d ON d.id = po.division_id
+       JOIN sections s ON s.id = po.section_id
+       JOIN suppliers sup ON sup.id = po.supplier_id
+      WHERE ${W}
+      ORDER BY po.created_at DESC LIMIT 8`, params)).rows;
+
+  // Work progress — share of orders that reached completion, plus stage split.
+  const workProgress = (await query(
+    `SELECT count(*)::int AS total,
+            count(*) FILTER (WHERE po.status IN ('received','closed'))::int AS completed,
+            count(*) FILTER (WHERE po.status = 'partially_received')::int AS partially_received,
+            count(*) FILTER (WHERE po.status IN ('approved','issued'))::int AS approved_issued,
+            count(*) FILTER (WHERE po.status IN ('submitted','under_review'))::int AS in_approval,
+            count(*) FILTER (WHERE po.status = 'draft')::int AS drafts,
+            count(*) FILTER (WHERE po.status = 'cancelled')::int AS cancelled
+       FROM purchase_orders po WHERE ${W}`, params)).rows[0];
+
+  // Names of the collections this user is authorized for (header chips).
+  const mySections = s.all ? [] : (await query(
+    `SELECT s.id::text, s.name FROM sections s JOIN user_sections us ON us.section_id = s.id
+      WHERE us.user_id = $1 ORDER BY s.name`, [req.user.id])).rows;
+
+  res.json({ kpis, byDivision, byStatus, bySection, bySupplier, recentAudit, divisionAdmins, monthly, recentPOs, workProgress, mySections });
 }));
 
 // ---------- PO CALENDAR (§16 + day-wise drill-down) ----------
@@ -108,10 +169,13 @@ r.get('/calendar/:date', ah(async (req, res) => {
        JOIN suppliers sup ON sup.id = po.supplier_id
       WHERE po.po_date::date = $1::date AND ${W}
       ORDER BY po.grand_total DESC`, params);
+  const params2 = [req.params.date];
+  const W2 = req.user.isSuperAdmin ? 'TRUE' : 'po.division_id = ANY($2::uuid[])';
+  if (!req.user.isSuperAdmin) params2.push(req.user.divisionIds);
   const { rows: [totals] } = await query(
     `SELECT count(*)::int AS count, COALESCE(SUM(po.grand_total),0) AS value
        FROM purchase_orders po
-      WHERE po.po_date::date = $1::date AND ${W}`, [req.params.date, ...(req.user.isSuperAdmin ? [] : [req.user.divisionIds])]);
+      WHERE po.po_date::date = $1::date AND ${W2}`, params2);
   res.json({ date: req.params.date, totals, data: rows });
 }));
 

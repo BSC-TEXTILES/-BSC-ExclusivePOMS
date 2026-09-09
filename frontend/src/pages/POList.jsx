@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import api, { errMessage } from '../api.js';
 import StatusChip from '../components/StatusChip.jsx';
 import { Money } from '../components/DataTable.jsx';
+import Icon from '../components/Icon.jsx';
 
 export default function POList() {
   const navigate = useNavigate();
@@ -28,11 +29,41 @@ export default function POList() {
       .catch((e) => setError(errMessage(e)));
   }, [page, filters]);
 
+  async function exportCsv() {
+    try {
+      const params = new URLSearchParams();
+      Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });
+      const token = localStorage.getItem('poms_token');
+      const res = await fetch(`/api/purchase-orders/export/csv?${params.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error('Export failed');
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `purchase_orders_export_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e.message || 'Export failed');
+    }
+  }
+
   const pages = Math.max(1, Math.ceil(total / pageSize));
 
   return (
     <div className="page">
-      <h1 className="page-title">Purchase Orders</h1>
+      <div className="row" style={{ alignItems: 'baseline', marginBottom: 4 }}>
+        <h1 className="page-title" style={{ margin: 0 }}>Purchase Orders</h1>
+        <div className="right">
+          <button className="btn" onClick={exportCsv} title="Export all matching POs to CSV">
+            <Icon name="reports" size={14} /> Export to CSV
+          </button>
+        </div>
+      </div>
       <p className="page-sub">{total} orders in your authorized scope (RB-018)</p>
       {error && <div className="alert error">{error}</div>}
 

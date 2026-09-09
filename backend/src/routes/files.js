@@ -1,8 +1,8 @@
 import { Router } from 'express';
 import path from 'node:path';
-import { query, withTransaction } from '../config/db.js';
+import { query, withTransaction, pool } from '../config/db.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
-import { badRequest, notFoundError, ah } from '../utils/httpError.js';
+import { badRequest, notFoundError, forbidden, ah } from '../utils/httpError.js';
 import { logAudit } from '../utils/audit.js';
 import { upload, publicUrl, removeStored, uploadsDir } from '../utils/storage.js';
 
@@ -86,6 +86,56 @@ r.post('/', requirePermission('masters.manage'), upload.array('files', 20), ah(a
   });
 
   res.status(201).json({ data: saved });
+}));
+
+// PATCH /api/files/:id — update attachment details (description, rename)
+// Allowed for the uploader or a masters.manage holder.
+r.patch('/:id', ah(async (req, res) => {
+  const row = (await query(`SELECT * FROM file_attachments WHERE id=$1`, [req.params.id])).rows[0];
+  if (!row) throw notFoundError('File not found');
+  const canManage = req.user.isSuperAdmin || req.user.permissions.includes('masters.manage');
+  if (!canManage && String(row.uploaded_by) !== String(req.user.id)) {
+    throw forbidden('Only the uploader or an administrator can update this attachment');
+  }
+  const { description, fileName } = req.body || {};
+  if (description === undefined && fileName === undefined) throw badRequest('description or fileName is required');
+  const { rows } = await query(
+    `UPDATE file_attachments SET
+       description = COALESCE($2, description),
+       file_name = COALESCE($3, file_name)
+     WHERE id = $1 RETURNING id, file_name, description, mime_type, size_bytes, uploaded_at`,
+    [req.params.id, description ?? null, fileName ? String(fileName).slice(0, 200) : null]);
+  await logAudit(pool, {
+    userId: req.user.id, role: req.user.roles.join(','), actionType: 'edit',
+    entityType: 'file_attachment', entityId: row.id, beforeValue: { name: row.file_name }, afterValue: rows[0],
+  }).catch(() => {});
+  res.json({ data: { ...rows[0], url: publicUrl(row.storage_key) } });
+}));
+
+// POST /api/files/:id/replace — swap the file content, keeping the same
+// attachment record (history note recorded in audit). Uploader or manager.
+r.post('/:id/replace', upload.single('file'), ah(async (req, res) => {
+  const row = (await query(`SELECT * FROM file_attachments WHERE id=$1`, [req.params.id])).rows[0];
+  if (!row) throw notFoundError('File not found');
+  const canManage = req.user.isSuperAdmin || req.user.permissions.includes('masters.manage');
+  if (!canManage && String(row.uploaded_by) !== String(req.user.id)) {
+    throw forbidden('Only the uploader or an administrator can replace this attachment');
+  }
+  if (!req.file) throw badRequest('file is required (multipart field "file")');
+
+  const p = filePayload(req.file);
+  const { rows } = await query(
+    `UPDATE file_attachments SET file_name=$2, mime_type=$3, size_bytes=$4, storage_key=$5
+     WHERE id=$1 RETURNING id, file_name, mime_type, size_bytes, uploaded_at`,
+    [req.params.id, p.fileName, p.mimeType, p.sizeBytes, p.storageKey]);
+  removeStored(row.storage_key); // old object out of local disk / Supabase
+  await logAudit(pool, {
+    userId: req.user.id, role: req.user.roles.join(','), actionType: 'edit',
+    entityType: 'file_attachment', entityId: row.id,
+    beforeValue: { name: row.file_name, size: row.size_bytes },
+    afterValue: { name: p.fileName, size: p.sizeBytes, replaced: true },
+  }).catch(() => {});
+  res.json({ data: { ...rows[0], url: p.url, replaced: true } });
 }));
 
 // DELETE /api/files/:id — delete a file

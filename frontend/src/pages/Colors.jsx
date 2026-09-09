@@ -24,7 +24,7 @@ export default function Colors() {
   };
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">Colors</h1><p className="page-sub" style={{ margin: 0 }}>Manage product colors with hex swatches</p></div>
         <button className="btn primary" onClick={() => { setForm({ code: '', name: '', colourFamily: '', swatchHex: '' }); setModal('create'); }}>+ Add Color</button>
@@ -49,7 +49,6 @@ export default function Colors() {
       </div>
       {modal && (
         <Modal title="Add Color" onClose={() => setModal(null)}>
-          <div className="modal-body">
             <div className="fields-2">
               <label className="field"><span className="field-label">Code *</span><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="e.g. NAVY-BLUE" /></label>
               <label className="field"><span className="field-label">Name *</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Navy Blue" /></label>
@@ -61,7 +60,6 @@ export default function Colors() {
                 </div>
               </label>
             </div>
-          </div>
           <div className="modal-actions">
             <button className="btn" onClick={() => setModal(null)}>Cancel</button>
             <button className="btn primary" onClick={save} disabled={saving || !form.code || !form.name}>{saving ? 'Saving…' : 'Save'}</button>

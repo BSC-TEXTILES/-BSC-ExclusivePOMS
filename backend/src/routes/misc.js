@@ -42,14 +42,14 @@ r.get('/notifications', ah(async (req, res) => {
   res.json({ data: rows, unread });
 }));
 
-r.post('/notifications/:id/read', ah(async (req, res) => {
-  await query(`UPDATE notifications SET is_read = true, read_at = now() WHERE id = $1 AND user_id = $2`,
-    [req.params.id, req.user.id]);
+r.post('/notifications/read-all', ah(async (req, res) => {
+  await query(`UPDATE notifications SET is_read = true, read_at = now() WHERE user_id = $1 AND is_read = false`, [req.user.id]);
   res.json({ ok: true });
 }));
 
-r.post('/notifications/read-all', ah(async (req, res) => {
-  await query(`UPDATE notifications SET is_read = true, read_at = now() WHERE user_id = $1 AND is_read = false`, [req.user.id]);
+r.post('/notifications/:id/read', ah(async (req, res) => {
+  await query(`UPDATE notifications SET is_read = true, read_at = now() WHERE id = $1 AND user_id = $2`,
+    [req.params.id, req.user.id]);
   res.json({ ok: true });
 }));
 

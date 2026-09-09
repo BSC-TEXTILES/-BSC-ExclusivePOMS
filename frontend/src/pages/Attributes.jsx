@@ -37,7 +37,7 @@ export default function Attributes() {
   const DATA_TYPES = ['text', 'number', 'enum', 'boolean'];
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">Attributes</h1><p className="page-sub" style={{ margin: 0 }}>Manage product attributes (material, pattern, fit, etc.)</p></div>
         <button className="btn primary" onClick={() => { setForm({ sectionId: '', attributeKey: '', attributeLabel: '', dataType: 'text', isRequired: false }); setModal('create'); }}>+ Add Attribute</button>
@@ -62,7 +62,6 @@ export default function Attributes() {
       </div>
       {modal && (
         <Modal title="Add Attribute" onClose={() => setModal(null)}>
-          <div className="modal-body">
             <label className="field"><span className="field-label">Section *</span>
               <select value={form.sectionId} onChange={(e) => setForm({ ...form, sectionId: e.target.value })}>
                 <option value="">— select —</option>
@@ -83,7 +82,6 @@ export default function Attributes() {
                 </select>
               </label>
             </div>
-          </div>
           <div className="modal-actions">
             <button className="btn" onClick={() => setModal(null)}>Cancel</button>
             <button className="btn primary" onClick={save} disabled={saving || !form.sectionId || !form.attributeKey || !form.attributeLabel}>{saving ? 'Saving…' : 'Save'}</button>

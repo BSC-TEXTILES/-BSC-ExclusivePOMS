@@ -68,11 +68,17 @@ export default function POCreate() {
       .catch((e) => setError(errMessage(e)));
   }, []);
 
-  // Load sections for chosen division's departments (active only, RB-002)
+  // Load sections for chosen division's departments (active only, RB-002),
+  // restricted to the collections this user is authorized for.
   useEffect(() => {
     if (!header.divisionId) return;
-    api.get('/sections', { params: { status: 'active' } }).then((r) => setSections(r.data.data)).catch(() => {});
-  }, [header.divisionId]);
+    api.get('/sections', { params: { status: 'active' } }).then((r) => {
+      const allowed = user.isSuperAdmin || !(user.sectionIds || []).length
+        ? (r.data.data || [])
+        : (r.data.data || []).filter((s) => user.sectionIds.includes(s.id));
+      setSections(allowed);
+    }).catch(() => {});
+  }, [header.divisionId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Load the section's size columns (§9.3 matrix shape is data-driven, TC-04)
   useEffect(() => {

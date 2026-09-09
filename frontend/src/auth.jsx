@@ -1,5 +1,6 @@
 import { createContext, useContext, useState } from 'react';
 import api from './api.js';
+import { getTabId } from './utils/devtools.js';
 
 const AuthContext = createContext(null);
 
@@ -8,15 +9,27 @@ export function AuthProvider({ children }) {
     try { return JSON.parse(localStorage.getItem('poms_user') || 'null'); } catch { return null; }
   });
 
-  async function login(identifier, password) {
-    const { data } = await api.post('/auth/login', { identifier, password });
+  async function login(identifier, password, extra = {}) {
+    const { data } = await api.post('/auth/login', { identifier, password, ...extra });
     localStorage.setItem('poms_token', data.accessToken);
     localStorage.setItem('poms_user', JSON.stringify(data.user));
     setUser(data.user);
+    try { sessionStorage.removeItem('poms_geo_asked'); } catch { /* ignore */ }
     return data.user;
   }
 
   function logout() {
+    // Report the session end first — keepalive fetch survives the teardown.
+    try {
+      const token = localStorage.getItem('poms_token');
+      if (token) {
+        fetch('/api/tracking/logout', {
+          method: 'POST', keepalive: true,
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ tabId: getTabId() }),
+        }).catch(() => {});
+      }
+    } catch { /* best effort */ }
     api.post('/auth/logout').catch(() => {});
     localStorage.removeItem('poms_token');
     localStorage.removeItem('poms_user');

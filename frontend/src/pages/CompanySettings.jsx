@@ -36,7 +36,7 @@ export default function CompanySettings() {
   };
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">Company Settings</h1><p className="page-sub" style={{ margin: 0 }}>Configure company details for PDFs and documents</p></div>
       </div>

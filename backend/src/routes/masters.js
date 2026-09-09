@@ -219,13 +219,24 @@ r.post('/colours', MANAGE, ah(async (req, res) => {
 
 // ---------- BRANDS (§10.1 — brand number ≠ brand serial, RB-005) ----------
 r.get('/brands', VIEW, ah(async (req, res) => {
-  const { search } = req.query;
-  const params = search ? [`%${search}%`] : [];
+  const { search, sectionId } = req.query;
+  const params = [];
+  let where = `b.status <> 'archived'`;
+  if (search) {
+    params.push(`%${search}%`);
+    where += ` AND (b.brand_name ILIKE $${params.length} OR b.brand_number ILIKE $${params.length} OR b.brand_serial ILIKE $${params.length})`;
+  }
+  // sectionId → only brands actually stocked in that collection (via products)
+  if (sectionId) {
+    params.push(sectionId);
+    where += ` AND EXISTS (SELECT 1 FROM products p WHERE p.brand_id = b.id AND p.section_id = $${params.length} AND p.status <> 'archived')`;
+  }
   const { rows } = await query(
     `SELECT b.*,
             COALESCE((SELECT json_agg(sup.company_name) FROM supplier_brands sb JOIN suppliers sup ON sup.id = sb.supplier_id WHERE sb.brand_id = b.id), '[]') AS providers,
-            (SELECT count(*)::int FROM products p WHERE p.brand_id = b.id) AS product_count
-       FROM brands b WHERE b.status <> 'archived' ${search ? 'AND (b.brand_name ILIKE $1 OR b.brand_number ILIKE $1 OR b.brand_serial ILIKE $1)' : ''}
+            (SELECT count(*)::int FROM products p2 WHERE p2.brand_id = b.id) AS product_count
+       FROM brands b
+      WHERE ${where}
      ORDER BY b.brand_name`, params);
   res.json({ data: rows });
 }));

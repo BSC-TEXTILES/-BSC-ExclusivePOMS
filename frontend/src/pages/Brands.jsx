@@ -1,9 +1,13 @@
 import { useEffect, useState, useRef } from 'react';
-import api, { errMessage } from '../api.js';
+import { useSearchParams, Link } from 'react-router-dom';
+import api, { errMessage, assetUrl } from '../api.js';
 import Modal from '../components/Modal.jsx';
 
 export default function Brands() {
+  const [searchParams] = useSearchParams();
+  const sectionFilter = searchParams.get('sectionId') || '';
   const [rows, setRows] = useState([]);
+  const [sections, setSections] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
@@ -15,16 +19,23 @@ export default function Brands() {
   const fileRef = useRef({});
 
   const load = () => {
-    api.get('/brands', { params: { page, limit: 20, search } })
+    api.get('/brands', { params: { page, limit: 20, search, sectionId: sectionFilter || undefined } })
       .then((r) => { setRows(r.data.data || []); setTotal(r.data.total || 0); })
       .catch((e) => setError(errMessage(e)));
   };
-  useEffect(load, [page, search]);
+  useEffect(load, [page, search, sectionFilter]);
+  useEffect(() => {
+    api.get('/sections').then((r) => setSections(r.data.data || [])).catch(() => {});
+  }, []);
 
   const save = async () => {
     setSaving(true); setError('');
     try {
-      await api.post('/brands', form);
+      if (form.id) {
+        await api.patch(`/brands/${form.id}`, { brandName: form.brandName, brandCode: form.brandCode, manufacturer: form.manufacturer });
+      } else {
+        await api.post('/brands', form);
+      }
       setModal(null); load();
     } catch (e) { setError(errMessage(e)); }
     setSaving(false);
@@ -47,11 +58,19 @@ export default function Brands() {
   };
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">Brands</h1><p className="page-sub" style={{ margin: 0 }}>Manage product brands</p></div>
         <button className="btn primary" onClick={() => { setForm({ brandNumber: '', brandSerial: '', brandName: '', brandCode: '', manufacturer: '' }); setModal('create'); }}>+ Add Brand</button>
       </div>
+      {sectionFilter && (
+        <div className="row" style={{ marginBottom: 10 }}>
+          <span className="chip section-chip">
+            Stocked in collection: {sections.find((s) => s.id === sectionFilter)?.name || sectionFilter}
+            {' '}<Link to="/brands" style={{ color: 'inherit', fontWeight: 700 }}>✕</Link>
+          </span>
+        </div>
+      )}
       {error && <div className="alert error">{error}</div>}
       <div className="panel">
         <label className="field" style={{ maxWidth: 300 }}><span className="field-label">Search</span>
@@ -62,7 +81,7 @@ export default function Brands() {
             <div className="brand-card" key={b.id}>
               <div className="brand-card-logo" onClick={() => fileRef.current[b.id]?.click()}>
                 {b.logo_url ? (
-                  <img src={b.logo_url} alt={b.brand_name} />
+                  <img src={assetUrl(b.logo_url)} alt={b.brand_name} />
                 ) : (
                   <span className="brand-card-initials">{getInitials(b.brand_name)}</span>
                 )}
@@ -99,7 +118,6 @@ export default function Brands() {
       </div>
       {modal && (
         <Modal title={modal === 'create' ? 'Add Brand' : 'Edit Brand'} onClose={() => setModal(null)}>
-          <div className="modal-body">
             <div className="fields-2">
               <label className="field"><span className="field-label">Brand Number *</span><input value={form.brandNumber} onChange={(e) => setForm({ ...form, brandNumber: e.target.value })} disabled={modal === 'edit'} /></label>
               <label className="field"><span className="field-label">Brand Serial *</span><input value={form.brandSerial} onChange={(e) => setForm({ ...form, brandSerial: e.target.value })} disabled={modal === 'edit'} /></label>
@@ -107,7 +125,6 @@ export default function Brands() {
               <label className="field"><span className="field-label">Brand Code</span><input value={form.brandCode} onChange={(e) => setForm({ ...form, brandCode: e.target.value })} /></label>
             </div>
             <label className="field"><span className="field-label">Manufacturer</span><input value={form.manufacturer} onChange={(e) => setForm({ ...form, manufacturer: e.target.value })} /></label>
-          </div>
           <div className="modal-actions">
             <button className="btn" onClick={() => setModal(null)}>Cancel</button>
             <button className="btn primary" onClick={save} disabled={saving || !form.brandNumber || !form.brandSerial || !form.brandName}>{saving ? 'Saving…' : 'Save'}</button>

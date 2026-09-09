@@ -128,9 +128,33 @@ export default function PODetails() {
     try {
       const { data } = await api.post(`/purchase-orders/${id}/${endpoint}`);
       setNotice(successMsg);
-      if (endpoint === 'amend') { navigate(`/purchase-orders/new?edit=${data.data.amendmentId}`); return; }
+      if (endpoint === 'amend' && data.data?.amendmentId) { navigate(`/purchase-orders/new?edit=${data.data.amendmentId}`); return; }
       load();
     } catch (e) { setError(errMessage(e)); } finally { setBusy(false); }
+  }
+
+  async function downloadExport(format) {
+    setBusy(true);
+    try {
+      const token = localStorage.getItem('poms_token');
+      const res = await fetch(`/api/purchase-orders/${id}/export/${format}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!res.ok) throw new Error(`Export failed with status ${res.status}`);
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${po.po_number || 'PO'}_v${po.version || 1}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(errMessage(e));
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (error && !po) return <div className="page"><div className="alert error">{error}</div></div>;
@@ -146,6 +170,17 @@ export default function PODetails() {
         <h1 className="page-title mono">{po.po_number}</h1>
         <span className="muted">v{po.version}</span>
         <StatusChip status={po.status} />
+        <div className="right row" style={{ gap: 8 }}>
+          <button className="btn" disabled={busy} onClick={() => downloadExport('pdf')} title="Download branded Purchase Order PDF">
+            <Icon name="download" size={14} /> Download PDF
+          </button>
+          <button className="btn" disabled={busy} onClick={() => downloadExport('csv')} title="Download complete Purchase Order CSV">
+            <Icon name="reports" size={14} /> Download CSV
+          </button>
+          <button className="btn" onClick={() => window.print()} title="Print Purchase Order">
+            <Icon name="file" size={14} /> Print
+          </button>
+        </div>
       </div>
       <p className="page-sub">Created by {po.created_by_name} on {new Date(po.created_at).toLocaleDateString('en-IN')} — {po.division_name} · {po.section_name}</p>
 

@@ -30,7 +30,7 @@ export default function Pricing() {
   };
 
   return (
-    <div className="content">
+    <div className="page">
       <div className="page-header">
         <div><h1 className="page-title">Pricing</h1><p className="page-sub" style={{ margin: 0 }}>Manage product purchase and selling prices (INR)</p></div>
       </div>

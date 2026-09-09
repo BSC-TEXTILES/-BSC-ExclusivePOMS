@@ -54,8 +54,8 @@ export default function AuditLogs() {
                 {expanded === a.id && (
                   <tr key={`${a.id}-x`}><td colSpan={7} style={{ background: '#0f172a' }}>
                     <div className="json-box">
-                      {a.before_value && <div>BEFORE: {JSON.stringify(typeof a.before_value === 'string' ? JSON.parse(a.before_value) : a.before_value, null, 2)}</div>}
-                      {a.after_value && <div>AFTER: {JSON.stringify(typeof a.after_value === 'string' ? JSON.parse(a.after_value) : a.after_value, null, 2)}</div>}
+                      {a.before_value && <div>BEFORE: {(() => { try { return JSON.stringify(typeof a.before_value === 'string' ? JSON.parse(a.before_value) : a.before_value, null, 2); } catch { return String(a.before_value); } })()}</div>}
+                      {a.after_value && <div>AFTER: {(() => { try { return JSON.stringify(typeof a.after_value === 'string' ? JSON.parse(a.after_value) : a.after_value, null, 2); } catch { return String(a.after_value); } })()}</div>}
                       {a.reason && <div>REASON: {a.reason}</div>}
                       {!a.before_value && !a.after_value && <div>no value diff</div>}
                     </div>
