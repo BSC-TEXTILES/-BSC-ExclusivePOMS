@@ -384,7 +384,7 @@ function MainDashboard() {
       <div className="page-header">
         <div>
           <h1>{greeting()}, {user?.fullName || 'Admin'}!</h1>
-          <p className="muted" style={{ margin: 0 }}>Here's what's happening with your business today. — {today}</p>
+          <p className="muted" style={{ margin: 0 }}>{today} · Your procurement snapshot — orders, approvals and value at a glance.</p>
           {!user.isSuperAdmin && !!mySections.length && (
             <div className="row" style={{ marginTop: 8, gap: 6, alignItems: 'center' }}>
               <span className="muted" style={{ fontSize: 12 }}>Your collections:</span>
@@ -470,34 +470,62 @@ function MainDashboard() {
         </div>
       </div>
 
-      {/* Quick Actions */}
-      <div className="quick-actions">
-        {hasPermission('products.create') && (
-          <Link to="/products/new" className="quick-action">
-            <span className="qa-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>+</span>
-            Add Product
+      {/* Quick Actions — permission-aware shortcut tiles */}
+      <div className="quick-actions-panel">
+        <div className="qap-header">
+          <h2 className="qap-title">Quick Actions</h2>
+          <span className="qap-sub">Frequent tasks, one click away</span>
+        </div>
+        <div className="qa-grid">
+          {hasPermission('products.create') && (
+            <Link to="/products/new" className="qa-tile">
+              <span className="qa-tile-icon blue"><Icon name="plus" size={17} /></span>
+              <span className="qa-tile-body">
+                <span className="qa-tile-title">Add Product</span>
+                <span className="qa-tile-desc">Create a new SKU in any collection</span>
+              </span>
+              <Icon name="arrowRight" size={14} className="qa-tile-arrow" />
+            </Link>
+          )}
+          {hasPermission('categories.manage') && (
+            <Link to="/categories" className="qa-tile">
+              <span className="qa-tile-icon green"><Icon name="masters" size={17} /></span>
+              <span className="qa-tile-body">
+                <span className="qa-tile-title">Manage Categories</span>
+                <span className="qa-tile-desc">Organise the product catalogue</span>
+              </span>
+              <Icon name="arrowRight" size={14} className="qa-tile-arrow" />
+            </Link>
+          )}
+          <Link to="/purchase-orders" className="qa-tile">
+            <span className="qa-tile-icon amber"><Icon name="po" size={17} /></span>
+            <span className="qa-tile-body">
+              <span className="qa-tile-title">Purchase Orders</span>
+              <span className="qa-tile-desc">Track, draft and issue orders</span>
+            </span>
+            <Icon name="arrowRight" size={14} className="qa-tile-arrow" />
           </Link>
-        )}
-        {hasPermission('categories.manage') && (
-          <Link to="/categories" className="quick-action">
-            <span className="qa-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>📁</span>
-            Manage Categories
-          </Link>
-        )}
-        <Link to="/purchase-orders" className="quick-action">
-          <span className="qa-icon" style={{ background: '#fef3c7', color: '#d97706' }}>🛒</span>
-          Manage Orders
-        </Link>
-        <Link to="/reports" className="quick-action" style={{ display: (user.isSuperAdmin || hasPermission('reports.view')) ? 'flex' : 'none' }}>
-          <span className="qa-icon" style={{ background: '#fce7f3', color: '#db2777' }}>📊</span>
-          Generate Report
-        </Link>
-        {hasPermission('settings.manage') && (
-          <Link to="/settings" className="quick-action">
-            <span className="qa-icon" style={{ background: '#f3e8ff', color: '#7c3aed' }}>⚙️</span>
-            Settings
-          </Link>
-        )}
+          {(user.isSuperAdmin || hasPermission('reports.view')) && (
+            <Link to="/reports" className="qa-tile">
+              <span className="qa-tile-icon violet"><Icon name="reports" size={17} /></span>
+              <span className="qa-tile-body">
+                <span className="qa-tile-title">Reports</span>
+                <span className="qa-tile-desc">Export data as CSV or PDF</span>
+              </span>
+              <Icon name="arrowRight" size={14} className="qa-tile-arrow" />
+            </Link>
+          )}
+          {hasPermission('settings.manage') && (
+            <Link to="/settings" className="qa-tile">
+              <span className="qa-tile-icon slate"><Icon name="settings" size={17} /></span>
+              <span className="qa-tile-body">
+                <span className="qa-tile-title">Settings</span>
+                <span className="qa-tile-desc">System preferences and access</span>
+              </span>
+              <Icon name="arrowRight" size={14} className="qa-tile-arrow" />
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Work progress + real monthly chart (horizontal) */}
