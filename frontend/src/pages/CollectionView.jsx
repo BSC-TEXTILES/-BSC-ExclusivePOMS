@@ -170,6 +170,8 @@ export default function CollectionView() {
   });
   const [poRemarks, setPoRemarks] = useState('');
   const [poLines, setPoLines] = useState([]);
+  // Per-card quick quantity — the units prefilled per size when adding to PO
+  const [cardQty, setCardQty] = useState({});
   const [poSubmitting, setPoSubmitting] = useState(false);
   const [createdPO, setCreatedPO] = useState(null);
 
@@ -310,7 +312,7 @@ export default function CollectionView() {
   }
 
   // Quick Add Product to PO Studio
-  function addProductToPO(prod) {
+  function addProductToPO(prod, qtyPerSize = 10) {
     setActiveTab('po_form');
     setSuccessMsg(`Added "${prod.name}" to Purchase Order drafting table.`);
     setTimeout(() => setSuccessMsg(''), 4000);
@@ -318,10 +320,10 @@ export default function CollectionView() {
     const existingIndex = poLines.findIndex((l) => l.productId === prod.id);
     if (existingIndex >= 0) return;
 
-    // Prefill first 4 active sizes with 10 units
+    // Prefill first 4 active sizes with the quantity chosen on the product card
     const initialQty = {};
     activeSizes.slice(0, 4).forEach((sz) => {
-      initialQty[sz] = 10;
+      initialQty[sz] = Math.max(1, Number(qtyPerSize) || 10);
     });
 
     setPoLines((prev) => [
@@ -333,7 +335,7 @@ export default function CollectionView() {
         brand: prod.brand_name || '',
         sectionName: prod.section_name || '',
         colourId: colours[0]?.id || '',
-        purchasePrice: prod.hsn_sac ? 450 : 350,
+        purchasePrice: Number(prod.purchase_price) > 0 ? Number(prod.purchase_price) : 450,
         marginPercent: 30,
         discountType: 'percent',
         discountValue: 0,
@@ -621,24 +623,52 @@ export default function CollectionView() {
             <div className="collection-product-grid">
               {products.map((p) => {
                 const inPO = poLines.some((l) => l.productId === p.id);
+                const qty = cardQty[p.id] ?? 10;
+                const setQty = (v) => setCardQty({ ...cardQty, [p.id]: Math.max(1, Math.min(999, Number(v) || 1)) });
+                // Deterministic brand "logo" tile — initials + stable colour per brand
+                const brandInitials = (p.brand_name || 'BSC')
+                  .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+                const hue = [...(p.brand_name || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
                 return (
-                  <div key={p.id} className="collection-prod-card">
-                    <div className="collection-prod-header">
+                  <div key={p.id} className={`collection-prod-card ${inPO ? 'in-po' : ''}`}>
+                    <div className="collection-prod-top">
+                      <div className="brand-logo-tile" style={{ background: `hsl(${hue} 45% 92%)`, color: `hsl(${hue} 55% 32%)` }} title={p.brand_name || 'BSC Exclusive'}>
+                        {brandInitials}
+                      </div>
+                      <div className="collection-prod-headline">
+                        <div className="collection-prod-name" title={p.name}>{p.name}</div>
+                        <div className="collection-prod-brand">
+                          <span className="brand-logo-name">{p.brand_name || 'Generic'}</span>
+                          {p.manufacturer ? <span className="brand-mfr">by {p.manufacturer}</span> : null}
+                        </div>
+                      </div>
+                      {inPO && <span className="collection-inpo-chip" title="Already in the current PO">✓ in PO</span>}
+                    </div>
+
+                    <div className="collection-prod-tags">
                       <span className="collection-prod-sku">{p.sku}</span>
                       <span className="collection-prod-section">{p.section_name}</span>
                     </div>
-                    <div className="collection-prod-name" title={p.name}>{p.name}</div>
-                    <div className="collection-prod-brand">
-                      <strong>Brand:</strong> {p.brand_name || 'Generic'} {p.manufacturer ? `· ${p.manufacturer}` : ''}
-                    </div>
-                    <div className="collection-prod-footer">
+
+                    <div className="collection-prod-meta">
                       <div className="collection-prod-price">
-                        <span className="collection-price-label">HSN:</span> {p.hsn_sac || '620520'}
+                        {Number(p.purchase_price) > 0
+                          ? <>₹{Number(p.purchase_price).toLocaleString('en-IN')} <span className="collection-price-unit">/ unit</span></>
+                          : <span className="collection-price-label">Price set in PO Studio</span>}
+                      </div>
+                      <span className="collection-price-label">HSN {p.hsn_sac || '—'}</span>
+                    </div>
+
+                    <div className="collection-prod-footer">
+                      <div className="qty-stepper" role="group" aria-label={`Quantity for ${p.name}`}>
+                        <button type="button" onClick={() => setQty(qty - 1)} title="Decrease units per size">−</button>
+                        <input type="number" min="1" max="999" value={qty} onChange={(e) => setQty(e.target.value)} title="Units per size (editable)" />
+                        <button type="button" onClick={() => setQty(qty + 1)} title="Increase units per size">+</button>
                       </div>
                       <button
                         type="button"
                         className={`btn sm ${inPO ? 'success' : 'primary'}`}
-                        onClick={() => addProductToPO(p)}
+                        onClick={() => addProductToPO(p, qty)}
                         title="Add this item to the in-page Purchase Order drafting workspace"
                       >
                         {inPO ? '✓ in PO' : '+ Add to PO'}

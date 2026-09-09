@@ -290,7 +290,7 @@ r.get('/products', VIEW, ah(async (req, res) => {
   const offset = (Math.max(Number(page), 1) - 1) * limit;
   const { rows } = await query(
     `SELECT p.id, p.product_serial, p.sku, p.name, p.status, p.hsn_sac,
-            p.brand_id, p.section_id, p.category_id,
+            p.brand_id, p.section_id, p.category_id, p.purchase_price,
             b.brand_name, b.brand_number, b.manufacturer,
             s.name AS section_name, dep.name AS department_name, dep.id AS department_id,
             (SELECT pi.storage_key FROM product_images pi WHERE pi.product_id = p.id
