@@ -190,10 +190,51 @@ export default function Sidebar({ collapsed, onToggle }) {
   // Division Supervisor: strictly restricted — Men's collection and PO viewing
   // only. All other collections, masters and admin areas stay hidden.
   const isSupervisor = user.roles?.includes('division_supervisor') && !user.isSuperAdmin;
+
+  // Dynamic collection navigation: known groups come from the hardcoded
+  // DEPARTMENT_GROUPS; any NEW department/section created by the Admin in
+  // Master Data (e.g. Lycra Men's, Women's Ethnic, Cricket, Furniture) is
+  // fetched from the API and merged in — the nav grows automatically.
+  const [dynamicGroups, setDynamicGroups] = useState(DEPARTMENT_GROUPS);
+  useEffect(() => {
+    if (!canBrowse) return;
+    Promise.all([api.get('/departments'), api.get('/sections', { params: { status: 'active' } })])
+      .then(([depRes, secRes]) => {
+        const deps = depRes.data.data || [];
+        const secs = secRes.data.data || [];
+        const depById = new Map(deps.map((d) => [d.id, d]));
+        const defaultsByKey = new Map(DEPARTMENT_GROUPS.map((g) => [g.key, g]));
+        const knownIcons = new Map(DEPARTMENT_GROUPS.flatMap((g) => g.sections.map((s) => [s.code, s.icon])));
+        const groups = new Map();
+        secs.forEach((sec) => {
+          const dept = depById.get(sec.department_id);
+          if (!dept) return;
+          const key = (dept.code || dept.name || '').toLowerCase();
+          if (!groups.has(key)) {
+            const base = defaultsByKey.get(key);
+            groups.set(key, {
+              key,
+              title: base ? base.title : dept.name,
+              icon: base ? base.icon : 'masters',
+              sections: base ? base.sections.map((s) => ({ ...s })) : [],
+            });
+          }
+          const grp = groups.get(key);
+          if (!grp.sections.some((x) => x.code === sec.code)) {
+            grp.sections.push({ code: sec.code, name: sec.name, icon: knownIcons.get(sec.code) || 'masters' });
+          }
+        });
+        if (groups.size) setDynamicGroups([...groups.values()]);
+      })
+      .catch(() => {});
+  }, [canBrowse]);
+
+  const departmentGroups = isSupervisor
+    ? dynamicGroups.filter((g) => g.key === 'men')
+    : dynamicGroups;
   const navSections = isSupervisor
     ? SECTIONS.filter((s) => !s.label || ['Collections', 'Orders'].includes(s.label))
     : SECTIONS;
-  const departmentGroups = isSupervisor ? DEPARTMENT_GROUPS.filter((g) => g.key === 'men') : DEPARTMENT_GROUPS;
   const canCreatePO = user.isSuperAdmin || user.permissions?.includes('po.create');
   const [openGroup, setOpenGroup] = useState('men');
   const navigate = useNavigate();

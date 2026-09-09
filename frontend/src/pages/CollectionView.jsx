@@ -117,7 +117,19 @@ export default function CollectionView() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const config = DEPARTMENT_CONFIG[deptKey] || DEPARTMENT_CONFIG.men;
+  // Known departments come from the hardcoded config; NEW admin-created
+  // departments resolve live from the API by matching the route key to
+  // department code (case-insensitive) — so any newly added collection
+  // (e.g. Cricket, Lycra, Furniture) works without code changes.
+  const hardcoded = DEPARTMENT_CONFIG[deptKey] || null;
+  const config = hardcoded || {
+    code: (deptKey || '').toUpperCase(),
+    title: department?.name || 'Collection',
+    icon: 'masters',
+    themeColor: '#1d4ed8',
+    accentBg: '#eff6ff',
+    sections: [],
+  };
   const activeSectionCode = searchParams.get('sectionCode') || '';
 
   const [activeTab, setActiveTab] = useState('catalogue'); // 'catalogue' | 'po_form'
@@ -190,7 +202,11 @@ export default function CollectionView() {
       api.get('/categories'),
     ]).then(([depRes, secRes, brandRes, supRes, locRes, colRes, divRes, catRes]) => {
       const allDeps = depRes.data.data || [];
-      const foundDept = allDeps.find((d) => d.code === config.code) || allDeps[0];
+      const wantedCode = (config?.code || deptKey || '').toUpperCase();
+      const foundDept =
+        allDeps.find((d) => d.code === wantedCode) ||
+        allDeps.find((d) => (d.code || '').toLowerCase() === (deptKey || '').toLowerCase()) ||
+        allDeps[0];
       setDepartment(foundDept);
 
       const allSecs = secRes.data.data || [];
@@ -206,7 +222,7 @@ export default function CollectionView() {
       if (divs.length > 0) setPoDivisionId(divs[0].id);
       setCategories(catRes.data.data || []);
     }).catch((e) => setError(errMessage(e)));
-  }, [config.code]);
+  }, [config?.code, deptKey]);
 
   // Determine active section object
   const activeSection = useMemo(() => {

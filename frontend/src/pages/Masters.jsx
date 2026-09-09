@@ -5,7 +5,7 @@ import StatusChip from '../components/StatusChip.jsx';
 import Modal from '../components/Modal.jsx';
 import { Field } from '../components/DataTable.jsx';
 
-const TABS = ['Sections', 'Brands', 'Products', 'Colours', 'Suppliers'];
+const TABS = ['Departments', 'Sections', 'Brands', 'Products', 'Colours', 'Suppliers'];
 
 export default function Masters() {
   const { hasPermission } = useAuth();
@@ -21,6 +21,7 @@ export default function Masters() {
   const load = useCallback(() => {
     setError('');
     const req = {
+      Departments: () => api.get('/departments'),
       Sections: () => api.get('/sections'),
       Brands: () => api.get('/brands'),
       Products: () => api.get('/products'),
@@ -39,6 +40,7 @@ export default function Masters() {
 
   function openNew() {
     const blank = {
+      Departments: { code: '', name: '', isGlobal: false, divisionId: '' },
       Sections: { code: '', name: '', departmentId: '', sizingMethodId: '', displayOrder: 0 },
       Brands: { brandNumber: '', brandSerial: '', brandName: '', manufacturer: '' },
       Products: { sku: '', name: '', brandId: '', sectionId: '' },
@@ -50,6 +52,7 @@ export default function Masters() {
   function openEdit(row) {
     setEditing(row);
     const mapped = {
+      Departments: { ...row, isGlobal: !!row.is_global },
       Sections: { ...row, departmentId: row.department_id, sizingMethodId: row.sizing_method_id, displayOrder: row.display_order },
       Brands: { brandNumber: row.brand_number, brandSerial: row.brand_serial, brandName: row.brand_name, manufacturer: row.manufacturer },
       Products: { sku: row.sku, name: row.name, brandId: row.brand_id, sectionId: row.section_id },
@@ -62,7 +65,10 @@ export default function Masters() {
   async function save() {
     setBusy(true); setError('');
     try {
-      if (tab === 'Sections') {
+      if (tab === 'Departments') {
+        if (editing.id) await api.patch(`/departments/${editing.id}`, { name: form.name, status: form.status });
+        else await api.post('/departments', form);
+      } else if (tab === 'Sections') {
         if (editing.id) await api.patch(`/sections/${editing.id}`, { name: form.name, sizingMethodId: form.sizingMethodId, displayOrder: Number(form.displayOrder) || 0 });
         else await api.post('/sections', { ...form, displayOrder: Number(form.displayOrder) || 0 });
       } else if (tab === 'Brands') {
@@ -85,7 +91,7 @@ export default function Masters() {
   async function lifecycle(row, status) {
     setError('');
     try {
-      await api.patch(`/sections/${row.id}`, { status });
+      await api.patch(tab === 'Departments' ? `/departments/${row.id}` : `/sections/${row.id}`, { status });
       load();
     } catch (e) { setError(errMessage(e)); }
   }
@@ -109,6 +115,37 @@ export default function Masters() {
         <div className="row" style={{ marginBottom: 12 }}>
           {canManage && <button className="btn primary" onClick={openNew}>+ New {tab.replace(/s$/, '')}</button>}
         </div>
+
+        {tab === 'Departments' && (
+          <>
+            <p className="muted" style={{ margin: '0 0 10px' }}>
+              Departments are the collection groups shown in the left navigation (e.g. Men's Collection, Women's Ethnic, Cricket, Furniture).
+              Create as many as you need — each one can hold unlimited sections.
+            </p>
+            <table className="grid">
+              <thead><tr><th>Code</th><th>Department</th><th>Scope</th><th>Status</th><th></th></tr></thead>
+              <tbody>
+                {rows.map((d) => (
+                  <tr key={d.id}>
+                    <td className="mono">{d.code}</td>
+                    <td><strong>{d.name}</strong></td>
+                    <td>{d.is_global ? 'Global (all divisions)' : refs.divisions.find((v) => v.id === d.division_id)?.name || '—'}</td>
+                    <td><StatusChip status={d.status} /></td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      {canManage && d.status === 'active' && <>
+                        <button className="btn sm" onClick={() => openEdit(d)}>Edit</button>{' '}
+                        <button className="btn sm" onClick={() => lifecycle(d, 'inactive')}>Deactivate</button>{' '}
+                        <button className="btn sm" onClick={() => lifecycle(d, 'archived')}>Archive</button>
+                      </>}
+                      {canManage && d.status !== 'active' && <button className="btn sm ok" onClick={() => lifecycle(d, 'active')}>Activate</button>}
+                    </td>
+                  </tr>
+                ))}
+                {!rows.length && <tr><td colSpan={5} style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>No departments yet</td></tr>}
+              </tbody>
+            </table>
+          </>
+        )}
 
         {tab === 'Sections' && (
           <table className="grid">
@@ -213,6 +250,35 @@ export default function Masters() {
 
       {editing && (
         <Modal title={editing.id ? `Edit — ${tab}` : `New — ${tab}`} onClose={() => setEditing(null)}>
+          {tab === 'Departments' && (
+            <>
+              {!editing.id && <div className="fields-2">
+                <Field label="Code" hint="Short unique code, e.g. CRICKET, FURN">
+                  <input value={form.code || ''} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} />
+                </Field>
+                <Field label="Display name" hint="Shown in the left navigation">
+                  <input value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                </Field>
+              </div>}
+              {editing.id && <Field label="Department name"><input value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} /></Field>}
+              {!editing.id && (
+                <Field label="Scope">
+                  <div className="row" style={{ gap: 14 }}>
+                    <label style={{ fontWeight: 400 }}>
+                      <input type="checkbox" checked={form.isGlobal} onChange={(e) => setForm({ ...form, isGlobal: e.target.checked })} />{' '}
+                      Global (all divisions)
+                    </label>
+                    {!form.isGlobal && (
+                      <select value={form.divisionId || ''} onChange={(e) => setForm({ ...form, divisionId: e.target.value })} style={{ minWidth: 180 }}>
+                        <option value="">— select division —</option>
+                        {refs.divisions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      </select>
+                    )}
+                  </div>
+                </Field>
+              )}
+            </>
+          )}
           {tab === 'Sections' && (
             <>
               {!editing.id && <div className="fields-2">

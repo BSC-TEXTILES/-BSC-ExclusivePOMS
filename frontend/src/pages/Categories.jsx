@@ -34,7 +34,7 @@ export default function Categories() {
   return (
     <div className="page">
       <div className="page-header">
-        <div><h1 className="page-title">Categories</h1><p className="page-sub" style={{ margin: 0 }}>Manage product categories (hierarchical)</p></div>
+        <div><h1 className="page-title">Categories</h1><p className="page-sub" style={{ margin: 0 }}>Create and manage any number of product categories under any section — no limits</p></div>
         <button className="btn primary" onClick={() => { setForm({ sectionId: '', parentCategoryId: '', code: '', name: '' }); setModal('create'); }}>+ Add Category</button>
       </div>
       {sectionFilter && (
