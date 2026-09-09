@@ -172,6 +172,9 @@ async function main() {
   }
   console.log(`✔ ${SECTIONS.length} sections seeded (§8.1 + furniture §8.3 + toys)`);
 
+  // Load sections map for user-section assignments
+  const sections = Object.fromEntries((await query(`SELECT id, code FROM sections`)).rows.map((s) => [s.code, s.id]));
+
   // ---------- Sample brands + products (§10) ----------
   const BRANDS = [
     ['BN-1001', 'BSR-1001', "Levi's", 'LVS', "Levi Strauss & Co."],
@@ -185,7 +188,6 @@ async function main() {
        VALUES ($1,$2,$3,$4,$5) ON CONFLICT (brand_number) DO NOTHING`, [num, serial, name, code, mfr]);
   }
   const brands = Object.fromEntries((await query(`SELECT id, brand_name FROM brands`)).rows.map((b) => [b.brand_name, b.id]));
-  const sections = Object.fromEntries((await query(`SELECT id, code FROM sections`)).rows.map((s) => [s.code, s.id]));
 
   const PRODUCTS = [
     ['PRD-00001', 'LVS-FS-001', "Levi's Men's Formal Shirt", brands["Levi's"], 'MEN-SHIRTS'],
@@ -253,16 +255,17 @@ async function main() {
 
   // ---------- Users (§6.1 demo accounts) ----------
   const USERS = [
-    ['admin@bsc.local', 'admin', 'Rajeshwar V. Rao', ['super_admin'], ['DVG', 'SMG', 'BLG'], 'Admin@123'],
-    ['dvg.admin@bsc.local', 'dvg.admin', 'Davanagere Domain Admin', ['domain_admin'], ['DVG'], 'Admin@123'],
-    ['pm.dvg@bsc.local', 'pm.dvg', 'Davanagere Purchase Manager', ['purchase_manager'], ['DVG'], 'PM@12345'],
-    ['buyer.dvg@bsc.local', 'buyer.dvg', 'Davanagere Purchase Executive', ['purchase_executive'], ['DVG'], 'PE@12345'],
-    ['approver.dvg@bsc.local', 'approver.dvg', 'Davanagere Approver', ['approver'], ['DVG'], 'AP@12345'],
-    ['receiver.dvg@bsc.local', 'receiver.dvg', 'Davanagere Receiving User', ['receiving_user'], ['DVG'], 'RC@12345'],
-    ['viewer@bsc.local', 'viewer', 'Enterprise Viewer', ['viewer'], ['DVG', 'SMG', 'BLG'], 'VW@12345'],
-    ['auditor@bsc.local', 'auditor', 'Enterprise Auditor', ['auditor'], ['DVG', 'SMG', 'BLG'], 'AU@12345'],
+    ['admin@bsc.local', 'admin', 'Rajeshwar V. Rao', ['super_admin'], ['DVG', 'SMG', 'BLG'], [], 'Admin@123'],
+    ['dvg.admin@bsc.local', 'dvg.admin', 'Davanagere Domain Admin', ['domain_admin'], ['DVG'], [], 'Admin@123'],
+    ['pm.dvg@bsc.local', 'pm.dvg', 'Davanagere Purchase Manager', ['purchase_manager'], ['DVG'], [], 'PM@12345'],
+    ['buyer.dvg@bsc.local', 'buyer.dvg', 'Davanagere Purchase Executive', ['purchase_executive'], ['DVG'], [], 'PE@12345'],
+    ['approver.dvg@bsc.local', 'approver.dvg', 'Davanagere Approver', ['approver'], ['DVG'], [], 'AP@12345'],
+    ['receiver.dvg@bsc.local', 'receiver.dvg', 'Davanagere Receiving User', ['receiving_user'], ['DVG'], [], 'RC@12345'],
+    ['viewer@bsc.local', 'viewer', 'Enterprise Viewer', ['viewer'], ['DVG', 'SMG', 'BLG'], [], 'VW@12345'],
+    ['auditor@bsc.local', 'auditor', 'Enterprise Auditor', ['auditor'], ['DVG', 'SMG', 'BLG'], [], 'AU@12345'],
+    ['sureshmen', 'sureshmen', 'Suresh Men', ['purchase_executive'], ['DVG'], ['MEN-SHIRTS'], 'Buyer@12345'],
   ];
-  for (const [email, username, fullName, roleCodes, divCodes, password] of USERS) {
+  for (const [email, username, fullName, roleCodes, divCodes, secCodes, password] of USERS) {
     const { rows } = await query(
       `INSERT INTO users (email, username, password_hash, full_name)
        VALUES ($1,$2,$3,$4) ON CONFLICT (email) DO NOTHING RETURNING id`,
@@ -274,6 +277,9 @@ async function main() {
     }
     for (const dc of divCodes) {
       await query(`INSERT INTO user_divisions (user_id, division_id) VALUES ($1,$2)`, [uid, divisions[dc]]);
+    }
+    for (const sc of secCodes) {
+      await query(`INSERT INTO user_sections (user_id, section_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [uid, sections[sc]]);
     }
   }
   // ---------- SCALE-UP: 30+ brands with providers, 1000+ products, team chat ----------

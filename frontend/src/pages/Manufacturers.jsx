@@ -16,7 +16,7 @@ export default function Manufacturers() {
 
   const load = () => {
     api.get('/manufacturers', { params: { page, limit: 20, search } })
-      .then((r) => { setRows(r.data.data); setTotal(r.data.total); })
+      .then((r) => { setRows(r.data.data || []); setTotal(r.data.total || 0); })
       .catch((e) => setError(errMessage(e)));
   };
   useEffect(load, [page, search]);

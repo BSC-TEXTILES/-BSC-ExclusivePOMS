@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api, { errMessage, uploadFile, API_BASE, assetUrl } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import Icon from './Icon.jsx';
@@ -29,6 +29,7 @@ export function Avatar({ user, size = 34 }) {
 export default function Topbar({ collapsed, onToggle }) {
   const { user, logout, updateUser, hasPermission } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [now, setNow] = useState(new Date());
   const [q, setQ] = useState('');
   const [results, setResults] = useState(null);
@@ -75,7 +76,7 @@ export default function Topbar({ collapsed, onToggle }) {
 
   useEffect(() => {
     api.get('/notifications').then((r) => {
-      setNotifications(r.data.data);
+      setNotifications(r.data.data || []);
       setUnread(r.data.unread);
     }).catch(() => {});
   }, []);
@@ -114,7 +115,7 @@ export default function Topbar({ collapsed, onToggle }) {
     if (v.trim().length < 2) { setResults(null); setOpenMenu(null); return; }
     try {
       const { data } = await api.get('/search', { params: { q: v.trim() } });
-      setResults(data.data);
+      setResults(data.data || { purchaseOrders: [], products: [], suppliers: [], users: [] });
       setOpenMenu('search');
     } catch { setResults(null); }
   }
@@ -145,6 +146,10 @@ export default function Topbar({ collapsed, onToggle }) {
   const canSearchUsers = user.isSuperAdmin || hasPermission('users.manage');
   const r = results;
 
+  // Detect if we're on a PO detail page to show the cart inspection badge
+  const poMatch = location.pathname.match(/^\/purchase-orders\/(\d+)/);
+  const currentPoId = poMatch ? poMatch[1] : null;
+
   return (
     <header className="topbar" ref={boxRef}>
       <div className="topbar-left">
@@ -165,27 +170,27 @@ export default function Topbar({ collapsed, onToggle }) {
         {openMenu === 'search' && r && (
           <div className="dropdown search-drop">
             <div className="drop-section">Purchase Orders</div>
-            {r.purchaseOrders.map((p) => (
+            {(r.purchaseOrders || []).map((p) => (
               <button key={p.id} className="drop-item" onClick={() => goSearch(p, 'po')}>
                 <Icon name="po" size={15} /> <span><strong>{p.po_number}</strong> · {p.supplier} · {p.division}</span>
                 <span className={`right chip st-${p.status}`}>{p.status.replace(/_/g, ' ')}</span>
               </button>
             ))}
-            {!r.purchaseOrders.length && <div className="drop-empty">No matching POs</div>}
+            {!(r.purchaseOrders || []).length && <div className="drop-empty">No matching POs</div>}
             <div className="drop-section">Products</div>
-            {r.products.map((p) => (
+            {(r.products || []).map((p) => (
               <button key={p.id} className="drop-item" onClick={() => goSearch(p, 'product')}>
                 <Icon name="catalogue" size={15} /> <span><strong>{p.name}</strong> · {p.brand_name}</span>
                 <span className="right muted mono">{p.sku}</span>
               </button>
             ))}
-            {!r.products.length && <div className="drop-empty">No matching products</div>}
-            {!!r.suppliers.length && <div className="drop-section">Suppliers</div>}
-            {r.suppliers.map((s) => (
+            {!(r.products || []).length && <div className="drop-empty">No matching products</div>}
+            {!!(r.suppliers || []).length && <div className="drop-section">Suppliers</div>}
+            {(r.suppliers || []).map((s) => (
               <div key={s.id} className="drop-item static"><Icon name="building" size={15} /> <span>{s.company_name}</span></div>
             ))}
-            {canSearchUsers && !!r.users.length && <div className="drop-section">Users</div>}
-            {canSearchUsers && r.users.map((u) => (
+            {canSearchUsers && !!(r.users || []).length && <div className="drop-section">Users</div>}
+            {canSearchUsers && (r.users || []).map((u) => (
               <button key={u.id} className="drop-item" onClick={() => goSearch(u, 'user')}>
                 <Icon name="users" size={15} /> <span>{u.full_name}</span> <span className="right muted">{u.email}</span>
               </button>
@@ -252,6 +257,17 @@ export default function Topbar({ collapsed, onToggle }) {
           </div>
         )}
         </div>
+
+        {/* Cart Inspection - Shows when a PO is selected */}
+        {currentPoId && (
+          <div className="tb-anchor">
+            <button className="icon-btn cart-indicator" title="PO Cart Inspection — Click to view PO details"
+              onClick={() => navigate(`/purchase-orders/${currentPoId}`)}>
+              <Icon name="po" size={19} />
+              <span className="badge cart-badge">PO</span>
+            </button>
+          </div>
+        )}
 
         <div className="tb-anchor">
           <button className="profile-btn" onClick={() => setOpenMenu(openMenu === 'profile' ? null : 'profile')}>

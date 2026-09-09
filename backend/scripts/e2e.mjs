@@ -4,14 +4,18 @@
 // receipt (RB-013, RC-02) → inventory → dashboards/reports → audit → snapshots (RB-003).
 //
 // Requires a PostgreSQL with the schema + seed applied. Configure via env:
-//   DATABASE_URL (default: postgresql://postgres@localhost:5433/poms)
+//   DATABASE_URL (default: postgresql://postgres@localhost:5432/poms)
 //   E2E_PORT     (default: 4001)
 // Run: node scripts/e2e.mjs
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+
+const BACKEND_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const BASE = `http://localhost:${process.env.E2E_PORT || 4001}/api`;
-const DB = process.env.DATABASE_URL || 'postgresql://postgres@localhost:5433/poms';
+const DB = process.env.DATABASE_URL || 'postgresql://postgres@localhost:5432/poms';
 
 let passed = 0; const failures = [];
 function check(name, cond, extra = '') {
@@ -31,7 +35,10 @@ async function api(method, path, { token, body } = {}) {
 }
 
 async function login(identifier, password) {
-  const r = await api('POST', '/auth/login', { body: { identifier, password } });
+  // Resolve the CAPTCHA challenge first (reveal hook is non-production only).
+  const cap = await api('GET', '/auth/captcha?reveal=1');
+  if (cap.status !== 200 || !cap.json.answer) throw new Error(`captcha fetch failed for ${identifier}: ${JSON.stringify(cap.json)}`);
+  const r = await api('POST', '/auth/login', { body: { identifier, password, captchaId: cap.json.id, captchaText: cap.json.answer } });
   if (r.status !== 200) throw new Error(`login ${identifier} failed: ${JSON.stringify(r.json)}`);
   return r.json;
 }
@@ -50,7 +57,7 @@ async function waitForHealth() {
 async function main() {
   console.log(`Booting API server (DATABASE_URL=${DB}) …`);
   const server = spawn(process.execPath, ['src/server.js'], {
-    cwd: new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'),
+    cwd: BACKEND_DIR,
     env: { ...process.env, DATABASE_URL: DB, PORT: process.env.E2E_PORT || '4001', JWT_SECRET: 'e2e-secret' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });

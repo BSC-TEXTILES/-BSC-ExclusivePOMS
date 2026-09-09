@@ -12,7 +12,7 @@ export default function Approvals() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
-    api.get('/approvals/queue').then((r) => setQueue(r.data.data)).catch((e) => setError(errMessage(e)));
+    api.get('/approvals/queue').then((r) => setQueue(r.data.data || [])).catch((e) => setError(errMessage(e)));
   }, []);
   useEffect(load, [load]);
 

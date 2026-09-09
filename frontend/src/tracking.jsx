@@ -10,7 +10,7 @@ import { createDevToolsWatcher, getTabId } from './utils/devtools.js';
 //  - DevTools detection on every page; when the Administrator has blocking on,
 //    a full-screen curtain appears, the event is recorded, and the user is
 //    signed out (and login is blocked on the login page).
-const TrackingContext = createContext({ devtoolsOpen: false, devtoolsBlock: true });
+const TrackingContext = createContext({ devtoolsOpen: false, devtoolsBlock: true, demoMode: true });
 
 export const useTracking = () => useContext(TrackingContext);
 
@@ -21,6 +21,10 @@ export function TrackingProvider({ children }) {
   const isDev = import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   const [devtoolsOpen, setDevtoolsOpen] = useState(false);
   const [devtoolsBlock, setDevtoolsBlock] = useState(false);
+  // Demo-account cards on the login page: default to the build mode, then follow
+  // the server flag (DEMO_MODE env / NODE_ENV=production hides them).
+  const [demoMode, setDemoMode] = useState(import.meta.env.DEV);
+  const [demoAccounts, setDemoAccounts] = useState([]);
   const [geo, setGeo] = useState(null);
   const [curtain, setCurtain] = useState(false);
   const devOpenRef = useRef(false);
@@ -31,9 +35,12 @@ export function TrackingProvider({ children }) {
   useEffect(() => {
     if (isDev) {
       setDevtoolsBlock(false);
-      return;
     }
-    api.get('/settings/public').then((r) => setDevtoolsBlock(r.data.devtoolsBlock !== false)).catch(() => {});
+    api.get('/settings/public').then((r) => {
+      setDevtoolsBlock(isDev ? false : r.data.devtoolsBlock !== false);
+      if (typeof r.data.demoMode === 'boolean') setDemoMode(r.data.demoMode);
+      setDemoAccounts(r.data.demoAccounts || []);
+    }).catch(() => {});
   }, [location.pathname, isDev]);
 
   // Geolocation — one permission request per tab session; silently skipped
@@ -111,7 +118,7 @@ export function TrackingProvider({ children }) {
   }, [user, location.pathname]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <TrackingContext.Provider value={{ devtoolsOpen: isDev ? false : devtoolsOpen, devtoolsBlock: isDev ? false : devtoolsBlock, sendHeartbeat }}>
+    <TrackingContext.Provider value={{ devtoolsOpen: isDev ? false : devtoolsOpen, devtoolsBlock: isDev ? false : devtoolsBlock, demoMode, demoAccounts, sendHeartbeat }}>
       {children}
       {!isDev && curtain && (
         <div className="devtools-curtain" role="alert">

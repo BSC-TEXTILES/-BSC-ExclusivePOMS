@@ -18,7 +18,7 @@ export default function Pricing() {
     api.get('/pricing', { params: { page, limit: 20, search } })
       .then((r) => { setRows(r.data.data || []); setTotal(r.data.total || 0); })
       .catch((e) => setError(errMessage(e)));
-    api.get('/pricing/stats').then((r) => setStats(r.data.data)).catch(() => {});
+    api.get('/pricing/stats').then((r) => setStats(r.data.data || null)).catch(() => {});
   };
   useEffect(load, [page, search]);
 

@@ -75,7 +75,7 @@ async function priceLine(client, line, po, policy, req) {
     throw badRequest(`Product ${product.sku} does not belong to the PO section (RB-002)`);
   }
 
-  const quantities = (line.quantities || []).filter((q) => Number(q.quantity) > 0);
+  const quantities = (Array.isArray(line.quantities) ? line.quantities : (line.quantities || [])).filter((q) => Number(q.quantity) > 0);
   const totalQuantity = quantities.reduce((a, q) => a + Number(q.quantity), 0);
   if (!Number.isInteger(totalQuantity) || totalQuantity <= 0) {
     throw badRequest(`RB-007: line ${product.sku} needs a positive integer total quantity (sum of variant quantities, RB-006)`);
@@ -573,7 +573,7 @@ r.post('/:id/submit', requirePermission('po.submit'), ah(async (req, res) => {
       discountValue: r.discount_value === null ? 0 : Number(r.discount_value),
       quantities: r.quantities || [],
     }));
-    const storedDiscount = po.order_discount || null;
+    const storedDiscount = po.order_discount_amount || null;
     if (!storedLines.length) throw badRequest('PO has no lines to submit');
     const totals = await persistLines(client, po, storedLines, req, policy);
 

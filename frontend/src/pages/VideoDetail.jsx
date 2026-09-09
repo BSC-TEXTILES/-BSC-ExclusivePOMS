@@ -26,7 +26,7 @@ export default function VideoDetail() {
   const load = useCallback(async () => {
     try {
       const { data } = await api.get(`/videos/${id}`);
-      setVideo(data.data);
+      setVideo(data.data || null);
       setForm({
         title: data.data.title || '',
         description: data.data.description || '',

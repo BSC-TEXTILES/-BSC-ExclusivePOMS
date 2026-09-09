@@ -19,14 +19,14 @@ function previewLine(line) {
   const dv = Number(line.discountValue) || 0;
   const discount = line.discountType === 'flat' ? round2(dv) : round2(net * dv / 100);
   const final = round2(net - discount);
-  const totalQty = Object.values(line.quantities).reduce((a, q) => a + (Number(q) || 0), 0);
+  const totalQty = Object.values(line.quantities || {}).reduce((a, q) => a + (Number(q) || 0), 0);
   return { marginAmount, net, discount, final, totalQty, lineTotal: round2(final * totalQty) };
 }
 
 export default function POCreate() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { hasPermission, user } = useAuth();
+  const { hasPermission, user, selectedSectionId } = useAuth();
   const editId = searchParams.get('edit');
 
   const [step, setStep] = useState(0);
@@ -46,6 +46,13 @@ export default function POCreate() {
   const [lines, setLines] = useState([]);
   const [orderDiscount, setOrderDiscount] = useState({ type: 'percent', value: '0', reason: '' });
   const [charges, setCharges] = useState([]);
+
+  // Pre-select section if one is selected in auth context
+  useEffect(() => {
+    if (selectedSectionId && !header.sectionId) {
+      setHeader((h) => ({ ...h, sectionId: selectedSectionId }));
+    }
+  }, [selectedSectionId, header.sectionId]);
 
   // Inline "Other" quick-create state (§10.3 progressive catalogue)
   const [inline, setInline] = useState(null); // {kind, fields...}
@@ -83,13 +90,13 @@ export default function POCreate() {
   // Load the section's size columns (§9.3 matrix shape is data-driven, TC-04)
   useEffect(() => {
     if (!header.sectionId) { setSizes([]); return; }
-    api.get(`/sections/${header.sectionId}/sizes`).then((r) => setSizes(r.data.data)).catch(() => {});
+    api.get(`/sections/${header.sectionId}/sizes`).then((r) => setSizes(r.data.data || [])).catch(() => {});
   }, [header.sectionId]);
 
   // Products for the section
   useEffect(() => {
     if (!header.sectionId) { setProducts([]); return; }
-    api.get('/products', { params: { sectionId: header.sectionId, status: 'active', pageSize: 500 } }).then((r) => setProducts(r.data.data)).catch(() => {});
+    api.get('/products', { params: { sectionId: header.sectionId, status: 'active', pageSize: 500 } }).then((r) => setProducts(r.data.data || [])).catch(() => {});
   }, [header.sectionId]);
 
   // Editing a draft (PE-04/PM workflow)

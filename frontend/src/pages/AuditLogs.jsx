@@ -10,7 +10,7 @@ export default function AuditLogs() {
   useEffect(() => {
     const params = {};
     Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
-    api.get('/audit-logs', { params }).then((r) => setRows(r.data.data)).catch((e) => setError(errMessage(e)));
+    api.get('/audit-logs', { params }).then((r) => setRows(r.data.data || [])).catch((e) => setError(errMessage(e)));
   }, [filters]);
 
   return (

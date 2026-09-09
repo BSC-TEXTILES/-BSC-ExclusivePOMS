@@ -1,76 +1,52 @@
+// Deployment entry point for seeding (aidmi.md runbook §4.2):
+//   node scripts/run-all-migrations.mjs && node scripts/ensure-seed.mjs
+// It verifies the schema is in place, then delegates to the full idempotent
+// seed (roles, permissions, sections, sizes, colours, approval rules, settings,
+// demo users, 1000+ product catalogue). Safe to run repeatedly.
 import 'dotenv/config';
+import { spawnSync } from 'node:child_process';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
-const url = process.env.DATABASE_URL || 'postgresql://postgres@localhost:5433/poms';
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+const url = process.env.DATABASE_URL || 'postgresql://postgres@localhost:5432/poms';
+
 const client = new pg.Client({ connectionString: url });
+await client.connect();
 
-async function seed() {
-  await client.connect();
-
-  // Locations
-  const locs = await client.query('SELECT count(*)::int AS count FROM locations');
-  if (locs.rows[0].count === 0) {
-    await client.query(`
-      INSERT INTO locations (code, name, address, city, state, country, contact_person, phone) VALUES
-      ('WH-BLR-01', 'Bangalore Central Distribution Hub', 'Plot 14B, Electronic City Phase 1', 'Bangalore', 'Karnataka', 'India', 'Ramesh Kumar', '+91 98450 12345'),
-      ('WH-DVG-01', 'Davanagere Regional Warehouse', 'Industrial Estate, PB Road', 'Davanagere', 'Karnataka', 'India', 'Manjunath S', '+91 98451 67890'),
-      ('ST-MUM-01', 'Mumbai Flagship Boutique', 'Phoenix Palladium, Lower Parel', 'Mumbai', 'Maharashtra', 'India', 'Priya Sharma', '+91 98200 11223')
-      ON CONFLICT (code) DO NOTHING
-    `);
-    console.log('✓ Seeded locations');
-  }
-
-  // Company Settings
-  const comp = await client.query('SELECT count(*)::int AS count FROM company_settings');
-  if (comp.rows[0].count === 0) {
-    await client.query(`
-      INSERT INTO company_settings (
-        company_name, legal_name, gstin, pan, cin, email, phone, website,
-        registered_address, city, state, postal_code, country, logo_url
-      ) VALUES (
-        'BSC Exclusive',
-        'BSC Exclusive Private Limited',
-        '29AABCB1234F1Z5',
-        'AABCB1234F',
-        'U17120KA2024PTC188920',
-        'procurement@bscexclusive.com',
-        '+91 80 2345 6789',
-        'https://bscexclusive.com',
-        '#42, Commercial Avenue, PB Road',
-        'Davanagere',
-        'Karnataka',
-        '577002',
-        'India',
-        '/bsc-logo.png'
-      )
-    `);
-    console.log('✓ Seeded company settings');
-  }
-
-  // Product types
-  const pts = await client.query('SELECT count(*)::int AS count FROM product_types');
-  if (pts.rows[0].count === 0) {
-    const sec = await client.query('SELECT id FROM sections LIMIT 1');
-    if (sec.rows.length > 0) {
-      const sectionId = sec.rows[0].id;
-      await client.query(`
-        INSERT INTO product_types (section_id, code, name) VALUES
-        ($1, 'MENS_SHIRTS', 'Formal & Casual Shirts'),
-        ($1, 'MENS_TROUSERS', 'Trousers & Chinos'),
-        ($1, 'SAREES', 'Designer Sarees'),
-        ($1, 'KURTIS', 'Ethnic Kurtis'),
-        ($1, 'JEWELLERY', 'Fashion Jewellery')
-        ON CONFLICT DO NOTHING
-      `, [sectionId]);
-      console.log('✓ Seeded product types');
-    }
-  }
-
-  console.log('✓ Seed verification completed successfully.');
-  await client.end();
+async function tableExists(name) {
+  const { rows } = await client.query(
+    `SELECT 1 FROM information_schema.tables WHERE table_schema='public' AND table_name=$1`, [name]);
+  return rows.length > 0;
 }
 
-seed().catch(err => {
-  console.error('Seed error:', err);
+const users = await tableExists('users');
+const roles = await tableExists('roles');
+const sections = await tableExists('sections');
+
+if (!users || !roles || !sections) {
+  console.error('✗ Core tables missing (users/roles/sections).');
+  console.error('  Run the migrations first:  node scripts/run-all-migrations.mjs');
+  await client.end();
   process.exit(1);
-});
+}
+
+// Readiness marker: the seed creates the 21-section catalogue. Migrations alone
+// never create sections — but migration 011 DOES create a user, so users are
+// NOT a valid "already seeded" signal on a fresh deploy.
+const { rows } = await client.query(`SELECT count(*)::int AS count FROM sections`);
+const sectionCount = rows[0].count;
+const { rows: userRows } = await client.query(`SELECT count(*)::int AS count FROM users`);
+await client.end();
+
+if (sectionCount > 0) {
+  console.log(`✓ Database already seeded (${sectionCount} sections, ${userRows[0].count} users) — nothing to do.`);
+  console.log('  Re-run scripts/seed.js explicitly to top up master data (idempotent).');
+  process.exit(0);
+}
+
+console.log('Database empty — running the full seed (roles, sections, catalogue, demo users) …');
+const BACKEND_ROOT = path.dirname(HERE); // HERE = backend/scripts
+const result = spawnSync(process.execPath, ['scripts/seed.js'], { cwd: BACKEND_ROOT, stdio: 'inherit' });
+process.exit(result.status ?? 1);

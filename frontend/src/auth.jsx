@@ -8,6 +8,9 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem('poms_user') || 'null'); } catch { return null; }
   });
+  const [selectedSectionId, setSelectedSectionId] = useState(() => {
+    try { return localStorage.getItem('poms_selected_section') || null; } catch { return null; }
+  });
 
   async function login(identifier, password, extra = {}) {
     const { data } = await api.post('/auth/login', { identifier, password, ...extra });
@@ -16,6 +19,16 @@ export function AuthProvider({ children }) {
     setUser(data.user);
     try { sessionStorage.removeItem('poms_geo_asked'); } catch { /* ignore */ }
     return data.user;
+  }
+
+  function selectSection(sectionId) {
+    localStorage.setItem('poms_selected_section', sectionId);
+    setSelectedSectionId(sectionId);
+  }
+
+  function clearSection() {
+    localStorage.removeItem('poms_selected_section');
+    setSelectedSectionId(null);
   }
 
   function logout() {
@@ -48,9 +61,28 @@ export function AuthProvider({ children }) {
 
   const hasPermission = (code) => !!user && (user.isSuperAdmin || user.permissions?.includes(code));
   const hasRole = (code) => !!user && user.roles?.includes(code);
+  const isSectionSelected = (sectionId) => !selectedSectionId || selectedSectionId === sectionId || user.isSuperAdmin;
+  const canAccessSection = (sectionId) => {
+    if (!user) return false;
+    if (user.isSuperAdmin) return true;
+    if (!selectedSectionId) return user.sectionIds?.includes(String(sectionId));
+    return selectedSectionId === String(sectionId);
+  };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, updateUser, hasPermission, hasRole }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      login, 
+      logout, 
+      updateUser, 
+      hasPermission, 
+      hasRole,
+      selectedSectionId,
+      selectSection,
+      clearSection,
+      isSectionSelected,
+      canAccessSection
+    }}>
       {children}
     </AuthContext.Provider>
   );

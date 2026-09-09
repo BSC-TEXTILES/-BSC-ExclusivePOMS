@@ -162,11 +162,11 @@ This section details exactly how data originates, transforms, validates, and com
 
 ### 4.1 Production Prerequisites
 - **Node.js**: Version 20+ LTS.
-- **PostgreSQL**: Version 15+ (PostgreSQL 17 recommended).
+- **PostgreSQL**: Version 15+ (PostgreSQL 18 recommended).
 - **Environment Configuration**: Set in `backend/.env`:
   ```ini
   PORT=4040
-  DATABASE_URL=postgresql://user:password@localhost:5433/poms
+  DATABASE_URL=postgresql://postgres@localhost:5432/poms
   JWT_SECRET=production-crypto-random-secret-key-32-chars-min
   JWT_EXPIRES_IN=8h
   REFRESH_EXPIRES_IN=7d
@@ -175,7 +175,7 @@ This section details exactly how data originates, transforms, validates, and com
 ### 4.2 Starting the System
 
 #### Windows (Single-click):
-1. Run `start-database.bat` to launch PostgreSQL on port 5433.
+1. Run `start-database.bat` to launch PostgreSQL on port 5432.
 2. Run `start-website.bat` to launch the unified POMS portal on `http://localhost:4040`.
 
 #### Linux / Production Server:
@@ -199,5 +199,5 @@ NODE_ENV=production npm start
 ### 4.3 Database Maintenance & Backups
 ```bash
 # Automated daily backup command
-pg_dump -h localhost -p 5433 -U postgres -d poms -F c -b -v -f "/backup/poms_$(date +%Y%m%d).dump"
+pg_dump -h localhost -p 5432 -U postgres -d poms -F c -b -v -f "/backup/poms_$(date +%Y%m%d).dump"
 ```

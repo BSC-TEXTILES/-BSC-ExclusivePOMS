@@ -2,7 +2,7 @@ import 'dotenv/config';
 import pg from 'pg';
 const { Client } = pg;
 
-const admin = new Client({ connectionString: 'postgresql://postgres:postgres@localhost:5432/postgres' });
+const admin = new Client({ connectionString: 'postgresql://postgres@localhost:5432/postgres' });
 await admin.connect();
 const { rows } = await admin.query(`SELECT datname FROM pg_database WHERE datname='poms'`);
 if (!rows.length) {

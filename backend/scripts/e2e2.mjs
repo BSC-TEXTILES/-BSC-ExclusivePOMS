@@ -5,10 +5,12 @@
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
 import crypto from 'node:crypto';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const PORT = process.env.E2E2_PORT || '4002';
 const BASE = `http://localhost:${PORT}`;
-const DB = process.env.DATABASE_URL || 'postgresql://postgres@localhost:5433/poms';
+const DB = process.env.DATABASE_URL || 'postgresql://postgres@localhost:5432/poms';
 
 let passed = 0; const failures = [];
 function check(name, cond, extra = '') {
@@ -49,8 +51,11 @@ async function upload(path, token, files) {
 }
 
 async function login(identifier, password) {
-  const r = await api('POST', '/auth/login', { body: { identifier, password } });
-  if (r.status !== 200) throw new Error(`login ${identifier} failed`);
+  // Resolve the CAPTCHA challenge first (reveal hook is non-production only).
+  const cap = await api('GET', '/auth/captcha?reveal=1');
+  if (cap.status !== 200 || !cap.json.answer) throw new Error(`captcha fetch failed for ${identifier}`);
+  const r = await api('POST', '/auth/login', { body: { identifier, password, captchaId: cap.json.id, captchaText: cap.json.answer } });
+  if (r.status !== 200) throw new Error(`login ${identifier} failed: ${JSON.stringify(r.json).slice(0, 200)}`);
   return r.json;
 }
 
@@ -63,7 +68,7 @@ const FAKE_MP4 = Buffer.from([...Buffer.from('ftypisom'), ...crypto.randomBytes(
 async function main() {
   console.log('Booting API for v2 smoke …');
   const server = spawn(process.execPath, ['src/server.js'], {
-    cwd: new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'),
+    cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'),
     env: { ...process.env, DATABASE_URL: DB, PORT, JWT_SECRET: 'e2e2-secret' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
@@ -124,7 +129,7 @@ async function main() {
     check('upload: self avatar upload works', up.status === 200 && up.json.data.profilePhotoUrl.startsWith('/uploads/'));
     const me = (await api('GET', '/users/me', { token: bT })).json.data;
     check('profile: /users/me returns photo + roles', me.profilePhotoUrl && me.roles.includes('purchase_executive'));
-    const patch = await api('PATCH', '/users/me', { token: bT, body: { designation: 'Sr. Buyer' } });
+    const patch = await api('PATCH', '/users/me', { token: bT, body: { fullName: me.fullName, designation: 'Sr. Buyer' } });
     check('profile: self designation update', patch.status === 200 && patch.json.data.designation === 'Sr. Buyer');
 
     // ---------- Admin user administration ----------

@@ -15,7 +15,7 @@ export default function Receipts() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
-    api.get('/receipts').then((r) => setRows(r.data.data)).catch((e) => setError(errMessage(e)));
+    api.get('/receipts').then((r) => setRows(r.data.data || [])).catch((e) => setError(errMessage(e)));
   }, []);
   useEffect(load, [load]);
 
@@ -23,7 +23,7 @@ export default function Receipts() {
     setError('');
     Promise.all([api.get('/purchase-orders', { params: { status: 'issued', pageSize: 100 } }),
                  api.get('/purchase-orders', { params: { status: 'partially_received', pageSize: 100 } })])
-      .then(([a, b]) => { setOpenPOs([...a.data.data, ...b.data.data]); setCreating(true); })
+      .then(([a, b]) => { setOpenPOs([...(a.data.data || []), ...(b.data.data || [])]); setCreating(true); })
       .catch((e) => setError(errMessage(e)));
   }
 
@@ -31,7 +31,7 @@ export default function Receipts() {
     setSelectedPO(poId);
     if (!poId) { setPending([]); return; }
     api.get(`/receipts/pending/${poId}`).then(({ data }) => {
-      setPending(data.data.map((x) => ({ ...x, received: '', damaged: '', rejected: '' })));
+      setPending((data.data || []).map((x) => ({ ...x, received: '', damaged: '', rejected: '' })));
     }).catch((e) => setError(errMessage(e)));
   }
 

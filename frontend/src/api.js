@@ -38,8 +38,28 @@ api.interceptors.response.use(
   }
 );
 
-export const errMessage = (e) =>
-  e?.response?.data?.error?.message || e?.message || 'Request failed';
+export const errMessage = (e) => {
+  if (!e) return 'Request failed';
+  
+  // Network errors (no response received)
+  if (!e.response) {
+    if (e.code === 'ERR_NETWORK') {
+      return 'Backend server is not running. Please start the backend server and ensure it is accessible at http://localhost:4040';
+    }
+    if (e.message?.includes('ECONNREFUSED') || e.message?.includes('Failed to fetch')) {
+      return 'Cannot connect to backend server. Please start the backend server on port 4040.';
+    }
+    return `Network error: ${e.message || 'Unknown error'}`;
+  }
+  
+  // Server errors
+  if (e.response.status >= 500) {
+    return `Server error: ${e.response.status} - ${e.response.data?.error?.message || 'Internal server error'}`;
+  }
+  
+  // Other errors with response
+  return e.response.data?.error?.message || e.message || 'Request failed';
+};
 
 // Multipart upload helper — every file type accepted server-side (200 MB cap).
 export const uploadFile = (path, files, field = 'files') => {

@@ -17,7 +17,11 @@ function scopeParams(req) {
 function poScope(req) {
   const clauses = [];
   const params = [];
-  if (!req.user.isSuperAdmin) {
+  // Optional section filter from query params (for section-specific dashboards)
+  if (req.query.sectionId) {
+    params.push(req.query.sectionId);
+    clauses.push(`po.section_id = $${params.length}::uuid`);
+  } else if (!req.user.isSuperAdmin) {
     params.push(req.user.divisionIds || []);
     clauses.push(`po.division_id = ANY($${params.length}::uuid[])`);
     const sec = req.user.sectionIds || [];

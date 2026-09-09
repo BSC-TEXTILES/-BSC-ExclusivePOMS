@@ -14,7 +14,6 @@ let bscLogoBuffer = null;
 const possibleLogoPaths = [
   path.resolve(__dirname, '../../../frontend/public/bsc-logo.png'),
   path.resolve(__dirname, '../../../frontend/bsc-logo.png'),
-  'D:/BSC_P_O/frontend/public/bsc-logo.png',
 ];
 for (const p of possibleLogoPaths) {
   try {
@@ -241,11 +240,6 @@ export function generatePOPdf({ header, items = [], taxes = [], charges = [], co
   const TEXT_MAIN = '#1e293b';
   const TEXT_MUTED = '#64748b';
   const WHITE = '#ffffff';
-
-  const images = [];
-  if (bscLogoBuffer) {
-    images.push({ name: 'BscLogo', data: bscLogoBuffer });
-  }
 
   function pushPage() {
     // Page footer on every page
@@ -509,5 +503,5 @@ export function generatePOPdf({ header, items = [], taxes = [], charges = [], co
   // Push final page
   pushPage();
 
-  return buildPDF(pages, images);
+  return buildPDF(pages);
 }

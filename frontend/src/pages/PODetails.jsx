@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation, Link } from 'react-router-dom';
-import api, { errMessage, uploadFile, formatBytes, fileKind } from '../api.js';
+import api, { API_BASE, errMessage, uploadFile, formatBytes, fileKind } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import StatusChip from '../components/StatusChip.jsx';
 import Modal from '../components/Modal.jsx';
@@ -19,7 +19,7 @@ function AttachmentsPanel({ poId, onChanged }) {
 
   const load = useCallback(() => {
     api.get(`/purchase-orders/${poId}/attachments`)
-      .then((r) => setList(r.data.data))
+      .then((r) => setList(r.data.data || []))
       .catch((e) => setError(errMessage(e)));
   }, [poId]);
   useEffect(load, [load]);
@@ -109,7 +109,7 @@ export default function PODetails() {
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(() => {
-    api.get(`/purchase-orders/${id}`).then((r) => setPo(r.data.data)).catch((e) => setError(errMessage(e)));
+    api.get(`/purchase-orders/${id}`).then((r) => setPo(r.data.data || null)).catch((e) => setError(errMessage(e)));
   }, [id]);
   useEffect(load, [load]);
 
@@ -137,7 +137,7 @@ export default function PODetails() {
     setBusy(true);
     try {
       const token = localStorage.getItem('poms_token');
-      const res = await fetch(`/api/purchase-orders/${id}/export/${format}`, {
+      const res = await fetch(`${API_BASE}/purchase-orders/${id}/export/${format}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error(`Export failed with status ${res.status}`);
@@ -160,7 +160,7 @@ export default function PODetails() {
   if (error && !po) return <div className="page"><div className="alert error">{error}</div></div>;
   if (!po) return <div className="page"><p className="muted">Loading…</p></div>;
 
-  const qtyDisplay = (q) => (q || []).map((x) => `${x.sizeLabel}:${x.quantity}`).join(' · ');
+  const qtyDisplay = (q) => Object.values(q || {}).map((x) => `${x.sizeLabel}:${x.quantity}`).join(' · ');
   const canAct = ['submitted', 'under_review'].includes(po.status) && hasPermission('approvals.act');
   const openInstance = po.approvals?.find((a) => !a.resolved_at);
 

@@ -27,13 +27,13 @@ export default function Masters() {
       Colours: () => api.get('/colours'),
       Suppliers: () => api.get('/suppliers'),
     }[tab];
-    req().then((r) => setRows(r.data.data)).catch((e) => setError(errMessage(e)));
+    req().then((r) => setRows(r.data.data || [])).catch((e) => setError(errMessage(e)));
   }, [tab]);
 
   useEffect(load, [load]);
   useEffect(() => {
     Promise.all([api.get('/departments'), api.get('/size-methods'), api.get('/divisions'), api.get('/sections'), api.get('/brands')])
-      .then(([d, m, v, s, b]) => setRefs({ departments: d.data.data, sizeMethods: m.data.data, divisions: v.data.data, sections: s.data.data, brands: b.data.data }))
+      .then(([d, m, v, s, b]) => setRefs({ departments: d.data.data || [], sizeMethods: m.data.data || [], divisions: v.data.data || [], sections: s.data.data || [], brands: b.data.data || [] }))
       .catch(() => {});
   }, []);
 

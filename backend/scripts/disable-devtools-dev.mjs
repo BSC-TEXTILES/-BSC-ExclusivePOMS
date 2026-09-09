@@ -1,7 +1,7 @@
 import 'dotenv/config';
 import pg from 'pg';
 
-const url = process.env.DATABASE_URL || 'postgresql://postgres@localhost:5433/poms';
+const url = process.env.DATABASE_URL || 'postgresql://postgres@localhost:5432/poms';
 const client = new pg.Client({ connectionString: url });
 
 async function run() {

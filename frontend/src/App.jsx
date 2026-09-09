@@ -111,10 +111,10 @@ export default function App() {
             <Route path="/users" element={<RequireAuth permission="users.manage"><Users /></RequireAuth>} />
             <Route path="/reports" element={<RequireAuth permission="reports.view"><Reports /></RequireAuth>} />
             <Route path="/audit-logs" element={<RequireAuth permission="audit.view"><AuditLogs /></RequireAuth>} />
-        <Route path="/collections" element={<RequireAuth permission="collections.view"><Collections /></RequireAuth>} />
-        <Route path="/dealers" element={<RequireAuth permission="dealers.view"><Dealers /></RequireAuth>} />
-        <Route path="/company" element={<RequireAuth permission="company.view"><CompanySettings /></RequireAuth>} />
-        <Route path="/attachments" element={<RequireAuth permission="masters.view"><Attachments /></RequireAuth>} />
+            <Route path="/collections" element={<RequireAuth permission="collections.view"><Collections /></RequireAuth>} />
+            <Route path="/dealers" element={<RequireAuth permission="dealers.view"><Dealers /></RequireAuth>} />
+            <Route path="/company" element={<RequireAuth permission="company.view"><CompanySettings /></RequireAuth>} />
+            <Route path="/attachments" element={<RequireAuth permission="masters.view"><Attachments /></RequireAuth>} />
             <Route path="/products" element={<RequireAuth permission="masters.view"><Products /></RequireAuth>} />
             <Route path="/products/new" element={<RequireAuth permission="masters.manage"><ProductForm /></RequireAuth>} />
             <Route path="/products/:id" element={<RequireAuth permission="masters.view"><ProductDetail /></RequireAuth>} />

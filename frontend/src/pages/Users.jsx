@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import api, { errMessage, uploadFile } from '../api.js';
+import api, { errMessage, uploadFile, assetUrl } from '../api.js';
 import Modal from '../components/Modal.jsx';
 import Icon from '../components/Icon.jsx';
 import { Field } from '../components/DataTable.jsx';
@@ -10,7 +10,7 @@ function initials(name = '') {
 }
 
 function UserAvatar({ user, size = 34 }) {
-  if (user.profile_photo_url) return <img className="avatar-img" src={user.profile_photo_url} alt={user.full_name} style={{ width: size, height: size }} />;
+  if (user.profile_photo_url) return <img className="avatar-img" src={assetUrl(user.profile_photo_url)} alt={user.full_name} style={{ width: size, height: size }} />;
   return <div className="avatar" style={{ width: size, height: size, fontSize: size * 0.38 }}>{initials(user.full_name)}</div>;
 }
 
@@ -30,7 +30,7 @@ export default function Users() {
   const load = useCallback(() => {
     Promise.all([api.get('/users'), api.get('/users/_meta/roles'), api.get('/divisions'), api.get('/sections')])
       .then(([u, r, d, s]) => {
-        setRows(u.data.data); setRoles(r.data.data); setDivisions(d.data.data);
+        setRows(u.data.data || []); setRoles(r.data.data || []); setDivisions(d.data.data || []);
         setSections((s.data.data || []).filter((x) => x.status !== 'archived'));
       })
       .catch((e) => setError(errMessage(e)));
@@ -105,7 +105,7 @@ export default function Users() {
                 <td>{(u.section_ids || []).length
                   ? (u.section_ids.map((id) => sections.find((s) => s.id === id)?.name).filter(Boolean).join(', ') || `${u.section_ids.length} collection(s)`)
                   : <span className="muted">all</span>}</td>
-                <td>{u.division_ids.map((id) => divisions.find((d) => d.id === id)?.code || '?').join(', ')}</td>
+                <td>{(u.division_ids || []).map((id) => divisions.find((d) => d.id === id)?.code || '?').join(', ')}</td>
                 <td><span className={`chip st-${u.status}`}>{u.status}</span></td>
                 <td className="muted">{u.last_login_at ? new Date(u.last_login_at).toLocaleString('en-IN') : 'never'}</td>
                 <td>{isAdmin && <button className="btn sm" onClick={() => openEdit(u)}>Edit</button>}</td>

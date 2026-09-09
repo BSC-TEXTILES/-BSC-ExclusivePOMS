@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api, { errMessage } from '../api.js';
+import api, { API_BASE, errMessage } from '../api.js';
 import StatusChip from '../components/StatusChip.jsx';
 import { Money } from '../components/DataTable.jsx';
 import Icon from '../components/Icon.jsx';
+import { useAuth } from '../auth.jsx';
 
 export default function POList() {
   const navigate = useNavigate();
+  const { selectedSectionId } = useAuth();
   const [rows, setRows] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [sections, setSections] = useState([]);
@@ -16,16 +18,23 @@ export default function POList() {
   const [error, setError] = useState('');
   const pageSize = 20;
 
+  // Apply section filter from auth context if a section is selected
   useEffect(() => {
-    api.get('/departments').then((r) => setDepartments(r.data.data)).catch(() => {});
-    api.get('/sections').then((r) => setSections(r.data.data)).catch(() => {});
+    if (selectedSectionId) {
+      setFilters((f) => ({ ...f, sectionId: selectedSectionId }));
+    }
+  }, [selectedSectionId]);
+
+  useEffect(() => {
+    api.get('/departments').then((r) => setDepartments(r.data.data || [])).catch(() => {});
+    api.get('/sections').then((r) => setSections(r.data.data || [])).catch(() => {});
   }, []);
 
   useEffect(() => {
     const params = { page, pageSize };
     Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
     api.get('/purchase-orders', { params })
-      .then((r) => { setRows(r.data.data); setTotal(r.data.total); setError(''); })
+      .then((r) => { setRows(r.data.data || []); setTotal(r.data.total || 0); setError(''); })
       .catch((e) => setError(errMessage(e)));
   }, [page, filters]);
 
@@ -34,7 +43,7 @@ export default function POList() {
       const params = new URLSearchParams();
       Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });
       const token = localStorage.getItem('poms_token');
-      const res = await fetch(`/api/purchase-orders/export/csv?${params.toString()}`, {
+      const res = await fetch(`${API_BASE}/purchase-orders/export/csv?${params.toString()}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!res.ok) throw new Error('Export failed');
@@ -59,12 +68,17 @@ export default function POList() {
       <div className="row" style={{ alignItems: 'baseline', marginBottom: 4 }}>
         <h1 className="page-title" style={{ margin: 0 }}>Purchase Orders</h1>
         <div className="right">
+          {selectedSectionId && (
+            <button className="btn ghost sm" onClick={() => { setFilters({ ...filters, sectionId: '' }); localStorage.removeItem('poms_selected_section'); }} title="Clear section filter">
+              <Icon name="x" size={14} /> Clear Section Filter
+            </button>
+          )}
           <button className="btn" onClick={exportCsv} title="Export all matching POs to CSV">
             <Icon name="reports" size={14} /> Export to CSV
           </button>
         </div>
       </div>
-      <p className="page-sub">{total} orders in your authorized scope (RB-018)</p>
+      <p className="page-sub">{total} orders in your authorized scope{selectedSectionId && <span style={{ marginLeft: 8, color: '#6b7280', fontSize: 13 }}> · Filtered by section</span>}</p>
       {error && <div className="alert error">{error}</div>}
 
       <div className="panel">

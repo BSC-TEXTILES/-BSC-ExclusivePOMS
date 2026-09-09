@@ -29,9 +29,21 @@ async function run() {
 
   // --- Auth ---
   console.log('[Auth]');
-  const login = await request('POST', '/api/auth/login', { identifier: 'admin@bsc.local', password: 'Admin@123' });
+  // Every login consumes a single-use CAPTCHA; the ?reveal=1 hook (non-production only)
+  // lets this smoke test read the answer directly.
+  const cap = await request('GET', '/api/auth/captcha?reveal=1');
+  assert(cap.status === 200 && cap.data?.id && cap.data?.answer, 'CAPTCHA challenge issued (reveal hook)');
+  const login = await request('POST', '/api/auth/login', {
+    identifier: 'admin@bsc.local', password: 'Admin@123', captchaId: cap.data.id, captchaText: cap.data.answer,
+  });
   assert(login.status === 200 && login.data.accessToken, 'Login returns JWT');
   const token = login.data.accessToken;
+  if (!token) {
+    // Without a token every later assertion fails confusingly; bail with a clear note.
+    console.error('\nCannot continue: no session token. This suite requires a NON-production server (the CAPTCHA ?reveal=1 hook is disabled when NODE_ENV=production).');
+    console.log(`\n=== Results: ${passed} passed, ${failed} failed ===`);
+    process.exit(1);
+  }
   const auth = { Authorization: `Bearer ${token}` };
 
   const me = await request('GET', '/api/auth/me', null, auth);
@@ -49,8 +61,10 @@ async function run() {
 
   // --- Locations CRUD ---
   console.log('\n[Locations CRUD]');
+  // Unique run code so repeated smoke runs never collide with archived rows.
+  const runCode = `TST${Date.now().toString(36).slice(-5).toUpperCase()}`;
   const newLoc = await request('POST', '/api/locations', {
-    code: 'TST', name: 'Test City', address: '123 Test St', city: 'Testville',
+    code: runCode, name: 'Test City', address: '123 Test St', city: 'Testville',
     state: 'TS', contact_person: 'Tester', phone: '1234567890', status: 'active'
   }, auth);
   assert(newLoc.status === 200 || newLoc.status === 201, 'Create location');
@@ -61,7 +75,7 @@ async function run() {
     assert(patchLoc.status === 200, 'Update location');
 
     const delLoc = await request('DELETE', `/api/locations/${locId}`, null, auth);
-    assert(delLoc.status === 204, 'Delete location');
+    assert(delLoc.status === 200 || delLoc.status === 204, 'Delete (archive) location');
   }
 
   // --- Product Types CRUD ---
@@ -69,7 +83,7 @@ async function run() {
   const sections = await request('GET', '/api/sections', null, auth);
   const firstSectionId = sections.data?.data?.[0]?.id;
   if (firstSectionId) {
-    const newPT = await request('POST', '/api/product-types', { code: 'TST', name: 'Test Type', sectionId: firstSectionId }, auth);
+    const newPT = await request('POST', '/api/product-types', { code: runCode, name: 'Test Type', sectionId: firstSectionId }, auth);
     assert(newPT.status === 201, 'Create product type');
     const ptId = newPT.data?.data?.id;
 
@@ -78,7 +92,7 @@ async function run() {
       assert(patchPT.status === 200, 'Update product type');
 
       const delPT = await request('DELETE', `/api/product-types/${ptId}`, null, auth);
-      assert(delPT.status === 204, 'Delete product type');
+      assert(delPT.status === 200 || delPT.status === 204, 'Delete (archive) product type');
     }
   } else {
     console.log('  (skipped: no sections to attach product type to)');
@@ -88,10 +102,11 @@ async function run() {
   console.log('\n[Dashboard]');
   const dash = await request('GET', '/api/reports/dashboard', null, auth);
   assert(dash.status === 200, 'Dashboard returns OK');
-  assert(dash.data.overallStats?.total_products >= 0, 'overallStats.total_products exists');
-  assert(dash.data.overallStats?.total_locations >= 0, 'overallStats.total_locations exists');
   assert(typeof dash.data.kpis?.total_pos === 'number', 'kpis.total_pos is number');
-  assert(typeof dash.data.productKpis?.total_products === 'number', 'productKpis.total_products is number');
+  assert(Array.isArray(dash.data.monthly) && dash.data.monthly.length === 12, 'monthly series (12 months) present');
+  assert(Array.isArray(dash.data.recentPOs), 'recentPOs list present');
+  assert(typeof dash.data.workProgress?.total === 'number', 'workProgress.total is number');
+  assert(Array.isArray(dash.data.byDivision), 'byDivision breakdown present');
 
   // --- Purchase Orders ---
   console.log('\n[Purchase Orders]');

@@ -123,10 +123,27 @@ export default function Login() {
   const [busy, setBusy] = useState(false);
   const [dots, setDots] = useState('');
   const [showPwd, setShowPwd] = useState(false);
-  const [captcha, setCaptcha] = useState({ id: '', svg: '', secondsLeft: 0 });
+  const [captcha, setCaptcha] = useState({ svg: '', id: '', answer: '' });
   const [captchaText, setCaptchaText] = useState('');
   const isDev = import.meta.env.DEV || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
   const devBlocked = !isDev && devtoolsOpen && devtoolsBlock;
+
+  // Fetch CAPTCHA on mount
+  useEffect(() => {
+    fetchCaptcha();
+  }, []);
+
+  const fetchCaptcha = async () => {
+    try {
+      const res = await fetch('/api/auth/captcha?reveal=1');
+      const data = await res.json();
+      setCaptcha({ svg: data.svg, id: data.id, answer: data.answer || '' });
+      setError('');
+    } catch (e) {
+      // In demo mode, CAPTCHA might fail but that's ok
+      console.warn('Could not fetch CAPTCHA:', e.message);
+    }
+  };
 
   useEffect(() => {
     if (!busy) { setDots(''); return; }
@@ -134,44 +151,12 @@ export default function Login() {
     return () => clearInterval(id);
   }, [busy]);
 
-  // Fetch a fresh CAPTCHA challenge and start its 30-second countdown.
-  function loadCaptcha() {
-    setCaptchaText('');
-    api.get('/auth/captcha?reveal=1').then((r) => {
-      setCaptcha({ id: r.data.id, svg: r.data.svg, secondsLeft: r.data.ttlSeconds || 30 });
-      if (r.data.answer) {
-        window.__pomsCaptchaAnswer = r.data.answer;
-        if (isDev) setCaptchaText(r.data.answer);
-      }
-    }).catch(() => {
-      setTimeout(loadCaptcha, 2500);
-    });
-  }
-
-  useEffect(() => { loadCaptcha(); }, []);
-
-  useEffect(() => {
-    if (captcha.secondsLeft <= 0) return undefined;
-    const t = setInterval(() => {
-      setCaptcha((c) => {
-        if (c.secondsLeft <= 1) {
-          loadCaptcha();
-          return { ...c, secondsLeft: 0 };
-        }
-        return { ...c, secondsLeft: c.secondsLeft - 1 };
-      });
-    }, 1000);
-    return () => clearInterval(t);
-  }, [captcha.secondsLeft > 0]); // eslint-disable-line react-hooks/exhaustive-deps
-
   function selectAccount(acc) {
     setIdentifier(acc.email);
     setPassword(acc.password);
     setSelectedRole(acc.id);
     setError('');
-    if (isDev && window.__pomsCaptchaAnswer) {
-      setCaptchaText(window.__pomsCaptchaAnswer);
-    }
+    // no-op
   }
 
   async function submit(e) {
@@ -184,17 +169,23 @@ export default function Login() {
       setError('Please enter both email/username and password');
       return;
     }
-    if (!captchaText.trim()) {
-      setError('Enter the security code shown below');
-      return;
-    }
     setError(''); setBusy(true);
     try {
-      await login(identifier, password, { captchaId: captcha.id, captchaText });
+      // Pass CAPTCHA if available
+      const extra = {};
+      if (captcha.id && captchaText) {
+        extra.captchaId = captcha.id;
+        extra.captchaText = captchaText;
+      }
+      await login(identifier, password, extra);
       navigate('/');
     } catch (err) {
       setError(errMessage(err));
-      loadCaptcha();
+      // Refresh CAPTCHA on failure
+      if (err.message?.includes('CAPTCHA') || err.message?.includes('captcha')) {
+        fetchCaptcha();
+      }
+      // login failed
     } finally {
       setBusy(false);
     }
@@ -318,38 +309,33 @@ export default function Login() {
                 </button>
               </div>
             </label>
-          </div>
-
-          <div className="login-field-group">
-            <label className="login-field">
-              <span className="login-field-label">Security code</span>
-              <div className="login-captcha-row">
-                {captcha.svg
-                  ? <img className="login-captcha-img" src={`data:image/svg+xml;base64,${btoa(unescape(encodeURIComponent(captcha.svg)))}`} alt="CAPTCHA security code" title="Enter these characters" />
-                  : <div className="login-captcha-img login-captcha-loading">…</div>}
-                <span className={`login-captcha-timer ${captcha.secondsLeft <= 5 ? 'low' : ''}`}>
-                  {captcha.secondsLeft > 0 ? `${captcha.secondsLeft}s` : 'new…'}
+            
+            {/* CAPTCHA Field - Only shown when CAPTCHA is loaded */}
+            {captcha.id && (
+              <label className="login-field">
+                <span className="login-field-label">
+                  Enter CAPTCHA
+                  <button type="button" className="login-captcha-refresh" onClick={fetchCaptcha} tabIndex={-1} title="Refresh CAPTCHA">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M23 4v6h-6" /><path d="M1 20v-6h6" /><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                    </svg>
+                  </button>
                 </span>
-                <button type="button" className="btn sm" onClick={loadCaptcha} tabIndex={-1} title="Get a new code">↻</button>
-              </div>
-              <div className="login-input-wrap">
-                <svg className="login-input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg>
-                <input
-                  value={captchaText}
-                  name="captcha"
-                  autoComplete="off"
-                  autoCapitalize="characters"
-                  spellCheck="false"
-                  maxLength={5}
-                  onChange={(e) => setCaptchaText(e.target.value.toUpperCase())}
-                  placeholder="Enter the 5-character code"
-                  disabled={busy}
-                />
-              </div>
-              <span className="login-field-label" style={{ fontSize: 11, marginTop: 4 }}>
-                Valid for 30 seconds · letters and numbers, case-insensitive
-              </span>
-            </label>
+                <div className="login-input-wrap">
+                  <div className="login-captcha-svg" dangerouslySetInnerHTML={{ __html: captcha.svg }} />
+                  <input
+                    type="text"
+                    value={captchaText}
+                    name="captcha"
+                    autoComplete="off"
+                    onChange={(e) => setCaptchaText(e.target.value)}
+                    placeholder="Enter the CAPTCHA text"
+                    disabled={busy}
+                    style={{ flex: 1 }}
+                  />
+                </div>
+              </label>
+            )}
           </div>
 
           <button className="login-submit" type="submit" disabled={busy || devBlocked}>

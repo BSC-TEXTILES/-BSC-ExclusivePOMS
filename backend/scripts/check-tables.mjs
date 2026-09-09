@@ -1,6 +1,6 @@
 import pg from 'pg';
 
-const c = new pg.Client({ connectionString: 'postgresql://postgres:postgres@localhost:5432/poms' });
+const c = new pg.Client({ connectionString: 'postgresql://postgres@localhost:5432/poms' });
 try {
   await c.connect();
   const r = await c.query("SELECT table_name FROM information_schema.tables WHERE table_schema='public' ORDER BY table_name");

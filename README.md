@@ -9,13 +9,14 @@ replacing MongoDB, using the project's supplied SQL schema (`database/schema.sql
 
 Prerequisites: **Node 18+** and **PostgreSQL 15+** (the schema uses
 `UNIQUE NULLS NOT DISTINCT`, which needs PG 15). The helper scripts below assume the
-PostgreSQL 17 installation at `C:\Program Files\PostgreSQL\17`.
+PostgreSQL 18 installation at `C:\Program Files\PostgreSQL\18`.
 
 | Step | Double-click / run | What it does |
 |---|---|---|
-| 1 | `start-database.bat` | Starts PostgreSQL on port 5433 (data in `database/pgdata`) |
+| 1 | `start-database.bat` | Starts the PostgreSQL 18 service on port 5432 |
 | 2 | `setup-database.bat` *(first time only)* | Creates the `poms` database, loads `database/schema.sql`, seeds master data + demo users |
 | 3 | `start-website.bat` | Serves the whole site — frontend + API — on **http://localhost:4040** |
+| 4 | `start-dev.bat` | Starts both backend (port 4040) + frontend dev server (port 5173) for development |
 
 Sign in: **admin@bsc.local / Admin@123** (Super Admin — all other demo roles listed on the
 login screen).
@@ -40,6 +41,12 @@ cd frontend
 npm install
 npm run dev                         # Vite dev server on :5173 (proxies /api → :4040)
 npm run build                       # production build → frontend/dist (what the API serves)
+
+# Quick development: run both backend and frontend dev servers simultaneously
+# Windows: double-click start-dev.bat
+# Manual: open two terminals
+#   Terminal 1: cd backend && npm run dev    (port 4040)
+#   Terminal 2: cd frontend && npm run dev   (port 5173)
 ```
 
 ### Demo accounts (created by seed — change in production)
@@ -85,7 +92,7 @@ D:\BSC_P_O
 │   ├── .env                         ← DATABASE_URL, JWT_SECRET, PORT=4040
 │   ├── scripts/
 │   │   ├── seed.js                  ← idempotent master-data + demo-user seeding
-│   │   └── e2e.mjs                  ← 47-check end-to-end lifecycle test
+│   │   └── e2e.mjs                  ← 54-check end-to-end lifecycle test
 │   └── src/
 │       ├── app.js / server.js       ← wiring; serves frontend/dist (single site)
 │       ├── config/db.js             ← pg pool + withTransaction
@@ -99,7 +106,6 @@ D:\BSC_P_O
 │
 ├── database/                        ← TIER 3 — database assets
 │   ├── schema.sql                   ← supplied core schema v1.0 (§20.2 table set)
-│   └── pgdata/                      ← local PostgreSQL 17 cluster (port 5433)
 │
 ├── docs/                            ← FRS v2.0, delivery package, OpenAPI contract
 │   ├── FRS.md
@@ -134,26 +140,47 @@ Approval thresholds (₹0–25k Admin / ₹25k–1L Division Manager / >₹1L Su
 If no rule matches, the PO lands in the Super Admin **exception queue** (§25 / SA-06)
 and cannot be issued until actioned.
 
-## Verification — 47/47 end-to-end checks passing
+## Verification — 4 automated suites, all green (54 + 24 + 50 + 38 checks)
 
-The full lifecycle is verified against a real PostgreSQL 17 instance.
+The full lifecycle is verified against a real PostgreSQL instance. Run each suite with
+`DATABASE_URL=postgresql://postgres@localhost:5432/poms` (or your instance URL) set:
+
+| Suite | Command | Checks |
+|---|---|---|
+| Core lifecycle (RB-017 pricing, approvals, receipts, RB-018 scoping) | `cd backend && npm run e2e` | 54 |
+| Full route sweep (every GET endpoint + PO flow) | `cd backend && node scripts/e2e-full.mjs` | 50 |
+| V2 features (uploads, search, calendar, RBAC denial, WebSocket chat/notify) | `cd backend && node scripts/e2e2.mjs` | 24 |
+| Repository smoke test (root `tests/e2e.mjs`, needs the site running on :4040) | `cd tests && node e2e.mjs` | 38 |
+
 `backend/scripts/e2e.mjs` boots the API and drives it over HTTP, asserting:
-auth + wrong-password rejection, RB-001 division scoping, data-driven matrix (TC-04),
-the FRS §13.3 worked example to the paisa (net ₹910 / final ₹819 / line total ₹65,520,
-grand ₹77,313.60 with 18% CGST+SGST), RB-006/008/009/011/012 gates, Tier-2 approval
-routing + queue visibility, RB-003 snapshot integrity across a live brand rename,
-issue, partial receipt 70/5/5 → accepted 60 → inventory, over-receipt block (RB-013),
-auto-transition to Received, cross-division leak check (RB-018), Tier-1 approval,
-amendment v2 + version chain (AU-02), dashboard, PO register, audit stream, notifications.
+auth + wrong-password rejection + CAPTCHA enforcement, RB-001 division scoping,
+data-driven matrix (TC-04), the FRS §13.3 worked example to the paisa (net ₹910 /
+final ₹819 / line total ₹65,520, grand ₹77,313.60 with 18% CGST+SGST),
+RB-006/008/009/011/012 gates, Tier-2 approval routing + queue visibility, RB-003
+snapshot integrity across a live brand rename, issue, partial receipt 70/5/5 →
+accepted 60 → inventory, over-receipt block (RB-013), auto-transition to Received,
+cross-division leak check (RB-018), Tier-1 approval, amendment v2 + version chain
+(AU-02), dashboard, PO register, audit stream, notifications.
 
-```bash
-cd backend
-DATABASE_URL=postgresql://postgres@localhost:5433/poms npm run e2e
-```
+The test suites resolve the login CAPTCHA through the non-production `?reveal=1`
+hook (`NODE_ENV` ≠ production), so they work without a human reading the SVG.
 
 Other checks: `npm run check` in `backend/` (entry-point syntax; all routes individually
-checked), boot-time pricing self-test (§13.3), clean `npm run build` in `frontend/`.
+checked), boot-time pricing self-test (§13.3), clean `npm run build` in `frontend/`,
+and `/api/health` which now pings the database (`503 + db:"down"` when unreachable).
 OpenAPI contract: `docs/api/openapi.yaml` — import into Swagger UI/Postman.
+
+### Demo-mode (login page) configuration
+
+The login page shows the seeded demo-account cards **only in demo mode**:
+non-production by default, or when `DEMO_MODE=true` is set in `backend/.env`.
+Set `DEMO_MODE=false` (or `NODE_ENV=production`) on real systems — the cards
+(disabled accounts list, then disappear, the form renders without prefilled
+credentials, and the CAPTCHA `?reveal=1` answer hook is disabled. The flag is
+served from `GET /api/settings/public`; verified with a production-mode boot:
+`{"demoMode":false}` + no `answer` in the CAPTCHA payload + `400` for a
+captcha-less login. The `tests/e2e.mjs` smoke suite therefore requires a
+non-production server.
 
 ## Docs & handoff artifacts
 

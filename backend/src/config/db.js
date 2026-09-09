@@ -2,7 +2,7 @@ import 'dotenv/config';
 import pg from 'pg';
 
 export const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/poms',
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres@localhost:5432/poms',
   max: 10,
 });
 

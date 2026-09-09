@@ -247,7 +247,7 @@ function BrandStrip({ brands }) {
 }
 
 export default function Dashboard() {
-  const { user, hasPermission } = useAuth();
+  const { user, hasPermission, selectedSectionId, clearSection } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [dashData, setDashData] = useState(null);
@@ -262,8 +262,9 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchAll = async () => {
       try {
+        const params = selectedSectionId ? { params: { sectionId: selectedSectionId } } : {};
         const [dashRes, prodRes, brandRes, catRes, colorRes, sizeRes, mfgRes, notifRes] = await Promise.allSettled([
-          api.get('/reports/dashboard'),
+          api.get('/reports/dashboard', params),
           api.get('/products?limit=5&sort=created_at&order=desc'),
           api.get('/brands'),
           api.get('/categories'),
@@ -324,9 +325,19 @@ export default function Dashboard() {
           <h1>{greeting()}, {user?.fullName || 'Admin'}!</h1>
           <p className="muted" style={{ margin: 0 }}>Here's what's happening with your business today. — {today}</p>
           {!user.isSuperAdmin && !!mySections.length && (
-            <div className="row" style={{ marginTop: 8, gap: 6 }}>
+            <div className="row" style={{ marginTop: 8, gap: 6, alignItems: 'center' }}>
               <span className="muted" style={{ fontSize: 12 }}>Your collections:</span>
               {mySections.map((s) => <span key={s.id} className="chip section-chip">{s.name}</span>)}
+            </div>
+          )}
+          {selectedSectionId && (
+            <div className="row" style={{ marginTop: 8, gap: 8, alignItems: 'center' }}>
+              <span className="chip" style={{ background: '#dbeafe', color: '#1e40af' }}>
+                📌 Filtered by selected section
+              </span>
+              <button className="btn ghost sm" onClick={clearSection} title="Clear section filter">
+                <Icon name="x" size={14} /> Clear
+              </button>
             </div>
           )}
         </div>

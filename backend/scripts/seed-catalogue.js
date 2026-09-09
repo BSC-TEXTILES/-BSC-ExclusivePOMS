@@ -146,6 +146,55 @@ export async function scaleCatalogue() {
   void deptRows;
 }
 
+// Brand ↔ Collection mapping — fills the storefront collection pages (Men, Women,
+// Kids, Home Furnishing, Jewellery, Wedding, Suits, Dothis/Dozolo, Towels).
+// Deterministic and idempotent: every brand lands in its department collection
+// plus the topical collections its merchandise belongs to.
+export async function seedCollections() {
+  const colRows = Object.fromEntries((await query(`SELECT code, id FROM collections`)).rows.map((c) => [c.code, c.id]));
+  if (!Object.keys(colRows).length) {
+    console.log('  ⚠ collections table empty — run migration 008 first');
+    return;
+  }
+  const brandDept = (await query(`
+    SELECT DISTINCT b.id AS brand_id, d.code AS dept
+      FROM brands b
+      JOIN products p ON p.brand_id = b.id
+      JOIN sections s ON s.id = p.section_id
+      JOIN departments d ON d.id = s.department_id`)).rows;
+
+  // department → default collection
+  const DEPT_COLLECTION = { MEN: 'mens_wear', WOMEN: 'womens_wear', KIDS: 'kids_wear', HOME: 'home_furnishing' };
+
+  // brand-name keywords → additional topical collections
+  const KEYWORD_MAP = [
+    [/silk|zaveri|aakshi|malabar/i, ['jewellery', 'wedding']],
+    [/biba|aurelia|meena|global des/i, ['wedding']],
+    [/raymond|van heusen|louis|peter england|allen|arrow/i, ['suits']],
+    // Silk-heritage houses also weave the traditional dhoti/veshti/mundu range
+    // (the "Dothis / Dozolo" collection), so they anchor that shelf too.
+    [/pachaiyappa|nalli/i, ['dothis_dozolo']],
+    [/teakcraft|urbanNest/i, ['other']],
+    [/home|sleepwell|decor|trident/i, ['towels']],
+  ];
+
+  for (const { brand_id: brandId, dept } of brandDept) {
+    const targetCodes = new Set();
+    const base = DEPT_COLLECTION[dept] || 'other';
+    if (colRows[base]) targetCodes.add(base);
+    const { rows: nameRows } = await query(`SELECT brand_name FROM brands WHERE id = $1`, [brandId]);
+    const bn = nameRows[0]?.brand_name || '';
+    for (const [re, codes] of KEYWORD_MAP) {
+      if (re.test(bn)) for (const code of codes) if (colRows[code]) targetCodes.add(code);
+    }
+    for (const code of targetCodes) {
+      await query(`INSERT INTO brand_collections (brand_id, collection_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [brandId, colRows[code]]);
+    }
+  }
+  const { rows: [{ c: total }] } = await query(`SELECT count(*)::int AS c FROM brand_collections`);
+  console.log(`✔ Brand ↔ collection links ready (${total} total mappings across ${Object.keys(colRows).length} collections)`);
+}
+
 export async function seedChat() {
   const empty = (await query(`SELECT count(*)::int AS c FROM chat_messages`)).rows[0].c === 0;
   if (!empty) return;

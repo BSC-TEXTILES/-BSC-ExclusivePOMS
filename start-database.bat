@@ -1,9 +1,14 @@
 @echo off
 REM ============================================================
-REM  POMS — Start the PostgreSQL database (port 5433)
-REM  Data directory: database\pgdata
+REM  POMS — Start the PostgreSQL 18 database (port 5432)
+REM  Runs as the Windows service "postgresql-x64-18".
 REM ============================================================
-"C:\Program Files\PostgreSQL\17\bin\pg_ctl.exe" -D "%~dp0database\pgdata" -l "%~dp0database\pgdata.log" -o "-p 5433" start
+net start postgresql-x64-18 >nul 2>&1
+if %errorlevel%==0 (
+  echo PostgreSQL 18 started.
+) else (
+  echo PostgreSQL 18 already running, or the service was not found.
+)
 echo.
-echo Database ready on postgresql://localhost:5433/poms
+echo Database ready on postgresql://localhost:5432/poms
 pause

@@ -33,7 +33,7 @@ export default function Videos() {
       if (search.trim()) params.search = search.trim();
       if (category) params.category = category;
       const { data } = await api.get('/videos', { params });
-      setVideos(data.data);
+      setVideos(data.data || []);
       setError('');
     } catch (e) {
       setError(errMessage(e));

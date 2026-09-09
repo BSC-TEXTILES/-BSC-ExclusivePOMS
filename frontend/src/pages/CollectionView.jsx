@@ -1,9 +1,10 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
-import api, { errMessage } from '../api.js';
+import api, { API_BASE, API_ORIGIN, errMessage } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import Modal from '../components/Modal.jsx';
 import Icon from '../components/Icon.jsx';
+import CollectionIcon from '../components/CollectionIcon.jsx';
 
 export const DEPARTMENT_CONFIG = {
   men: {
@@ -11,16 +12,16 @@ export const DEPARTMENT_CONFIG = {
     code: 'MEN',
     title: "Men's Collection",
     subtitle: "Formal & Casual Apparel, Ethnic Wear, Innerwear & Footwear",
-    icon: '👔',
+    icon: 'men',
     themeColor: '#2563eb',
     accentBg: '#eff6ff',
     sections: [
-      { code: 'MEN-SHIRTS', name: "Men's Shirts", icon: '👕' },
-      { code: 'MEN-TROUSERS', name: "Men's Trousers & Jeans", icon: '👖' },
-      { code: 'MEN-TSHIRTS', name: "Men's T-Shirts", icon: '👕' },
-      { code: 'MEN-ETHNIC', name: "Men's Ethnic Wear (Kurta/Sherwani)", icon: '👳' },
-      { code: 'MEN-INNERWEAR', name: "Men's Innerwear", icon: '🩲' },
-      { code: 'FOOTWEAR-M', name: "Footwear — Men", icon: '👞' },
+      { code: 'MEN-SHIRTS', name: "Men's Shirts", icon: 'shirts' },
+      { code: 'MEN-TROUSERS', name: "Men's Trousers & Jeans", icon: 'trousers' },
+      { code: 'MEN-TSHIRTS', name: "Men's T-Shirts", icon: 'tshirts' },
+      { code: 'MEN-ETHNIC', name: "Men's Ethnic Wear (Kurta/Sherwani)", icon: 'ethnic' },
+      { code: 'MEN-INNERWEAR', name: "Men's Innerwear", icon: 'innerwear' },
+      { code: 'FOOTWEAR-M', name: "Footwear — Men", icon: 'footwear' },
     ],
   },
   women: {
@@ -28,19 +29,19 @@ export const DEPARTMENT_CONFIG = {
     code: 'WOMEN',
     title: "Women's Collection",
     subtitle: "Sarees, Kurtis & Salwar, Western, Ethnic Fabrics, Innerwear, Jewellery & Accessories",
-    icon: '👗',
+    icon: 'women',
     themeColor: '#e11d48',
     accentBg: '#fff1f2',
     sections: [
-      { code: 'WOM-SAREES', name: "Women's Sarees", icon: '🥻' },
-      { code: 'WOM-KURTIS', name: "Women's Kurtis & Salwar Sets", icon: '👗' },
-      { code: 'WOM-WESTERN', name: "Women's Western Wear", icon: '👚' },
-      { code: 'WOM-BLOUSE', name: "Women's Ethnic / Blouse Fabric", icon: '🧵' },
-      { code: 'WOM-INNERWEAR', name: "Women's Innerwear", icon: '👙' },
-      { code: 'JWL-FASHION', name: "Jewellery — Fashion / Artificial", icon: '💍' },
-      { code: 'JWL-BANGLES', name: "Jewellery — Bangles & Sets", icon: '📿' },
-      { code: 'FOOTWEAR-W', name: "Footwear — Women", icon: '👠' },
-      { code: 'ACCESSORIES', name: "Accessories (Belts, Bags, Watches)", icon: '👜' },
+      { code: 'WOM-SAREES', name: "Women's Sarees", icon: 'sarees' },
+      { code: 'WOM-KURTIS', name: "Women's Kurtis & Salwar Sets", icon: 'kurtis' },
+      { code: 'WOM-WESTERN', name: "Women's Western Wear", icon: 'western' },
+      { code: 'WOM-BLOUSE', name: "Women's Ethnic / Blouse Fabric", icon: 'fabric' },
+      { code: 'WOM-INNERWEAR', name: "Women's Innerwear", icon: 'innerwear' },
+      { code: 'JWL-FASHION', name: "Jewellery — Fashion / Artificial", icon: 'gem' },
+      { code: 'JWL-BANGLES', name: "Jewellery — Bangles & Sets", icon: 'bangles' },
+      { code: 'FOOTWEAR-W', name: "Footwear — Women", icon: 'heels' },
+      { code: 'ACCESSORIES', name: "Accessories (Belts, Bags, Watches)", icon: 'bag' },
     ],
   },
   kids: {
@@ -48,14 +49,14 @@ export const DEPARTMENT_CONFIG = {
     code: 'KIDS',
     title: "Kids Collection",
     subtitle: "Boys Wear, Girls Wear, Infant Apparel, Toys & Interactive Games",
-    icon: '🧸',
+    icon: 'kids',
     themeColor: '#059669',
     accentBg: '#ecfdf5',
     sections: [
-      { code: 'KIDS-BOYS', name: "Kids Boys Wear", icon: '👦' },
-      { code: 'KIDS-GIRLS', name: "Kids Girls Wear", icon: '👧' },
-      { code: 'KIDS-INFANT', name: "Kids Infant Wear", icon: '👶' },
-      { code: 'KIDS-TOYS', name: "Toys & Games", icon: '🎮' },
+      { code: 'KIDS-BOYS', name: "Kids Boys Wear", icon: 'boys' },
+      { code: 'KIDS-GIRLS', name: "Kids Girls Wear", icon: 'girls' },
+      { code: 'KIDS-INFANT', name: "Kids Infant Wear", icon: 'infant' },
+      { code: 'KIDS-TOYS', name: "Toys & Games", icon: 'ball' },
     ],
   },
   home: {
@@ -63,12 +64,12 @@ export const DEPARTMENT_CONFIG = {
     code: 'HOME',
     title: "Home & Living Collection",
     subtitle: "Textiles, Home Furnishings, Decor, Interior Furniture & Essentials",
-    icon: '🛋️',
+    icon: 'home',
     themeColor: '#d97706',
     accentBg: '#fffbeb',
     sections: [
-      { code: 'HOME-FURN', name: "Home Furnishing (Textiles & Decor)", icon: '🛏️' },
-      { code: 'FURNITURE', name: "Furniture & Home Interiors", icon: '🪑' },
+      { code: 'HOME-FURN', name: "Home Furnishing (Textiles & Decor)", icon: 'bed' },
+      { code: 'FURNITURE', name: "Furniture & Home Interiors", icon: 'chair' },
     ],
   },
 };
@@ -77,31 +78,31 @@ export const MARKET_SIZE_PRESETS = {
   footwear: {
     key: 'footwear',
     name: 'Footwear / Shoes (UK 3–12)',
-    icon: '👟',
+    icon: 'footwear',
     sizes: ['UK 3', 'UK 4', 'UK 5', 'UK 6', 'UK 7', 'UK 8', 'UK 9', 'UK 10', 'UK 11', 'UK 12'],
   },
   apparel: {
     key: 'apparel',
     name: 'Standard Apparel (XS–5XL)',
-    icon: '👕',
+    icon: 'tshirts',
     sizes: ['XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL'],
   },
   waist: {
     key: 'waist',
     name: 'Numeric Waist (28–46)',
-    icon: '👖',
+    icon: 'trousers',
     sizes: ['28', '30', '32', '34', '36', '38', '40', '42', '44', '46'],
   },
   kids: {
     key: 'kids',
     name: 'Kids Age Groups (0-16Y)',
-    icon: '👶',
+    icon: 'infant',
     sizes: ['0-2 Yrs', '2-4 Yrs', '4-6 Yrs', '6-8 Yrs', '8-10 Yrs', '10-12 Yrs', '12-14 Yrs', '14-16 Yrs'],
   },
   free_sets: {
     key: 'free_sets',
     name: 'Free Size & Home Sets',
-    icon: '🎁',
+    icon: 'gift',
     sizes: ['Free Size', 'Single', 'Set of 2', 'Set of 4', 'Set of 6'],
   },
 };
@@ -413,7 +414,7 @@ export default function CollectionView() {
           marginPercent: Number(l.marginPercent) || 0,
           discountType: l.discountType || 'percent',
           discountValue: Number(l.discountValue) || 0,
-          quantities: l.quantities,
+          quantities: Object.entries(l.quantities || {}).map(([sizeLabel, quantity]) => ({ sizeLabel, quantity: Number(quantity) || 0 })).filter((q) => q.quantity > 0),
         })),
         orderDiscount: { type: 'percent', value: 0, reason: '' },
         charges: [],
@@ -483,7 +484,7 @@ export default function CollectionView() {
       <div className="collection-hero-card" style={{ borderLeftColor: config.themeColor }}>
         <div className="collection-hero-main">
           <div className="collection-hero-icon" style={{ background: config.accentBg, color: config.themeColor }}>
-            {config.icon}
+            <CollectionIcon name={config.icon} size={34} />
           </div>
           <div>
             <div className="collection-hero-meta">
@@ -592,7 +593,7 @@ export default function CollectionView() {
             </div>
           ) : products.length === 0 ? (
             <div className="collection-empty-state">
-              <div className="collection-empty-icon">{config.icon}</div>
+              <div className="collection-empty-icon"><CollectionIcon name={config.icon} size={40} /></div>
               <h3>No products found in this filter</h3>
               <p>Try clearing search criteria or add new items to this section.</p>
               <button
@@ -732,7 +733,7 @@ export default function CollectionView() {
                   }}
                   title={`Switch matrix to ${preset.name}`}
                 >
-                  <span>{preset.icon}</span> {preset.name}
+                  <span><CollectionIcon name={preset.icon} size={13} /></span> {preset.name}
                 </button>
               ))}
 
@@ -947,7 +948,7 @@ export default function CollectionView() {
                 View PO Details & Workflow
               </Link>
               <a
-                href={`/api/purchase-orders/${createdPO.id}/export/pdf`}
+                href={`${API_BASE}/purchase-orders/${createdPO.id}/export/pdf`}
                 target="_blank"
                 rel="noreferrer"
                 className="btn secondary"
@@ -955,7 +956,7 @@ export default function CollectionView() {
                 Download Official PDF
               </a>
               <a
-                href={`/api/purchase-orders/${createdPO.id}/export/csv`}
+                href={`${API_BASE}/purchase-orders/${createdPO.id}/export/csv`}
                 download
                 className="btn"
               >

@@ -16,15 +16,16 @@ export default function Chat() {
 
   useEffect(() => {
     api.get('/divisions').then((r) => {
-      setDivisions(r.data.data);
-      if (r.data.data.length) setDivisionId(r.data.data[0].id);
+      const data = r.data.data || [];
+      setDivisions(data);
+      if (data.length) setDivisionId(data[0].id);
     }).catch((e) => setError(errMessage(e)));
   }, []);
 
   const load = useCallback(() => {
     if (!divisionId && !user.isSuperAdmin) return;
     api.get('/chat/messages', { params: divisionId ? { divisionId } : {} })
-      .then((r) => setMessages(r.data.data))
+      .then((r) => setMessages(r.data.data || []))
       .catch((e) => setError(errMessage(e)));
   }, [divisionId, user.isSuperAdmin]);
   useEffect(load, [load]);

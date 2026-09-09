@@ -13,7 +13,7 @@ function ProductGallery({ product, canManage, onChanged }) {
 
   const load = useCallback(() => {
     api.get(`/products/${product.id}/images`)
-      .then((r) => setImages(r.data.data))
+      .then((r) => setImages(r.data.data || []))
       .catch((e) => setError(errMessage(e)));
   }, [product.id]);
   useEffect(load, [load]);
@@ -105,7 +105,7 @@ export default function Catalogue() {
     const params = { page, pageSize };
     Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
     api.get('/products', { params })
-      .then((r) => { setRows(r.data.data); setTotal(r.data.total); setError(''); })
+      .then((r) => { setRows(r.data.data || []); setTotal(r.data.total || 0); setError(''); })
       .catch((e) => setError(errMessage(e)));
   }, [page, filters]);
 

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom';
 import Icon from './Icon.jsx';
+import CollectionIcon from './CollectionIcon.jsx';
 import { useAuth } from '../auth.jsx';
 import api from '../api.js';
 
@@ -79,50 +80,50 @@ const DEPARTMENT_GROUPS = [
   {
     key: 'men',
     title: "Men's Collection",
-    icon: '👔',
+    icon: 'men',
     sections: [
-      { code: 'MEN-SHIRTS', name: "Men's Shirts", icon: '👕' },
-      { code: 'MEN-TROUSERS', name: "Men's Trousers & Jeans", icon: '👖' },
-      { code: 'MEN-TSHIRTS', name: "Men's T-Shirts", icon: '👕' },
-      { code: 'MEN-ETHNIC', name: "Men's Ethnic Wear", icon: '👳' },
-      { code: 'MEN-INNERWEAR', name: "Men's Innerwear", icon: '🩲' },
-      { code: 'FOOTWEAR-M', name: "Footwear — Men", icon: '👞' },
+      { code: 'MEN-SHIRTS', name: "Men's Shirts", icon: 'shirts' },
+      { code: 'MEN-TROUSERS', name: "Men's Trousers & Jeans", icon: 'trousers' },
+      { code: 'MEN-TSHIRTS', name: "Men's T-Shirts", icon: 'tshirts' },
+      { code: 'MEN-ETHNIC', name: "Men's Ethnic Wear", icon: 'ethnic' },
+      { code: 'MEN-INNERWEAR', name: "Men's Innerwear", icon: 'innerwear' },
+      { code: 'FOOTWEAR-M', name: "Footwear — Men", icon: 'footwear' },
     ],
   },
   {
     key: 'women',
     title: "Women's Collection",
-    icon: '👗',
+    icon: 'women',
     sections: [
-      { code: 'WOM-SAREES', name: "Women's Sarees", icon: '🥻' },
-      { code: 'WOM-KURTIS', name: "Women's Kurtis & Salwar", icon: '👗' },
-      { code: 'WOM-WESTERN', name: "Women's Western Wear", icon: '👚' },
-      { code: 'WOM-BLOUSE', name: "Ethnic / Blouse Fabric", icon: '🧵' },
-      { code: 'WOM-INNERWEAR', name: "Women's Innerwear", icon: '👙' },
-      { code: 'JWL-FASHION', name: "Jewellery — Artificial", icon: '💍' },
-      { code: 'JWL-BANGLES', name: "Jewellery — Bangles", icon: '📿' },
-      { code: 'FOOTWEAR-W', name: "Footwear — Women", icon: '👠' },
-      { code: 'ACCESSORIES', name: "Accessories & Bags", icon: '👜' },
+      { code: 'WOM-SAREES', name: "Women's Sarees", icon: 'sarees' },
+      { code: 'WOM-KURTIS', name: "Women's Kurtis & Salwar", icon: 'kurtis' },
+      { code: 'WOM-WESTERN', name: "Women's Western Wear", icon: 'western' },
+      { code: 'WOM-BLOUSE', name: "Ethnic / Blouse Fabric", icon: 'fabric' },
+      { code: 'WOM-INNERWEAR', name: "Women's Innerwear", icon: 'innerwear' },
+      { code: 'JWL-FASHION', name: "Jewellery — Artificial", icon: 'gem' },
+      { code: 'JWL-BANGLES', name: "Jewellery — Bangles", icon: 'bangles' },
+      { code: 'FOOTWEAR-W', name: "Footwear — Women", icon: 'heels' },
+      { code: 'ACCESSORIES', name: "Accessories & Bags", icon: 'bag' },
     ],
   },
   {
     key: 'kids',
     title: "Kids Collection",
-    icon: '🧸',
+    icon: 'kids',
     sections: [
-      { code: 'KIDS-BOYS', name: "Kids Boys Wear", icon: '👦' },
-      { code: 'KIDS-GIRLS', name: "Kids Girls Wear", icon: '👧' },
-      { code: 'KIDS-INFANT', name: "Kids Infant Wear", icon: '👶' },
-      { code: 'KIDS-TOYS', name: "Toys & Games", icon: '🎮' },
+      { code: 'KIDS-BOYS', name: "Kids Boys Wear", icon: 'boys' },
+      { code: 'KIDS-GIRLS', name: "Kids Girls Wear", icon: 'girls' },
+      { code: 'KIDS-INFANT', name: "Kids Infant Wear", icon: 'infant' },
+      { code: 'KIDS-TOYS', name: "Toys & Games", icon: 'ball' },
     ],
   },
   {
     key: 'home',
     title: "Home & Furnishing",
-    icon: '🛋️',
+    icon: 'home',
     sections: [
-      { code: 'HOME-FURN', name: "Home Furnishing & Decor", icon: '🛏️' },
-      { code: 'FURNITURE', name: "Furniture & Interiors", icon: '🪑' },
+      { code: 'HOME-FURN', name: "Home Furnishing & Decor", icon: 'bed' },
+      { code: 'FURNITURE', name: "Furniture & Interiors", icon: 'chair' },
     ],
   },
 ];
@@ -141,7 +142,7 @@ function DepartmentNavGroup({ group, collapsed, open, onToggle }) {
         className={`nav-link nav-coll-btn ${open ? 'open' : ''}`}
         onClick={onToggle}
       >
-        <span className="nav-dept-icon">{group.icon}</span>
+        <span className="nav-dept-icon"><CollectionIcon name={group.icon} size={15} /></span>
         {!collapsed && (
           <>
             <span className="nav-coll-name">{group.title}</span>
@@ -160,7 +161,7 @@ function DepartmentNavGroup({ group, collapsed, open, onToggle }) {
             style={{ fontWeight: 700 }}
           >
             <span className="nav-subdot gold" />
-            <span>📋 All {group.title} & PO Studio</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Icon name="po" size={13} /> All {group.title} & PO Studio</span>
           </NavLink>
 
           {group.sections.map((sec) => (
@@ -170,7 +171,7 @@ function DepartmentNavGroup({ group, collapsed, open, onToggle }) {
               className={({ isActive }) => (isActive ? 'nav-sublink active' : 'nav-sublink')}
               title={sec.name}
             >
-              <span className="nav-sub-icon">{sec.icon}</span>
+              <span className="nav-sub-icon"><CollectionIcon name={sec.icon} size={13} /></span>
               <span className="nav-sub-text">{sec.name}</span>
             </NavLink>
           ))}
@@ -184,6 +185,7 @@ export default function Sidebar({ collapsed, onToggle }) {
   const { user } = useAuth();
   const canBrowse = user.isSuperAdmin || user.permissions?.includes('masters.view');
   const [openGroup, setOpenGroup] = useState('men');
+  const navigate = useNavigate();
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -231,7 +233,7 @@ export default function Sidebar({ collapsed, onToggle }) {
           })}
         </nav>
         <button className="btn primary create-po" title="Create Master PO"
-          onClick={() => (window.location.href = '/purchase-orders/new')}>
+          onClick={() => navigate('/purchase-orders/new')}>
           <Icon name="plus" size={16} />
           {!collapsed && <span>Create Master PO</span>}
         </button>

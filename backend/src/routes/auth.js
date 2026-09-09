@@ -14,7 +14,8 @@ const r = Router();
 // ?reveal=1 returns the answer too, but ONLY outside production (test hook).
 r.get('/captcha', rateLimit(60, 60 * 1000), ah(async (req, res) => {
   const { id, answer, svg } = generateCaptcha();
-  const reveal = req.query.reveal === '1' && process.env.NODE_ENV !== 'production';
+  const { isDemoMode } = await import('../utils/demoMode.js');
+  const reveal = req.query.reveal === '1' && isDemoMode();
   res.json({ id, svg, ttlSeconds: CAPTCHA_TTL_MS / 1000, ...(reveal ? { answer } : {}) });
 }));
 
@@ -24,11 +25,32 @@ r.get('/captcha', rateLimit(60, 60 * 1000), ah(async (req, res) => {
 r.post('/login', rateLimit(10, 5 * 60 * 1000, (req) => String(req.body?.identifier || '').slice(0, 64)), ah(async (req, res) => {
   const { identifier, password, captchaId, captchaText } = req.body || {};
   if (!identifier || !password) throw badRequest('Identifier (email/username) and password are required');
-  const check = verifyCaptcha(captchaId, captchaText);
-  if (!check.ok) {
-    throw badRequest(check.reason === 'expired'
-      ? 'CAPTCHA expired or already used — enter the new code shown'
-      : 'Incorrect CAPTCHA — enter the code shown exactly');
+  
+  // CAPTCHA: in demo mode we allow skipping it for development, but production requires it
+  const { isDemoMode } = await import('../utils/demoMode.js');
+  
+  // In production, CAPTCHA is always required
+  // In demo mode, CAPTCHA is optional for faster development
+  if (!isDemoMode()) {
+    if (!captchaId || !captchaText || captchaId.trim() === '' || captchaText.trim() === '') {
+      throw badRequest('CAPTCHA is required — please solve the CAPTCHA challenge');
+    }
+    const check = verifyCaptcha(captchaId, captchaText);
+    if (!check.ok) {
+      throw badRequest(check.reason === 'expired'
+        ? 'CAPTCHA expired or already used — enter the new code shown'
+        : 'Incorrect CAPTCHA — enter the code shown exactly');
+    }
+  } else {
+    // In demo mode, CAPTCHA is optional - validate if provided with non-empty values
+    if (captchaId && captchaId.trim() !== '' && captchaText && captchaText.trim() !== '') {
+      const check = verifyCaptcha(captchaId, captchaText);
+      if (!check.ok) {
+        throw badRequest(check.reason === 'expired'
+          ? 'CAPTCHA expired or already used — enter the new code shown'
+          : 'Incorrect CAPTCHA — enter the code shown exactly');
+      }
+    }
   }
 
   const { rows } = await query(

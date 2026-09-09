@@ -22,7 +22,7 @@ export default function Calendar() {
   useEffect(() => {
     setError('');
     api.get('/reports/calendar', { params: { year, month } })
-      .then((r) => setDays(Object.fromEntries(r.data.days.map((d) => [d.day, d]))))
+      .then((r) => setDays(Object.fromEntries((r.data.days || []).map((d) => [d.day, d]))))
       .catch((e) => setError(errMessage(e)));
   }, [year, month]);
 
