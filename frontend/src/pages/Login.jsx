@@ -77,7 +77,6 @@ export default function Login() {
       const res = await fetch('/api/auth/captcha?reveal=1');
       const data = await res.json();
       setCaptcha({ svg: data.svg, id: data.id, answer: data.answer || '' });
-      setError('');
     } catch (e) {
       // In demo mode, CAPTCHA might fail but that's ok
       console.warn('Could not fetch CAPTCHA:', e.message);
@@ -119,9 +118,12 @@ export default function Login() {
       await login(identifier, password, extra);
       navigate('/');
     } catch (err) {
-      setError(errMessage(err));
-      // Refresh CAPTCHA on failure
-      if (err.message?.includes('CAPTCHA') || err.message?.includes('captcha')) {
+      const msg = errMessage(err);
+      setError(msg);
+      // Fetch a fresh challenge when the server rejected the CAPTCHA
+      // (errMessage carries the API text; axios's err.message does not)
+      if (/captcha/i.test(msg)) {
+        setCaptchaText('');
         fetchCaptcha();
       }
       // login failed

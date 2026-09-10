@@ -5,3 +5,5 @@ pgdata/
 *.log
 backend/uploads/
 .claude/
+nul
+backend.log

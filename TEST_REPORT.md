@@ -1,12 +1,38 @@
 # POMS Full Project Test Report
 
 ## 📅 Test Date
-2026-09-09
+2026-09-09 (re-verified 2026-09-10)
+
+## 🔧 FIXES & VERIFICATION — 2026-09-10
+
+**Reported problem:** "Backend Server Not Available" error screen in the browser.
+
+**Root cause:** Nothing was listening on port 4040 — the backend server simply was not running (PostgreSQL and the Vite frontend were up, the backend window had been closed). Starting it (`npm run dev` in `backend/`, or `start-dev.bat`) resolves the screen.
+
+**Fixes applied:**
+
+| # | File | Fix |
+|---|------|-----|
+| 1 | `start-dev.bat` | Hardened: auto-starts the PostgreSQL service, installs npm deps on first run, uses `start /D` (the old escaped-quote `cd /d "%~dp0..."` pattern could silently fail), polls `/api/health` and the Vite port before opening the browser, clear error messages if either server fails |
+| 2 | `frontend/vite.config.js` | **Team Chat WebSocket was broken in dev**: the app connects to `ws://…/ws/chat` and `/ws/notify`, but the Vite proxy only forwarded `/api`. Added `'/ws': { target: 'http://localhost:4040', ws: true }` — chat now shows 🟢 live and messages round-trip in real time |
+| 3 | `frontend/src/pages/Login.jsx` | **CAPTCHA never auto-refreshed on error**: the code checked `err.message` (axios generic text) instead of the API message from `errMessage()`, so an expired/incorrect CAPTCHA left the stale challenge on screen with no way forward. Now the challenge auto-refreshes, the error message persists, and the input clears |
+| 4 | `backend/tests/security.blackbox.mjs` | Boots its own isolated server (port 4401) so repeat runs no longer trip the live server's 10-logins/5-min rate limiter; demo-mode CAPTCHA skip is now a proper SKIP result, not a FAIL |
+| 5 | `.gitignore` / repo | Removed stray `nul` file (ping-redirect artifact); ignore `nul` and `backend.log` |
+
+**Verification (2026-09-10):**
+- Backend health: `GET /api/health` → `{"status":"ok"}`; login → JWT issued; dashboard/products return live data
+- E2E suite (`scripts/e2e.mjs`): **54/54 passed** (PO lifecycle, approvals, receipts, inventory, RBAC, audit)
+- Unit tests: **9/9 passed** · Security black-box: **13 passed + 1 skipped** (demo-mode CAPTCHA, by design), verified repeatable across consecutive runs
+- Production CAPTCHA enforcement confirmed with `NODE_ENV=production` (login without CAPTCHA rejected; `?reveal` test hook disabled)
+- Frontend production build: passes
+- **Browser sweep of all 29 authenticated routes as Super Admin**: every page renders its correct heading and content — no backend-error screens, no permission walls (Dashboard, PO list/create, Calendar, Approvals, Receiving, Masters, Catalogue, Collection, Chat, Users, Reports, Audit Trail, Collections, Dealers, Company, Attachments, Checkout, Products, Brands, Categories, Colors, Sizes, Product Types, Export Data, Videos, Settings, Pricing, Locations)
+- Team Chat verified live in-browser: 🟢 status, history loads, message sent via UI appears instantly (WebSocket round-trip)
 
 ## 🎯 Test Objective
 Run full project tests, fix all errors, and ensure every part of the project works correctly.
 
 ---
+
 
 ## ✅ TEST RESULTS SUMMARY
 
@@ -330,11 +356,10 @@ http://localhost:5173
 **Workaround:** Set NODE_ENV=production for production deployment
 **Resolution:** By design - balances development convenience with production security
 
-### Issue 2: Rate Limiting During Tests
-**Description:** Security tests may hit rate limits if run multiple times
-**Impact:** Tests may fail temporarily
-**Workaround:** Wait 5 minutes between test runs, or run tests individually
-**Resolution:** Rate limiting is working as designed for security
+### Issue 2: Rate Limiting During Tests — ✅ RESOLVED (2026-09-10)
+**Description:** Security tests previously hit the 10-logins/5-minute rate limit when run against the long-lived dev server on port 4040
+**Impact:** Repeat runs failed with 429 errors
+**Resolution:** `backend/tests/security.blackbox.mjs` now boots its own isolated API server (port 4401, fresh in-memory rate-limit buckets) on every run, so the suite is fully repeatable. Pass a URL argument to target a live server instead: `node tests/security.blackbox.mjs http://localhost:4040`. Verified: two consecutive runs both return 13 passed + 1 skipped (demo-mode CAPTCHA skip, by design).
 
 ---
 
