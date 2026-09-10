@@ -13,10 +13,8 @@ PostgreSQL 18 installation at `C:\Program Files\PostgreSQL\18`.
 
 | Step | Double-click / run | What it does |
 |---|---|---|
-| 1 | `start-database.bat` | Starts the PostgreSQL 18 service on port 5432 |
-| 2 | `setup-database.bat` *(first time only)* | Creates the `poms` database, loads `database/schema.sql`, seeds master data + demo users |
-| 3 | `start-website.bat` | Serves the whole site — frontend + API — on **http://localhost:4040** |
-| 4 | `start-dev.bat` | Starts both backend (port 4040) + frontend dev server (port 5173) for development |
+| 1 | **`run.bat`** | **One-click launcher** — starts PostgreSQL, creates the `poms` database (first time), loads the complete schema, seeds master data + demo users, launches backend (port 4040) + frontend (port 5173), opens the browser |
+| 2 | `start-dev.bat` | Alternative: starts both backend + frontend only (assumes the database is already set up) |
 
 Sign in: **admin@bsc.local / Admin@123** (Super Admin — all other demo roles listed on the
 login screen).
@@ -24,9 +22,9 @@ login screen).
 Manual equivalent (any OS):
 
 ```bash
-# 1. Database — create it, then load the supplied schema
+# 1. Database — create it, then load the complete schema
 createdb poms                       # or: CREATE DATABASE poms;
-psql -d poms -f database/schema.sql
+psql -d poms -f database/complete_schema.sql
 
 # 2. Backend API (also serves the built frontend)
 cd backend
@@ -72,10 +70,8 @@ dashboard, audit trail and reports as **admin**.
 ```
 D:\BSC_P_O
 ├── README.md                        ← this file
-├── start-database.bat               ← start / stop the PostgreSQL database
-├── stop-database.bat
-├── setup-database.bat               ← one-time: schema + seed data
-├── start-website.bat                ← run the whole site on http://localhost:4040
+├── run.bat                          ← one-click launcher (database + backend + frontend)
+├── start-dev.bat                    ← start backend + frontend only (dev mode)
 │
 ├── frontend/                        ← TIER 1 — React 18 + Vite SPA
 │   ├── package.json

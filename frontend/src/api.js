@@ -90,3 +90,17 @@ export const fileKind = (mime = '', name = '') => {
 };
 
 export default api;
+// ── Import / Data Import API helpers (admin-only) ──────────────────────────
+export const importUpload = (file) => {
+  const fd = new FormData();
+  fd.append('file', file);
+  return api.post('/import/upload', fd, { headers: { 'Content-Type': 'multipart/form-data' } });
+};
+export const importConfirm = (importId, mapping) =>
+  api.post(`/import/${importId}/confirm`, { mapping });
+export const importHistory = (params = {}) =>
+  api.get('/import/history', { params });
+export const importCancel = (importId) =>
+  api.delete(`/import/${importId}`);
+export const importRecords = (importId) =>
+  api.get(`/import/${importId}/records`);

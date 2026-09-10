@@ -175,8 +175,7 @@ This section details exactly how data originates, transforms, validates, and com
 ### 4.2 Starting the System
 
 #### Windows (Single-click):
-1. Run `start-database.bat` to launch PostgreSQL on port 5432.
-2. Run `start-website.bat` to launch the unified POMS portal on `http://localhost:4040`.
+1. Run `run.bat` — starts PostgreSQL, applies schema, seeds data, launches backend + frontend.
 
 #### Linux / Production Server:
 ```bash

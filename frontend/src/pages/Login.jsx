@@ -144,6 +144,12 @@ export default function Login() {
             <div className="login-left-logo">B</div>
             <span>BSC Exclusive</span>
           </div>
+          <div className="login-left-top-actions">
+            <button type="button" className="login-back-home" onClick={() => navigate('/')}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7" /></svg>
+              Back to Home
+            </button>
+          </div>
           <div className="login-left-hero">
             <h1>Purchase Order<br />Management System</h1>
             <p>Next-generation enterprise procurement platform with matrix size quantities, multi-tier approvals, branded PDF/CSV exports, and goods receipt tracking.</p>

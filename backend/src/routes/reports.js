@@ -151,8 +151,12 @@ r.get('/men-summary', ah(async (req, res) => {
        JOIN purchase_orders po ON po.id = i.po_id
       WHERE ${W}`, params)).rows[0];
   const sellingPrices = (await query(
-    `SELECT i.product_name, i.sku, i.brand_name, i.colour_name, i.purchase_price,
-            i.margin_percent, i.net_value_per_unit, i.discount_amount, i.final_value_per_unit,
+    `SELECT i.product_snapshot->>'name' AS product_name,
+            i.product_snapshot->>'sku' AS sku,
+            i.brand_snapshot->>'brand_name' AS brand_name,
+            i.colour_snapshot->>'name' AS colour_name,
+            i.purchase_price, i.margin_percent, i.net_value_per_unit,
+            i.discount_amount, i.final_value_per_unit,
             i.total_quantity, i.line_total
        FROM purchase_order_items i
        JOIN purchase_orders po ON po.id = i.po_id

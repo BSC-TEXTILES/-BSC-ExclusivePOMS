@@ -276,22 +276,19 @@ All demo accounts work correctly:
 
 ## 🚀 HOW TO RUN THE PROJECT
 
-### Option 1: Quick Development (Recommended)
+### Option 1: One-Click Launcher (Recommended)
 ```bash
-1. start-database.bat      # Start PostgreSQL
-2. setup-database.bat      # Setup DB (first time only)
-3. start-dev.bat           # Start both backend + frontend
-4. Open http://localhost:5173
-5. Login with: admin@bsc.local / Admin@123
+1. run.bat                  # Start PostgreSQL + schema + seed + backend + frontend
+2. Open http://localhost:5173
+3. Login with: admin@bsc.local / Admin@123
 ```
 
-### Option 2: Production Mode
+### Option 2: Development Mode
 ```bash
-1. start-database.bat      # Start PostgreSQL
-2. setup-database.bat      # Setup DB (first time only)
-3. start-website.bat       # Start backend serving frontend
-4. Open http://localhost:4040
-5. Login with: admin@bsc.local / Admin@123
+1. run.bat                  # First time: sets up database + starts everything
+2. start-dev.bat            # Subsequent runs: starts backend + frontend only
+3. Open http://localhost:5173
+4. Login with: admin@bsc.local / Admin@123
 ```
 
 ### Option 3: Manual Development

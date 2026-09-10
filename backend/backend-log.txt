@@ -1,0 +1,206 @@
+
+> poms-backend@1.0.0 dev
+> node --watch src/server.js
+
+
+✗ Port 4040 is already in use — another POMS API instance is probably running.
+  Stop it or change PORT in backend/.env. (Frontend proxy expects port 4040.)
+Failed running 'src/server.js'. Waiting for file changes before restarting...
+Restarting 'src/server.js'
+file:///D:/BSC_Exclusive_Project/BSC_%20Perches_Orders/BSC-Exclusive-POMS/backend/src/routes/import.js:3
+import { v4 as uuidv4 } from 'node:crypto';
+         ^^
+SyntaxError: The requested module 'node:crypto' does not provide an export named 'v4'
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+Failed running 'src/server.js'. Waiting for file changes before restarting...
+Restarting 'src/server.js'
+file:///D:/BSC_Exclusive_Project/BSC_%20Perches_Orders/BSC-Exclusive-POMS/backend/src/routes/import.js:3
+import { v4 as uuidv4 } from 'node:crypto';
+         ^^
+SyntaxError: The requested module 'node:crypto' does not provide an export named 'v4'
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+Failed running 'src/server.js'. Waiting for file changes before restarting...
+Restarting 'src/server.js'
+file:///D:/BSC_Exclusive_Project/BSC_%20Perches_Orders/BSC-Exclusive-POMS/backend/src/routes/import.js:3
+import { v4 as uuidv4 } from 'node:crypto';
+         ^^
+SyntaxError: The requested module 'node:crypto' does not provide an export named 'v4'
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+Failed running 'src/server.js'. Waiting for file changes before restarting...
+Restarting 'src/server.js'
+file:///D:/BSC_Exclusive_Project/BSC_%20Perches_Orders/BSC-Exclusive-POMS/backend/src/routes/import.js:3
+import { v4 as uuidv4 } from 'node:crypto';
+         ^^
+SyntaxError: The requested module 'node:crypto' does not provide an export named 'v4'
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+Failed running 'src/server.js'. Waiting for file changes before restarting...
+Restarting 'src/server.js'
+file:///D:/BSC_Exclusive_Project/BSC_%20Perches_Orders/BSC-Exclusive-POMS/backend/src/routes/import.js:3
+import { v4 as uuidv4 } from 'node:crypto';
+         ^^
+SyntaxError: The requested module 'node:crypto' does not provide an export named 'v4'
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+Failed running 'src/server.js'. Waiting for file changes before restarting...
+Restarting 'src/server.js'
+file:///D:/BSC_Exclusive_Project/BSC_%20Perches_Orders/BSC-Exclusive-POMS/backend/src/routes/import.js:3
+import { v4 as uuidv4 } from 'node:crypto';
+         ^^
+SyntaxError: The requested module 'node:crypto' does not provide an export named 'v4'
+    at ModuleJob._instantiate (node:internal/modules/esm/module_job:226:21)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ModuleJob.run (node:internal/modules/esm/module_job:335:5)
+    at async onImport.tracePromise.__proto__ (node:internal/modules/esm/loader:681:26)
+    at async asyncRunEntryPointWithESMLoader (node:internal/modules/run_main:117:5)
+
+Node.js v22.23.2
+Failed running 'src/server.js'. Waiting for file changes before restarting...
+Restarting 'src/server.js'
+file:///D:/BSC_Exclusive_Project/BSC_%20Perches_Orders/BSC-Exclusive-POMS/backend/src/routes/import.js:176
+s required to confirm the import.');
+  ^^^^^^^^
+
+SyntaxError: Unexpected identifier 'required'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:110:18)
+    at #translate (node:internal/modules/esm/loader:559:20)
+    at afterLoad (node:internal/modules/esm/loader:612:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:617:12)
+    at #createModuleJob (node:internal/modules/esm/loader:640:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:353:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:321:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+Node.js v22.23.2
+Failed running 'src/server.js'. Waiting for file changes before restarting...
+Restarting 'src/server.js'
+file:///D:/BSC_Exclusive_Project/BSC_%20Perches_Orders/BSC-Exclusive-POMS/backend/src/routes/import.js:176
+s required to confirm the import.');
+  ^^^^^^^^
+
+SyntaxError: Unexpected identifier 'required'
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:110:18)
+    at #translate (node:internal/modules/esm/loader:559:20)
+    at afterLoad (node:internal/modules/esm/loader:612:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:617:12)
+    at #createModuleJob (node:internal/modules/esm/loader:640:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:353:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:321:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+Node.js v22.23.2
+Failed running 'src/server.js'. Waiting for file changes before restarting...
+Restarting 'src/server.js'
+file:///D:/BSC_Exclusive_Project/BSC_%20Perches_Orders/BSC-Exclusive-POMS/backend/src/routes/import.js:177
+export default r;
+       ^^^^^^^^^
+
+SyntaxError: Identifier '.default' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:110:18)
+    at #translate (node:internal/modules/esm/loader:559:20)
+    at afterLoad (node:internal/modules/esm/loader:612:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:617:12)
+    at #createModuleJob (node:internal/modules/esm/loader:640:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:353:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:321:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+Node.js v22.23.2
+Failed running 'src/server.js'. Waiting for file changes before restarting...
+Restarting 'src/server.js'
+file:///D:/BSC_Exclusive_Project/BSC_%20Perches_Orders/BSC-Exclusive-POMS/backend/src/routes/import.js:177
+export default r;
+       ^^^^^^^^^
+
+SyntaxError: Identifier '.default' has already been declared
+    at compileSourceTextModule (node:internal/modules/esm/utils:346:16)
+    at ModuleLoader.moduleStrategy (node:internal/modules/esm/translators:110:18)
+    at #translate (node:internal/modules/esm/loader:559:20)
+    at afterLoad (node:internal/modules/esm/loader:612:29)
+    at ModuleLoader.loadAndTranslate (node:internal/modules/esm/loader:617:12)
+    at #createModuleJob (node:internal/modules/esm/loader:640:36)
+    at #getJobFromResolveResult (node:internal/modules/esm/loader:353:34)
+    at ModuleLoader.getModuleJobForImport (node:internal/modules/esm/loader:321:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+
+Node.js v22.23.2
+Failed running 'src/server.js'. Waiting for file changes before restarting...
+Restarting 'src/server.js'
+POMS API listening on http://localhost:4040
+  frontend dev proxy target: http://localhost:4040 (must match frontend/vite.config.js)
+✓ PostgreSQL connected in 82 ms — database ready
+Restarting 'src/server.js'
+POMS API listening on http://localhost:4040
+  frontend dev proxy target: http://localhost:4040 (must match frontend/vite.config.js)
+✓ PostgreSQL connected in 84 ms — database ready
+GET /api/settings/public → 304 (8ms)
+GET /api/settings/public → 304 (3ms)
+GET /api/settings/public → 304 (3ms)
+GET /api/settings/public → 304 (2ms)
+GET /api/departments → 304 (100ms)
+GET /api/sections?status=active → 304 (142ms)
+GET /api/settings → 304 (146ms)
+GET /api/settings/public → 304 (3ms)
+GET /api/notifications → 304 (165ms)
+GET /api/departments → 304 (17ms)
+GET /api/chat/messages → 304 (181ms)
+GET /api/sections?status=active → 304 (25ms)
+GET /api/settings/public → 304 (5ms)
+POST /api/tracking/heartbeat → 200 (69ms)
+GET /api/settings → 304 (22ms)
+POST /api/tracking/heartbeat → 200 (59ms)
+GET /api/divisions → 304 (213ms)
+GET /api/notifications → 304 (22ms)
+GET /api/chat/messages → 304 (23ms)
+GET /api/divisions → 304 (12ms)
+GET /api/chat/messages?divisionId=19dc5663-b567-4637-afbf-ebe0925b1ecf → 304 (17ms)
+Restarting 'src/server.js'
+POMS API listening on http://localhost:4040
+  frontend dev proxy target: http://localhost:4040 (must match frontend/vite.config.js)
+✓ PostgreSQL connected in 77 ms — database ready
+POST /api/tracking/heartbeat → 200 (87ms)
+POST /api/tracking/heartbeat → 200 (87ms)
+Restarting 'src/server.js'
+
+✗ Port 4040 is already in use — another POMS API instance is probably running.
+  Stop it or change PORT in backend/.env. (Frontend proxy expects port 4040.)
+Failed running 'src/server.js'. Waiting for file changes before restarting...
+Restarting 'src/server.js'
+POMS API listening on http://localhost:4040
+  frontend dev proxy target: http://localhost:4040 (must match frontend/vite.config.js)
+✓ PostgreSQL connected in 120 ms — database ready
+POST /api/tracking/heartbeat → 200 (107ms)
+POST /api/tracking/heartbeat → 200 (79ms)
+POST /api/tracking/heartbeat → 200 (67ms)
+POST /api/tracking/heartbeat → 200 (126ms)

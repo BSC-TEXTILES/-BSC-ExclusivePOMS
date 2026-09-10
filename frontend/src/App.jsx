@@ -42,6 +42,7 @@ import Dealers from './pages/Dealers.jsx';
 import CompanySettings from './pages/CompanySettings.jsx';
 import Attachments from './pages/Attachments.jsx';
 import Checkout from './pages/Checkout.jsx';
+import ImportData from './pages/ImportData.jsx';
 import ProfileModal from './components/ProfileModal.jsx';
 import CookieConsent from './components/CookieConsent.jsx';
 import { PrivacyPolicy, Terms, Security } from './pages/Legal.jsx';
@@ -128,6 +129,7 @@ export default function App() {
             <Route path="/sizes" element={<RequireAuth permission="masters.view"><Sizes /></RequireAuth>} />
             <Route path="/attributes" element={<RequireAuth permission="masters.view"><Attributes /></RequireAuth>} />
             <Route path="/export-data" element={<RequireAuth permission="reports.view"><ExportData /></RequireAuth>} />
+            <Route path="/import-data" element={<RequireAuth permission="masters.manage"><ImportData /></RequireAuth>} />
             <Route path="/videos" element={<RequireAuth permission="videos.view"><Videos /></RequireAuth>} />
             <Route path="/videos/:id" element={<RequireAuth permission="videos.view"><VideoDetail /></RequireAuth>} />
             <Route path="/settings" element={<RequireAuth permission="settings.manage"><Settings /></RequireAuth>} />

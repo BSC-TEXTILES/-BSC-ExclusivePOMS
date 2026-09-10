@@ -36,24 +36,30 @@ export default function Chat() {
     if (!token) return;
     let closed = false;
     let retry;
+    let attempts = 0;
     function connect() {
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
       const ws = new WebSocket(`${proto}://${window.location.host}/ws/chat?token=${encodeURIComponent(token)}`);
       wsRef.current = ws;
-      ws.onopen = () => setLive(true);
+      ws.onopen = () => { attempts = 0; setLive(true); };
       ws.onmessage = (ev) => {
         try {
           const { type, message } = JSON.parse(ev.data);
           if (type === 'chat') setMessages((prev) => (prev.some((m) => m.id === message.id) ? prev : [...prev, message]));
         } catch { /* ignore malformed frames */ }
       };
-      ws.onclose = () => {
+      ws.onerror = () => { /* handled via onclose */ };
+      ws.onclose = (ev) => {
         setLive(false);
-        if (!closed) retry = setTimeout(connect, 2000);
+        if (closed) return;
+        if (ev.code === 4001 || ev.code === 4002) return; // unauthorized — never retry
+        attempts += 1;
+        const delay = Math.min(30000, 1000 * 2 ** attempts); // exponential backoff
+        retry = setTimeout(connect, delay);
       };
     }
     connect();
-    return () => { closed = true; clearTimeout(retry); wsRef.current?.close(); };
+    return () => { closed = true; clearTimeout(retry); try { wsRef.current?.close(); } catch { /* ignore */ } };
   }, []);
 
   useEffect(() => {

@@ -68,6 +68,7 @@ const SECTIONS = [
       { to: '/roles', label: 'Roles', icon: 'shield', permission: 'users.manage', superAdminOnly: true },
       { to: '/settings', label: 'Settings', icon: 'settings', permission: 'settings.manage' },
       { to: '/audit-logs', label: 'Audit Trail', icon: 'audit', permission: 'audit.view' },
+      { to: '/import-data', label: 'Import Data', icon: 'reports', permission: 'masters.manage' },
       { to: '/collections', label: 'Collections', icon: 'masters', permission: 'collections.view' },
       { to: '/dealers', label: 'Dealers', icon: 'building', permission: 'dealers.view' },
       { to: '/company', label: 'Company Settings', icon: 'settings', permission: 'company.view' },

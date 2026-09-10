@@ -30,6 +30,7 @@ export async function loadUser(userId) {
   const { rows } = await query(USER_SELECT, [userId]);
   const u = rows[0];
   if (!u) return null;
+  const roles = typeof u.roles === 'string' ? JSON.parse(u.roles) : u.roles;
   return {
     id: u.id,
     email: u.email,
@@ -39,12 +40,12 @@ export async function loadUser(userId) {
     forcePasswordReset: u.force_password_reset,
     profilePhotoUrl: u.profile_photo_url,
     designation: u.designation,
-    roles: u.roles,
-    divisionIds: u.division_ids,
-    sectionIds: u.section_ids,
-    permissions: u.permissions,
+    roles: roles,
+    divisionIds: typeof u.division_ids === 'string' ? JSON.parse(u.division_ids) : u.division_ids,
+    sectionIds: typeof u.section_ids === 'string' ? JSON.parse(u.section_ids) : u.section_ids,
+    permissions: typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions,
     profileUpdatedAt: u.profile_updated_at,
-    isSuperAdmin: u.roles.includes('super_admin'),
+    isSuperAdmin: roles.includes('super_admin'),
   };
 }
 

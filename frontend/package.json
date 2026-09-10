@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:full": "concurrently -k -n api,web -c blue,green \"cd ../backend && node src/server.js\" \"vite\"",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -16,6 +17,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.1",
+    "concurrently": "^10.0.5",
     "vite": "^5.4.8"
   }
 }

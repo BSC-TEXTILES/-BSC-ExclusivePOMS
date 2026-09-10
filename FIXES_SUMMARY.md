@@ -43,19 +43,15 @@ Modified `README.md`:
 
 ## How to Use the Fixed System
 
-### Option 1: Quick Development (Recommended)
-1. Start PostgreSQL: `start-database.bat`
-2. Setup database (first time): `setup-database.bat`
-3. Start both servers: `start-dev.bat`
-4. Open browser to: http://localhost:5173
-5. Login with: admin@bsc.local / Admin@123
+### Option 1: One-Click Launcher (Recommended)
+1. Double-click **`run.bat`** — starts PostgreSQL, creates schema, seeds data, launches backend + frontend
+2. Login with: admin@bsc.local / Admin@123
 
-### Option 2: Production Mode
-1. Start PostgreSQL: `start-database.bat`
-2. Setup database (first time): `setup-database.bat`
-3. Start website: `start-website.bat`
-4. Open browser to: http://localhost:4040
-5. Login with: admin@bsc.local / Admin@123
+### Option 2: Development Mode
+1. Run **`run.bat`** first to set up the database (once)
+2. Use `start-dev.bat` for subsequent runs (starts backend + frontend only)
+3. Open browser to: http://localhost:5173
+4. Login with: admin@bsc.local / Admin@123
 
 ### Option 3: Manual Development
 1. Start PostgreSQL
@@ -108,9 +104,7 @@ Modified `README.md`:
 **Fix:** Start the backend server using one of the methods above.
 
 ### Issue: Database connection errors
-**Fix:** Ensure PostgreSQL is running and database is set up:
-1. Run `start-database.bat`
-2. Run `setup-database.bat` (first time only)
+**Fix:** Run `run.bat` — it automatically starts PostgreSQL and sets up the database on first run.
 
 ### Issue: Port 4040 already in use
 **Fix:** Make sure only one backend instance is running, or change the PORT in `backend/.env`.

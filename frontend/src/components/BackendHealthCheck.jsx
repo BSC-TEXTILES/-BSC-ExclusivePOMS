@@ -1,143 +1,120 @@
-import { useState, useEffect } from 'react';
-import api from '../api.js';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 export default function BackendHealthCheck({ children }) {
   const [backendAvailable, setBackendAvailable] = useState(null);
   const [checking, setChecking] = useState(true);
   const [error, setError] = useState('');
+  const [attempts, setAttempts] = useState(0);
+  const timerRef = useRef(null);
+  const mountedRef = useRef(true);
+  const attemptsRef = useRef(0);
 
-  useEffect(() => {
-    const checkHealth = async () => {
-      try {
-        const response = await fetch('/api/health', { 
-          method: 'GET',
-          cache: 'no-store'
-        });
-        if (response.ok) {
+  const checkHealth = useCallback(async () => {
+    try {
+      const res = await fetch('/api/health', { method: 'GET', cache: 'no-store' });
+      if (res.ok) {
+        if (mountedRef.current) {
           setBackendAvailable(true);
-        } else {
-          setBackendAvailable(false);
-          setError('Backend server responded with an error');
+          setError('');
         }
-      } catch (err) {
-        setBackendAvailable(false);
-        if (err.name === 'TypeError' || err.message.includes('Failed to fetch')) {
-          setError('Backend server is not running. Please start the backend server on port 4040.');
-        } else {
-          setError(`Backend connection error: ${err.message}`);
-        }
-      } finally {
-        setChecking(false);
+        return true;
       }
-    };
-
-    checkHealth();
-
-    // Optional: periodically check
-    const interval = setInterval(checkHealth, 30000);
-    return () => clearInterval(interval);
+      if (mountedRef.current) {
+        setBackendAvailable(false);
+        setError(`Backend returned status ${res.status}`);
+      }
+      return false;
+    } catch {
+      if (mountedRef.current) {
+        setBackendAvailable(false);
+        setError('Backend server is not running. Start it with run.bat or cd backend && npm run dev');
+      }
+      return false;
+    } finally {
+      if (mountedRef.current) setChecking(false);
+    }
   }, []);
 
-  if (checking) {
+  useEffect(() => {
+    mountedRef.current = true;
+
+    function scheduleRetry(delay) {
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(async () => {
+        if (!mountedRef.current) return;
+        attemptsRef.current += 1;
+        setAttempts(attemptsRef.current);
+        const ok = await checkHealth();
+        if (mountedRef.current && !ok) {
+          const next = Math.min(30000, 2000 * 2 ** attemptsRef.current);
+          scheduleRetry(next);
+        }
+      }, delay);
+    }
+
+    checkHealth().then((ok) => {
+      if (mountedRef.current && !ok) scheduleRetry(2000);
+    });
+
+    return () => {
+      mountedRef.current = false;
+      clearTimeout(timerRef.current);
+    };
+  }, [checkHealth]);
+
+  if (checking && backendAvailable === null) {
     return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-        background: '#f8f9fa'
-      }}>
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f8f9fa' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: 24, marginBottom: 16 }}>Checking backend connection...</div>
-          <div className="spinner" style={{
-            border: '4px solid #f3f3f3',
-            borderTop: '4px solid #3498db',
-            borderRadius: '50%',
-            width: 40,
-            height: 40,
-            animation: 'spin 1s linear infinite',
-            margin: '0 auto'
-          }}></div>
-          <style>{`
-            @keyframes spin {
-              0% { transform: rotate(0deg); }
-              100% { transform: rotate(360deg); }
-            }
-          `}</style>
+          <div style={{ fontSize: 22, marginBottom: 12, color: '#374151' }}>Checking backend connection...</div>
+          <div style={{ border: '4px solid #e5e7eb', borderTop: '4px solid #3b82f6', borderRadius: '50%', width: 36, height: 36, animation: 'spin 1s linear infinite', margin: '0 auto' }} />
+          <style>{`@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }`}</style>
         </div>
       </div>
     );
   }
 
-  if (!backendAvailable) {
-    return (
-      <div style={{
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        minHeight: '100vh',
-        background: '#fff5f5',
-        padding: 20
-      }}>
-        <div style={{
-          background: '#fff',
-          padding: 40,
-          borderRadius: 12,
-          boxShadow: '0 4px 6px rgba(0,0,0,0.1)',
-          maxWidth: 600,
-          textAlign: 'center'
-        }}>
-          <h1 style={{ color: '#dc2626', marginBottom: 16 }}>⚠️ Backend Server Not Available</h1>
-          <p style={{ color: '#7f1d1d', marginBottom: 24, fontSize: 16 }}>
-            {error || 'Cannot connect to the backend API server.'}
-          </p>
-          <div style={{
-            background: '#fef2f2',
-            padding: 16,
-            borderRadius: 8,
-            marginBottom: 24,
-            textAlign: 'left',
-            fontFamily: 'monospace',
-            fontSize: 14
-          }}>
-            <div><strong>To fix this issue:</strong></div>
-            <div style={{ marginTop: 8 }}>
-              <ol style={{ textAlign: 'left', paddingLeft: 20 }}>
-                <li>Make sure PostgreSQL is running (start-database.bat)</li>
-                <li>Start the backend server:
-                  <code style={{ background: '#f3f4f6', padding: '2px 6px', borderRadius: 4 }}>
-                    cd backend &amp;&amp; npm run dev
-                  </code>
-                </li>
-                <li>Or use: <code style={{ background: '#f3f4f6', padding: '2px 6px', borderRadius: 4 }}>
-                  start-dev.bat
-                </code> (starts both servers)</li>
-              </ol>
-            </div>
-          </div>
-          <div style={{ color: '#7f1d1d', fontSize: 14 }}>
-            Expected backend: http://localhost:4040<br />
-            Frontend proxy: /api → http://localhost:4040
-          </div>
-          <button 
-            onClick={() => window.location.reload()} 
-            style={{
-              marginTop: 24,
-              padding: '12px 24px',
-              background: '#dc2626',
-              color: 'white',
-              border: 'none',
-              borderRadius: 8,
-              cursor: 'pointer',
-              fontSize: 16
-            }}
-          >
-            Retry Connection
-          </button>
-        </div>
-      </div>
-    );
-  }
+  if (backendAvailable) return children;
 
-  return children;
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '100vh', background: '#f8f9fa', padding: 20 }}>
+      <div style={{ background: '#fff', padding: 40, borderRadius: 12, boxShadow: '0 4px 12px rgba(0,0,0,0.08)', maxWidth: 620, textAlign: 'center' }}>
+        <div style={{ fontSize: 48, marginBottom: 12 }}>⚠️</div>
+        <h1 style={{ color: '#dc2626', marginBottom: 8, fontSize: 24 }}>Backend Server Not Available</h1>
+        <p style={{ color: '#6b7280', marginBottom: 24, fontSize: 15, lineHeight: 1.5 }}>
+          {error || 'Cannot connect to the backend API server.'}
+        </p>
+
+        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', padding: 16, borderRadius: 8, marginBottom: 24, textAlign: 'left' }}>
+          <div style={{ fontWeight: 600, color: '#1e40af', marginBottom: 8 }}>Quick fix — run from the project root:</div>
+          <code style={{ display: 'block', background: '#1e293b', color: '#e2e8f0', padding: '12px 16px', borderRadius: 6, fontSize: 14, fontFamily: 'Consolas, monospace', whiteSpace: 'pre', lineHeight: 1.6 }}>
+            run.bat
+          </code>
+          <div style={{ marginTop: 8, color: '#6b7280', fontSize: 13 }}>
+            This starts PostgreSQL, applies the schema, seeds data, launches the backend (:4040) and frontend (:5173).
+          </div>
+        </div>
+
+        <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', padding: 16, borderRadius: 8, marginBottom: 24, textAlign: 'left', fontSize: 13, color: '#92400e' }}>
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Manual steps:</div>
+          <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
+            <li>Start PostgreSQL: <code style={{ background: '#fff', padding: '1px 5px', borderRadius: 3 }}>run.bat</code> handles this automatically</li>
+            <li>Start backend: <code style={{ background: '#fff', padding: '1px 5px', borderRadius: 3 }}>cd backend &amp;&amp; npm run dev</code></li>
+            <li>Frontend proxy: <code style={{ background: '#fff', padding: '1px 5px', borderRadius: 3 }}>/api → http://localhost:4040</code></li>
+          </ol>
+        </div>
+
+        <div style={{ marginBottom: 20, fontSize: 13, color: '#9ca3af' }}>
+          Auto-retrying every {Math.min(30, 2 * 2 ** attempts)}s... (attempt {attempts + 1})
+        </div>
+
+        <button
+          onClick={() => { setAttempts(0); checkHealth(); }}
+          style={{ padding: '12px 32px', background: '#3b82f6', color: '#fff', border: 'none', borderRadius: 8, cursor: 'pointer', fontSize: 15, fontWeight: 500 }}
+        >
+          Retry Now
+        </button>
+      </div>
+    </div>
+  );
 }

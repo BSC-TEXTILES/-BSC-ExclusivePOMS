@@ -37,13 +37,23 @@ export default function POCreate() {
   const [divisions, setDivisions] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [sections, setSections] = useState([]);
-  const [suppliers, setSuppliers] = useState([]);
+  const [allSuppliers, setAllSuppliers] = useState([]);
   const [products, setProducts] = useState([]);
   const [colours, setColours] = useState([]);
   const [sizes, setSizes] = useState([]);
   const [gstPercent, setGstPercent] = useState(18);
 
   const [header, setHeader] = useState({ divisionId: '', departmentId: '', sectionId: '', supplierId: '', taxScheme: 'GST_INTRA', expectedDeliveryDate: '', remarks: '' });
+
+  // Filter suppliers by selected division
+  const suppliers = useMemo(() => {
+    if (!header.divisionId) return allSuppliers.filter((s) => s.status === 'active');
+    return allSuppliers.filter((s) => {
+      if (s.status !== 'active') return false;
+      const divIds = Array.isArray(s.division_ids) ? s.division_ids : (typeof s.division_ids === 'string' ? JSON.parse(s.division_ids) : []);
+      return (divIds || []).includes(header.divisionId);
+    });
+  }, [header.divisionId, allSuppliers]);
   const [lines, setLines] = useState([]);
   const [orderDiscount, setOrderDiscount] = useState({ type: 'percent', value: '0', reason: '' });
   const [charges, setCharges] = useState([]);
@@ -64,7 +74,7 @@ export default function POCreate() {
       .then(([d, dep, sup, col, set]) => {
         setDivisions(d.data.data);
         setDepartments(dep.data.data);
-        setSuppliers(sup.data.data.filter((s) => s.status === 'active'));
+        setAllSuppliers(sup.data.data);
         setColours(col.data.data);
         const gst = set.data.data.find((x) => x.key === 'gst_percent');
         if (gst) setGstPercent(Number(gst.value));
@@ -161,7 +171,7 @@ export default function POCreate() {
     try {
       if (inline === 'supplier') {
         const { data } = await api.post('/suppliers', { ...inlineForm, divisionIds: [header.divisionId], paymentTerms: 'net_30' });
-        setSuppliers((s) => [...s, data.data]); setHeader((h) => ({ ...h, supplierId: data.data.id }));
+        setAllSuppliers((s) => [...s, data.data]); setHeader((h) => ({ ...h, supplierId: data.data.id }));
       } else if (inline === 'colour') {
         const { data } = await api.post('/colours', { name: inlineForm.name, isCustom: true });
         setColours((c) => [...c, data.data]);
