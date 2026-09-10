@@ -84,10 +84,14 @@ export default function Topbar({ collapsed, onToggle }) {
 
   // Live notifications over /ws/notify — badge + toast, no polling.
   useEffect(() => {
+    const token = localStorage.getItem('poms_token');
+    if (!token || !user.id) return;
     let sock;
     let retry;
+    let closed = false;
+    let attempts = 0;
     const connect = () => {
-      sock = new WebSocket(`${WS_ORIGIN}/ws/notify?token=${localStorage.getItem('poms_token')}`);
+      sock = new WebSocket(`${WS_ORIGIN}/ws/notify?token=${encodeURIComponent(token)}`);
       sock.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data);
@@ -99,10 +103,17 @@ export default function Topbar({ collapsed, onToggle }) {
           }
         } catch { /* ignore malformed frame */ }
       };
-      sock.onclose = () => { retry = setTimeout(connect, 4000); };
+      sock.onerror = () => { /* handled via onclose */ };
+      sock.onclose = (ev) => {
+        if (closed) return;
+        if (ev.code === 4001 || ev.code === 4002) return; // unauthorized — never retry
+        attempts += 1;
+        const delay = Math.min(30000, 1000 * 2 ** attempts); // exponential backoff
+        retry = setTimeout(connect, delay);
+      };
     };
     connect();
-    return () => { clearTimeout(retry); sock?.close(); };
+    return () => { closed = true; clearTimeout(retry); try { sock?.close(); } catch { /* ignore */ } };
   }, [user.id]);
 
   useEffect(() => {

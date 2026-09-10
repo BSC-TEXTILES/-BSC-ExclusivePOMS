@@ -13,11 +13,15 @@ export const notifyBus = new EventEmitter();
 function verify(socket, req) {
   try {
     const url = new URL(req.url, 'http://localhost');
-    const payload = jwt.verify(url.searchParams.get('token') || '', process.env.JWT_SECRET);
+    const token = url.searchParams.get('token');
+    if (!token) throw new Error('missing token');
+    const payload = jwt.verify(token, process.env.JWT_SECRET);
     socket.userId = payload.sub;
     return true;
   } catch {
-    socket.close(4001, 'unauthorized');
+    try {
+      socket.close(4001, 'unauthorized');
+    } catch { /* ignore */ }
     return false;
   }
 }
@@ -25,7 +29,10 @@ function verify(socket, req) {
 function heartbeat(wss2) {
   return setInterval(() => {
     for (const client of wss2.clients) {
-      if (client.isAlive === false) { client.terminate(); continue; }
+      if (client.isAlive === false) {
+        client.close(4000, 'heartbeat timeout'); // graceful, avoids a TCP RST
+        continue;
+      }
       client.isAlive = false;
       client.ping();
     }
@@ -40,6 +47,11 @@ export function attachChatWs(server) {
     const { pathname } = new URL(req.url, 'http://localhost');
     if (pathname === '/ws/chat') return chatWss.handleUpgrade(req, socket, head, (ws) => chatWss.emit('connection', ws, req));
     if (pathname === '/ws/notify') return notifyWss.handleUpgrade(req, socket, head, (ws) => notifyWss.emit('connection', ws, req));
+    // Unknown WebSocket path — answer with a proper HTTP 404 and close cleanly
+    // instead of destroying the socket (which produces a TCP RST / ECONNRESET).
+    try {
+      socket.write('HTTP/1.1 404 Not Found\r\nConnection: close\r\n\r\n');
+    } catch { /* ignore */ }
     socket.destroy();
   });
 
