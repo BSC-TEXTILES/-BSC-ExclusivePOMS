@@ -276,6 +276,7 @@ r.get('/', ah(async (req, res) => {
   const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
   const limit = Math.min(Number(pageSize) || 20, 100);
   const offset = (Math.max(Number(page), 1) - 1) * limit;
+  params.push(limit, offset);
   const { rows } = await query(
     `SELECT po.id, po.po_number, po.version, po.po_date, po.status, po.grand_total, po.subtotal,
             po.expected_delivery_date, d.code AS division_code, d.name AS division_name,
@@ -286,10 +287,10 @@ r.get('/', ah(async (req, res) => {
        JOIN departments dep ON dep.id = po.department_id
        JOIN sections s ON s.id = po.section_id
        JOIN suppliers sup ON sup.id = po.supplier_id
-       ${where} ORDER BY po.created_at DESC LIMIT ${limit} OFFSET ${offset}`, params);
+       ${where} ORDER BY po.created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
   const { rows: [{ count }] } = await query(
     `SELECT count(*)::int AS count FROM purchase_orders po
-       JOIN suppliers sup ON sup.id = po.supplier_id JOIN sections s ON s.id = po.section_id ${where}`, params);
+       JOIN suppliers sup ON sup.id = po.supplier_id JOIN sections s ON s.id = po.section_id ${where}`, params.slice(0, params.length - 2));
   res.json({ data: rows, total: count, page: Number(page), pageSize: limit });
 }));
 

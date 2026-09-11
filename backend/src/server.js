@@ -8,7 +8,7 @@ import app from './app.js';
 import { pool } from './config/db.js';
 import { attachChatWs } from './ws/chat.js';
 
-const port = process.env.PORT || 4000;
+const port = process.env.PORT || 4040;
 
 // ── Boot diagnostics: verify PostgreSQL at startup with a precise message ──
 async function probeDatabase() {

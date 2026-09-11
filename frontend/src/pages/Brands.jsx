@@ -7,6 +7,8 @@ import Modal from '../components/Modal.jsx';
 export default function Brands() {
   const { user, hasPermission } = useAuth();
   const canManage = !!user?.isSuperAdmin || hasPermission('masters.manage');
+  // Admin-only actions (brand image upload / edit) — logo endpoint requires 'masters.manage'.
+  const isAdmin = canManage;
   const [searchParams] = useSearchParams();
   const sectionFilter = searchParams.get('sectionId') || '';
   const [rows, setRows] = useState([]);

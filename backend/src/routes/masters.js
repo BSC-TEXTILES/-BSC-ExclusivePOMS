@@ -296,6 +296,7 @@ r.get('/products', VIEW, ah(async (req, res) => {
   const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
   const limit = Math.min(Number(pageSize) || 20, 1000);
   const offset = (Math.max(Number(page), 1) - 1) * limit;
+  params.push(limit, offset);
   const { rows } = await query(
     `SELECT p.id, p.product_serial, p.sku, p.name, p.status, p.hsn_sac,
             p.brand_id, p.section_id, p.category_id, p.purchase_price,
@@ -313,13 +314,14 @@ r.get('/products', VIEW, ah(async (req, res) => {
        JOIN departments dep ON dep.id = s.department_id
        ${where}
        ORDER BY p.name
-       LIMIT ${limit} OFFSET ${offset}`, params);
+       LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
+  // Count query only uses the filter parameters — limit/offset (last two) must be excluded.
   const { rows: [{ count }] } = await query(
     `SELECT count(*)::int AS count
        FROM products p
        JOIN brands b ON b.id = p.brand_id
        JOIN sections s ON s.id = p.section_id
-       ${where}`, params);
+       ${where}`, params.slice(0, params.length - 2));
   res.json({ data: rows, total: count, page: Number(page), pageSize: limit });
 }));
 

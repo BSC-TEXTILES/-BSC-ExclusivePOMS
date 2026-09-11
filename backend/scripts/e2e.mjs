@@ -275,4 +275,4 @@ async function main() {
   if (failures.length) { console.log('Failed:', failures); process.exit(1); }
 }
 
-main().catch((e) => { console.error('E2E crashed:', e.message); process.exit(1); });
+main().catch((e) => { console.error('E2E crashed:', e.stack || e.message); process.exit(1); });

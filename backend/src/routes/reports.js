@@ -140,7 +140,7 @@ r.get('/dashboard', ah(async (req, res) => {
 // Shows ONLY: net purchase margin, total quantity purchased, discount and the
 // individual selling price of each item — scoped to the user's own sections.
 r.get('/men-summary', ah(async (req, res) => {
-  if (req.user.isSuperAdmin) return badRequest('Supervisor summary is for section-scoped users');
+  if (req.user.isSuperAdmin) throw badRequest('Supervisor summary is for section-scoped users');
   const { params, W } = poScope(req);
   const totals = (await query(
     `SELECT COALESCE(SUM(i.total_quantity),0)::int AS total_quantity,

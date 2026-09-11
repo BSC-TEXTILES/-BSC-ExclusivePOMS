@@ -1,6 +1,13 @@
 // Stroke icon set for collection departments, sections and size presets.
 // Same 24x24 stroke style as Icon.jsx so the sidebar renders one coherent icon language.
 const PATHS = {
+  // Generic fallback — used when a section/config icon name has no dedicated glyph.
+  box: [
+    'M21 8.5v9a1.5 1.5 0 0 1-.8 1.3l-7.5 4a1.5 1.5 0 0 1-1.4 0l-7.5-4A1.5 1.5 0 0 1 3 17.5v-9a1.5 1.5 0 0 1 .8-1.3l7.5-4a1.5 1.5 0 0 1 1.4 0l7.5 4A1.5 1.5 0 0 1 21 8.5Z',
+    'M3.3 7.6 12 12l8.7-4.4',
+    'M12 12v9',
+  ],
+
   // Departments
   men: [
     'M8.5 3 12 4.8 15.5 3l4.2 3.1-2 3.4-1.2-.8V21H7.5V8.7l-1.2.8-2-3.4L8.5 3Z',
@@ -117,7 +124,7 @@ const PATHS = {
 };
 
 export default function CollectionIcon({ name, size = 16, className = '', style }) {
-  const paths = PATHS[name];
+  const paths = PATHS[name] || PATHS.box;
   if (!paths) return null;
   return (
     <svg

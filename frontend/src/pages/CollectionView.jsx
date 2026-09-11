@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
-import api, { API_BASE, API_ORIGIN, errMessage } from '../api.js';
+import api, { API_BASE, API_ORIGIN, errMessage, assetUrl } from '../api.js';
 import { useAuth, useCart } from '../auth.jsx';
 import Modal from '../components/Modal.jsx';
 import Icon from '../components/Icon.jsx';
 import CollectionIcon from '../components/CollectionIcon.jsx';
+import ProductGallery from '../components/ProductGallery.jsx';
 
 export const DEPARTMENT_CONFIG = {
   men: {
@@ -114,7 +115,7 @@ export default function CollectionView() {
   const { deptKey } = useParams();
   const { addItem: addToCart } = useCart();
   const [searchParams, setSearchParams] = useSearchParams();
-  const { user } = useAuth();
+  const { user, hasPermission } = useAuth();
   const navigate = useNavigate();
 
   // Known departments come from the hardcoded config; NEW admin-created
@@ -157,6 +158,15 @@ export default function CollectionView() {
   const pageSize = 16;
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  // Purchase Orders placed from this collection — list shown in the PO Studio
+  const [recentPOs, setRecentPOs] = useState([]);
+  const [recentPOsTotal, setRecentPOsTotal] = useState(0);
+  const [posLoading, setPosLoading] = useState(false);
+
+  // Product image gallery (upload / set primary / delete) — masters.manage only
+  const canManageMaster = !!user?.isSuperAdmin || !!hasPermission?.('masters.manage');
+  const [galleryProduct, setGalleryProduct] = useState(null);
 
   // PO Studio State
   const [poSectionId, setPoSectionId] = useState('');
@@ -300,6 +310,26 @@ export default function CollectionView() {
     loadProducts();
   }, [loadProducts]);
 
+  // Purchase Orders placed from this collection (all sections of this department,
+  // narrowed to the active section filter when one is selected).
+  const loadRecentPOs = useCallback(() => {
+    if (!department?.id) return;
+    setPosLoading(true);
+    const params = { departmentId: department.id, pageSize: 50, page: 1 };
+    if (activeSection) params.sectionId = activeSection.id;
+    api.get('/purchase-orders', { params })
+      .then((r) => {
+        setRecentPOs(r.data.data || []);
+        setRecentPOsTotal(r.data.total ?? (r.data.data || []).length);
+      })
+      .catch(() => { /* the PO list is a convenience panel — catalogue stays usable */ })
+      .finally(() => setPosLoading(false));
+  }, [department, activeSection]);
+
+  useEffect(() => {
+    loadRecentPOs();
+  }, [loadRecentPOs]);
+
   // Section switcher
   function handleSectionFilter(code) {
     setPage(1);
@@ -332,6 +362,7 @@ export default function CollectionView() {
         productId: prod.id,
         name: prod.name,
         sku: prod.sku,
+        brandId: prod.brand_id || '',
         brand: prod.brand_name || '',
         sectionName: prod.section_name || '',
         colourId: colours[0]?.id || '',
@@ -452,6 +483,7 @@ export default function CollectionView() {
       addToCart(created); // show in the top-nav cart for crosscheck & checkout
       setPoLines([]);
       setSuccessMsg(`Purchase Order ${created?.po_number || ''} created successfully!`);
+      loadRecentPOs(); // refresh the collection's PO list with the new order
     } catch (e) {
       setError(errMessage(e));
     } finally {
@@ -549,7 +581,8 @@ export default function CollectionView() {
             className={`collection-pill ${!activeSectionCode ? 'active' : ''}`}
             onClick={() => handleSectionFilter('')}
           >
-            All Sections ({totalProducts})
+            <span className="collection-pill-icon"><CollectionIcon name={config.icon} size={13} /></span>
+            <span>All Sections ({totalProducts})</span>
           </button>
           {deptSections.map((sec) => {
             const isSelected = activeSectionCode === sec.code;
@@ -562,7 +595,7 @@ export default function CollectionView() {
                 style={isSelected ? { background: config.themeColor, borderColor: config.themeColor, color: '#fff' } : {}}
                 onClick={() => handleSectionFilter(sec.code)}
               >
-                <span>{secCfg?.icon || '📁'}</span>
+                <span className="collection-pill-icon"><CollectionIcon name={secCfg?.icon || config.icon} size={13} /></span>
                 <span>{sec.name}</span>
               </button>
             );
@@ -629,8 +662,34 @@ export default function CollectionView() {
                 const brandInitials = (p.brand_name || 'BSC')
                   .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
                 const hue = [...(p.brand_name || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+                // Real product photo (uploaded by the administrator) — no random images
+                const photoKey = p.primary_image_key
+                  ? String(p.primary_image_key).split(/[\\/]/).join('/')
+                  : '';
                 return (
                   <div key={p.id} className={`collection-prod-card ${inPO ? 'in-po' : ''}`}>
+                    <div
+                      className={`collection-prod-photo ${photoKey ? 'has-photo' : ''}`}
+                      onClick={() => canManageMaster && setGalleryProduct({ id: p.id, product_id: p.product_serial, name: p.name })}
+                      title={canManageMaster ? (photoKey ? 'View / manage photos' : 'Upload product photos') : p.name}
+                      style={canManageMaster ? { cursor: 'pointer' } : undefined}
+                    >
+                      {photoKey ? (
+                        <img src={assetUrl(`/uploads/${photoKey}`)} alt={p.name} loading="lazy" />
+                      ) : (
+                        <span
+                          className="collection-prod-photo-fallback"
+                          style={{ background: `hsl(${hue} 45% 92%)`, color: `hsl(${hue} 55% 32%)` }}
+                        >
+                          {brandInitials}
+                        </span>
+                      )}
+                      {canManageMaster && (
+                        <span className="collection-prod-photo-btn">
+                          {photoKey ? `${p.image_count ?? 1} photo${(p.image_count ?? 1) > 1 ? 's' : ''} · Edit` : '+ Upload photo'}
+                        </span>
+                      )}
+                    </div>
                     <div className="collection-prod-top">
                       <div className="brand-logo-tile" style={{ background: `hsl(${hue} 45% 92%)`, color: `hsl(${hue} 55% 32%)` }} title={p.brand_name || 'BSC Exclusive'}>
                         {brandInitials}
@@ -746,6 +805,38 @@ export default function CollectionView() {
             </label>
           </div>
 
+          {/* Brand List — every brand available for ordering in this collection */}
+          <div className="collection-brand-bar">
+            <span className="collection-preset-label">Brands ({brands.length}):</span>
+            <div className="collection-brand-chips">
+              {brands.map((b) => {
+                const bName = b.brand_name || 'BSC';
+                const bInit = bName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
+                const bHue = [...bName].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+                const bLogo = b.logo_url || b.image_url || '';
+                return (
+                  <button
+                    key={b.id}
+                    type="button"
+                    className={`collection-brand-chip ${selectedBrand === b.id ? 'active' : ''}`}
+                    onClick={() => { setSelectedBrand(b.id); setPage(1); setActiveTab('catalogue'); }}
+                    title={`Show ${bName} products in the catalogue`}
+                  >
+                    <span
+                      className="brand-chip-logo"
+                      style={bLogo ? undefined : { background: `hsl(${bHue} 45% 92%)`, color: `hsl(${bHue} 55% 32%)` }}
+                    >
+                      {bLogo ? <img src={assetUrl(bLogo)} alt={bName} /> : bInit}
+                    </span>
+                    <span className="brand-chip-name">{bName}</span>
+                    <em>{b.product_count ?? 0}</em>
+                  </button>
+                );
+              })}
+              {!brands.length && <span className="muted" style={{ fontSize: 12 }}>No brands configured yet.</span>}
+            </div>
+          </div>
+
           {/* Lines Table */}
           <div className="collection-po-lines-wrap">
             <div className="collection-po-lines-header">
@@ -850,19 +941,54 @@ export default function CollectionView() {
                         <tr key={line.productId}>
                           <td>{idx + 1}</td>
                           <td>
-                            <strong>{line.name}</strong>
-                            <div className="muted" style={{ fontSize: 11 }}>{line.sku} · {line.brand}</div>
+                            <div className="collection-line-prod">
+                              {(() => {
+                                const b = brands.find((x) => x.id === line.brandId);
+                                const bLogo = b?.logo_url || b?.image_url || '';
+                                const bName = line.brand || b?.brand_name || 'BSC';
+                                const bInitials = bName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || 'BSC';
+                                const bHue = [...bName].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+                                return bLogo ? (
+                                  <img className="collection-line-brand" src={assetUrl(bLogo)} alt={bName} title={bName} />
+                                ) : (
+                                  <span
+                                    className="collection-line-brand"
+                                    style={{ background: `hsl(${bHue} 45% 92%)`, color: `hsl(${bHue} 55% 32%)` }}
+                                    title={bName}
+                                  >
+                                    {bInitials}
+                                  </span>
+                                );
+                              })()}
+                              <div className="collection-line-prod-text">
+                                <strong>{line.name}</strong>
+                                <div className="muted" style={{ fontSize: 11 }}>{line.sku} · {line.brand}</div>
+                              </div>
+                            </div>
                           </td>
                           <td>
-                            <select
-                              value={line.colourId}
-                              onChange={(e) => updateLine(idx, { colourId: e.target.value })}
-                              style={{ padding: '4px 6px', fontSize: 12 }}
-                            >
-                              {colours.map((c) => (
-                                <option key={c.id} value={c.id}>{c.name}</option>
-                              ))}
-                            </select>
+                            <div className="collection-line-colour">
+                              {(() => {
+                                const c = colours.find((x) => x.id === line.colourId);
+                                const hex = c?.swatch_hex || '#e2e8f0';
+                                return (
+                                  <span
+                                    className="colour-swatch-dot"
+                                    style={{ background: hex }}
+                                    title={`${c?.name || ''}${c?.code ? ' (' + c.code + ')' : ''}`}
+                                  />
+                                );
+                              })()}
+                              <select
+                                value={line.colourId}
+                                onChange={(e) => updateLine(idx, { colourId: e.target.value })}
+                                style={{ padding: '4px 6px', fontSize: 12 }}
+                              >
+                                {colours.map((c) => (
+                                  <option key={c.id} value={c.id}>{c.name}</option>
+                                ))}
+                              </select>
+                            </div>
                           </td>
                           <td>
                             <input
@@ -970,6 +1096,57 @@ export default function CollectionView() {
                 </button>
               </div>
             </div>
+          </div>
+
+          {/* Purchase Orders placed from this collection — complete list */}
+          <div className="collection-po-list-wrap">
+            <div className="collection-po-list-header">
+              <h3>Purchase Orders ({recentPOsTotal})</h3>
+              <button type="button" className="btn sm ghost" onClick={loadRecentPOs} disabled={posLoading}>
+                {posLoading ? 'Refreshing…' : '↻ Refresh'}
+              </button>
+            </div>
+            {posLoading && !recentPOs.length ? (
+              <div className="collection-loading-state">
+                <div className="login-spinner" />
+                <span>Loading purchase orders…</span>
+              </div>
+            ) : recentPOs.length === 0 ? (
+              <div className="collection-empty-lines">
+                <p>No purchase orders yet for this collection{activeSection ? ` (${activeSection.name})` : ''}. Create your first PO above.</p>
+              </div>
+            ) : (
+              <div className="table-wrap">
+                <table className="grid collection-po-table">
+                  <thead>
+                    <tr>
+                      <th>PO Number</th>
+                      <th>Date</th>
+                      <th>Supplier</th>
+                      <th>Section</th>
+                      <th style={{ textAlign: 'right' }}>Units</th>
+                      <th style={{ textAlign: 'right' }}>Grand Total</th>
+                      <th>Status</th>
+                      <th style={{ width: 70 }}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {recentPOs.map((po) => (
+                      <tr key={po.id}>
+                        <td className="mono"><strong>{po.po_number}</strong>{po.version > 1 ? ` · v${po.version}` : ''}</td>
+                        <td>{po.po_date ? String(po.po_date).slice(0, 10) : '—'}</td>
+                        <td>{po.supplier_name}</td>
+                        <td>{po.section_name}</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700 }}>{po.total_quantity ?? 0}</td>
+                        <td style={{ textAlign: 'right' }}>{INR(po.grand_total)}</td>
+                        <td><span className={`chip st-${po.status}`}>{po.status}</span></td>
+                        <td><Link className="btn sm ghost" to={`/purchase-orders/${po.id}`}>View</Link></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -1131,6 +1308,17 @@ export default function CollectionView() {
               </button>
             </div>
           </form>
+        </Modal>
+      )}
+
+      {/* Product photo gallery — upload / set primary / delete (masters.manage) */}
+      {galleryProduct && (
+        <Modal title={`Photos — ${galleryProduct.name || 'Product'}`} onClose={() => setGalleryProduct(null)}>
+          <ProductGallery
+            product={galleryProduct}
+            canManage={canManageMaster}
+            onChanged={loadProducts}
+          />
         </Modal>
       )}
     </div>

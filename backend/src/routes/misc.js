@@ -24,12 +24,13 @@ r.get('/audit-logs', requirePermission('audit.view'), ah(async (req, res) => {
   const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
   const limit = Math.min(Number(pageSize) || 50, 200);
   const offset = (Math.max(Number(page), 1) - 1) * limit;
+  params.push(limit, offset);
   const { rows } = await query(
     `SELECT al.*, u.full_name AS user_name, d.code AS division_code
        FROM audit_logs al
        LEFT JOIN users u ON u.id = al.user_id
        LEFT JOIN divisions d ON d.id = al.division_id
-       ${where} ORDER BY al.occurred_at DESC LIMIT ${limit} OFFSET ${offset}`, params);
+       ${where} ORDER BY al.occurred_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`, params);
   res.json({ data: rows, page: Number(page), pageSize: limit });
 }));
 

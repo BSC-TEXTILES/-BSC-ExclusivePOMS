@@ -148,11 +148,12 @@ r.get('/sessions', authenticate, requirePermission('audit.view'), ah(async (req,
   const params = [];
   let where = 'TRUE';
   if (userId) { params.push(userId); where = `s.user_id = $${params.length}`; }
+  params.push(Math.min(500, Number(limit) || 100));
   const { rows } = await query(
     `SELECT s.*, u.full_name, u.email
        FROM user_sessions s JOIN users u ON u.id = s.user_id
       WHERE ${where}
-      ORDER BY s.login_at DESC LIMIT ${Math.min(500, Number(limit) || 100)}`, params);
+      ORDER BY s.login_at DESC LIMIT $${params.length}`, params);
   res.json({ data: rows });
 }));
 
