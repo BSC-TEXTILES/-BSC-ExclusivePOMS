@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const url = process.env.DATABASE_URL || 'postgresql://postgres@localhost:5432/poms';
+const url = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/poms';
 
 const client = new pg.Client({ connectionString: url });
 await client.connect();

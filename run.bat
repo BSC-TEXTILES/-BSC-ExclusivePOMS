@@ -151,9 +151,9 @@ echo     Frontend : http://localhost:5173
 echo     Backend  : http://localhost:4040
 echo.
 echo     Demo Credentials:
-echo       Admin      : admin@bsc.local / Admin@123
-echo       Buyer      : buyer.dvg@bsc.local / Admin@123
-echo       Approver   : approver.dvg@bsc.local / Admin@123
+echo       Super Admin : admin@bsc.local / Admin@123
+echo       Supervisor  : men.supervisor@bsc.local / DS@12345
+echo       Buyer / PE  : buyer.dvg@bsc.local / PE@12345
 echo.
 echo   Keep the POMS Backend and Frontend windows open.
 echo   Close them when you want to stop the application.

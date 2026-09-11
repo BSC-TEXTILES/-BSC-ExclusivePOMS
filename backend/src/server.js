@@ -1,5 +1,9 @@
 import dotenv from 'dotenv';
+const explicitPort = process.env.PORT;
+const explicitDb = process.env.DATABASE_URL;
 dotenv.config({ override: true });
+if (explicitPort) process.env.PORT = explicitPort;
+if (explicitDb) process.env.DATABASE_URL = explicitDb;
 import app from './app.js';
 import { pool } from './config/db.js';
 import { attachChatWs } from './ws/chat.js';

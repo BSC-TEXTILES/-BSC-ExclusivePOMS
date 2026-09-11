@@ -15,7 +15,7 @@ import path from 'node:path';
 const BACKEND_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const BASE = `http://localhost:${process.env.E2E_PORT || 4001}/api`;
-const DB = process.env.DATABASE_URL || 'postgresql://postgres@localhost:5432/poms';
+const DB = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/poms';
 
 let passed = 0; const failures = [];
 function check(name, cond, extra = '') {

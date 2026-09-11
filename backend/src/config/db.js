@@ -2,7 +2,9 @@ import dotenv from 'dotenv';
 import pg from 'pg';
 
 // Always re-read .env from disk to prevent stale parent process environments
+const explicitPort = process.env.PORT;
 dotenv.config({ override: true });
+if (explicitPort) process.env.PORT = explicitPort;
 
 let connStr = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/poms';
 

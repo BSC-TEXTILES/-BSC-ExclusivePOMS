@@ -5,6 +5,7 @@ import { useAuth } from '../auth.jsx';
 import StatusChip from '../components/StatusChip.jsx';
 import Modal from '../components/Modal.jsx';
 import Icon from '../components/Icon.jsx';
+import ShareMenu from '../components/ShareMenu.jsx';
 import { Money } from '../components/DataTable.jsx';
 
 // Universal attachment drawer for a PO — PDF, Excel, Word, images, video, any
@@ -181,13 +182,14 @@ export default function PODetails() {
         <span className="muted">v{po.version}</span>
         <StatusChip status={po.status} />
         <div className="right row" style={{ gap: 8 }}>
-          <button className="btn" disabled={busy} onClick={() => downloadExport('pdf')} title="Download branded Purchase Order PDF">
-            <Icon name="download" size={14} /> Download PDF
+          <ShareMenu po={po} label="Share & Export" />
+          <button className="btn sm" disabled={busy} onClick={() => downloadExport('pdf')} title="Download branded Purchase Order PDF">
+            <Icon name="download" size={14} /> PDF
           </button>
-          <button className="btn" disabled={busy} onClick={() => downloadExport('csv')} title="Download complete Purchase Order CSV">
-            <Icon name="reports" size={14} /> Download CSV
+          <button className="btn sm" disabled={busy} onClick={() => downloadExport('csv')} title="Download complete Purchase Order CSV">
+            <Icon name="reports" size={14} /> CSV
           </button>
-          <button className="btn" onClick={() => window.print()} title="Print Purchase Order">
+          <button className="btn sm" onClick={() => window.print()} title="Print Purchase Order">
             <Icon name="file" size={14} /> Print
           </button>
         </div>

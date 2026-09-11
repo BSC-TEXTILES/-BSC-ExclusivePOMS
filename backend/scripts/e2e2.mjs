@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 const PORT = process.env.E2E2_PORT || '4002';
 const BASE = `http://localhost:${PORT}`;
-const DB = process.env.DATABASE_URL || 'postgresql://postgres@localhost:5432/poms';
+const DB = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/poms';
 
 let passed = 0; const failures = [];
 function check(name, cond, extra = '') {

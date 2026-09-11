@@ -4,482 +4,1548 @@ import api, { errMessage } from '../api.js';
 import { useAuth, useCart } from '../auth.jsx';
 import { Field, Money } from '../components/DataTable.jsx';
 import Modal from '../components/Modal.jsx';
+import Icon from '../components/Icon.jsx';
 
-const STEPS = ['Division & Section', 'Supplier', 'Products & Quantities', 'Commercials', 'Review'];
-const EMPTY_LINE = { productId: '', colourId: '', purchasePrice: '', marginPercent: '0', discountType: 'percent', discountValue: '0', commercialReason: '', quantities: {} };
+const WIZARD_STEPS = [
+  { id: 'collection', label: 'Collection', desc: 'Main category' },
+  { id: 'type', label: 'Product Type', desc: 'Section / style' },
+  { id: 'product', label: 'Product', desc: 'Choose item' },
+  { id: 'brand', label: 'Brand', desc: 'Manufacturer' },
+  { id: 'size', label: 'Sizes', desc: 'Size range' },
+  { id: 'color', label: 'Colors', desc: 'Color variants' },
+  { id: 'quantity', label: 'Quantity', desc: 'Pieces per variant' },
+  { id: 'pricing', label: 'Pricing', desc: 'Cost & margins' },
+  { id: 'review', label: 'Review & Submit', desc: 'Finalize order' },
+];
+
+const STANDARD_COLLECTIONS = [
+  { code: 'MEN', name: "Men's Collection", icon: '👔', desc: "Shirts, Trousers, Ethnic, Innerwear & Footwear" },
+  { code: 'WOMEN', name: "Women's Collection", icon: '👗', desc: "Sarees, Kurtis, Western Wear & Fabrics" },
+  { code: 'KIDS', name: "Kids Collection", icon: '🧒', desc: "Boys, Girls, Infants & Toddlers" },
+  { code: 'HOME', name: "Home Furnishings", icon: '🏠', desc: "Bed Linen, Curtains, Towels & Accessories" },
+];
+
+const STANDARD_COLORS = [
+  { name: 'White', hex: '#FFFFFF' },
+  { name: 'Black', hex: '#1C1C1C' },
+  { name: 'Navy Blue', hex: '#0B2545' },
+  { name: 'Grey', hex: '#64748B' },
+  { name: 'Sky Blue', hex: '#38BDF8' },
+  { name: 'Red', hex: '#DC2626' },
+  { name: 'Maroon', hex: '#881337' },
+  { name: 'Dark Green', hex: '#166534' },
+  { name: 'Olive', hex: '#65A30D' },
+  { name: 'Beige', hex: '#D6D3D1' },
+  { name: 'Brown', hex: '#78350F' },
+  { name: 'Yellow', hex: '#FACC15' },
+];
+
+const STANDARD_SIZES_BY_CATEGORY = {
+  apparel_alpha: ['XXS', 'XS', 'S', 'M', 'L', 'XL', 'XXL', '3XL', '4XL', '5XL', '6XL'],
+  apparel_numeric: ['28', '30', '32', '34', '36', '38', '40', '42', '44', '46', '48', '50', '52', '54', '56'],
+  footwear: ['UK 6', 'UK 7', 'UK 8', 'UK 9', 'UK 10', 'UK 11', 'UK 12'],
+  kids: ['0-3M', '3-6M', '6-12M', '1-2Y', '2-3Y', '3-4Y', '4-5Y', '6-7Y', '8-9Y', '10-11Y', '12-14Y'],
+  home: ['Single', 'Double', 'Queen', 'King', 'Standard', 'Custom'],
+};
 
 const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
-
-// Client-side preview of the §13.1 formula — the server remains authoritative (RB-017).
-function previewLine(line) {
-  const pp = Number(line.purchasePrice) || 0;
-  const m = Number(line.marginPercent) || 0;
-  const marginAmount = round2(pp * m / 100);
-  const net = round2(pp + marginAmount);
-  const dv = Number(line.discountValue) || 0;
-  const discount = line.discountType === 'flat' ? round2(dv) : round2(net * dv / 100);
-  const final = round2(net - discount);
-  const totalQty = Object.values(line.quantities || {}).reduce((a, q) => a + (Number(q) || 0), 0);
-  return { marginAmount, net, discount, final, totalQty, lineTotal: round2(final * totalQty) };
-}
 
 export default function POCreate() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { hasPermission, user, selectedSectionId } = useAuth();
+  const { hasPermission, user } = useAuth();
   const { addItem: addToCart } = useCart();
   const editId = searchParams.get('edit');
 
   const [step, setStep] = useState(0);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const [divisions, setDivisions] = useState([]);
+  // Master records
   const [departments, setDepartments] = useState([]);
   const [sections, setSections] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
-  const [products, setProducts] = useState([]);
+  const [brands, setBrands] = useState([]);
   const [colours, setColours] = useState([]);
-  const [sizes, setSizes] = useState([]);
+  const [divisions, setDivisions] = useState([]);
   const [gstPercent, setGstPercent] = useState(18);
 
-  const [header, setHeader] = useState({ divisionId: '', departmentId: '', sectionId: '', supplierId: '', taxScheme: 'GST_INTRA', expectedDeliveryDate: '', remarks: '' });
-  const [lines, setLines] = useState([]);
-  const [orderDiscount, setOrderDiscount] = useState({ type: 'percent', value: '0', reason: '' });
-  const [charges, setCharges] = useState([]);
+  // Current wizard line selection
+  const [selectedCollection, setSelectedCollection] = useState(null); // department
+  const [selectedSection, setSelectedSection] = useState(null);
+  const [products, setProducts] = useState([]);
+  const [productSearch, setProductSearch] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [selectedBrand, setSelectedBrand] = useState(null);
+  const [selectedSizes, setSelectedSizes] = useState([]);
+  const [selectedColors, setSelectedColors] = useState(['White']);
+  const [quantities, setQuantities] = useState({}); // key: `${color}__${size}` -> number
+  const [quickFillQty, setQuickFillQty] = useState('10');
 
-  // Pre-select section if one is selected in auth context
+  // Commercials for current line
+  const [purchasePrice, setPurchasePrice] = useState('850');
+  const [marginPercent, setMarginPercent] = useState('25');
+
+  // Persistent cart lines
+  const [cartLines, setCartLines] = useState([]);
+
+  // Final Order Header
+  const [orderHeader, setOrderHeader] = useState({
+    supplierId: '',
+    divisionId: '',
+    expectedDeliveryDate: '',
+    remarks: '',
+    taxScheme: 'GST_INTRA',
+  });
+
+  // Inline modals
+  const [inlineModal, setInlineModal] = useState(null); // 'brand' | 'color' | 'supplier' | 'product'
+  const [brandForm, setBrandForm] = useState({ brandName: '', brandCode: '', manufacturer: '' });
+  const [colorForm, setColorForm] = useState({ name: '' });
+  const [supplierForm, setSupplierForm] = useState({ companyName: '', code: '', contactPerson: '', mobile: '', gstin: '' });
+  const [customProductForm, setCustomProductForm] = useState({ name: '', sku: '', hsn: '6205', purchasePrice: '800' });
+
+  // Initial master data fetch
   useEffect(() => {
-    if (selectedSectionId && !header.sectionId) {
-      setHeader((h) => ({ ...h, sectionId: selectedSectionId }));
-    }
-  }, [selectedSectionId, header.sectionId]);
-
-  // Inline "Other" quick-create state (§10.3 progressive catalogue)
-  const [inline, setInline] = useState(null); // {kind, fields...}
-  const [inlineForm, setInlineForm] = useState({});
-
-  useEffect(() => {
-    Promise.all([api.get('/divisions'), api.get('/departments'), api.get('/suppliers'), api.get('/colours'), api.get('/settings')])
-      .then(([d, dep, sup, col, set]) => {
-        setDivisions(d.data.data);
-        setDepartments(dep.data.data);
-        setSuppliers(sup.data.data.filter((s) => s.status === 'active'));
-        setColours(col.data.data);
-        const gst = set.data.data.find((x) => x.key === 'gst_percent');
+    Promise.all([
+      api.get('/departments'),
+      api.get('/sections?status=active'),
+      api.get('/suppliers?status=active'),
+      api.get('/brands'),
+      api.get('/colours'),
+      api.get('/divisions'),
+      api.get('/settings'),
+    ])
+      .then(([d, s, sup, b, col, div, set]) => {
+        setDepartments(d.data.data || []);
+        setSections(s.data.data || []);
+        setSuppliers(sup.data.data || []);
+        setBrands(b.data.data || []);
+        setColours(col.data.data || []);
+        setDivisions(div.data.data || []);
+        const gst = set.data.data?.find((x) => x.key === 'gst_percent');
         if (gst) setGstPercent(Number(gst.value));
-        const nonSuper = !user.isSuperAdmin;
-        if (nonSuper && d.data.data.length === 1) {
-          setHeader((h) => ({ ...h, divisionId: d.data.data[0].id }));
+
+        if (div.data.data?.length) {
+          setOrderHeader((h) => ({ ...h, divisionId: h.divisionId || div.data.data[0].id }));
+        }
+        if (sup.data.data?.length) {
+          setOrderHeader((h) => ({ ...h, supplierId: h.supplierId || sup.data.data[0].id }));
         }
       })
       .catch((e) => setError(errMessage(e)));
   }, []);
 
-  // Load sections for chosen division's departments (active only, RB-002),
-  // restricted to the collections this user is authorized for.
+  // Fetch products when section changes
   useEffect(() => {
-    if (!header.divisionId) return;
-    api.get('/sections', { params: { status: 'active' } }).then((r) => {
-      const allowed = user.isSuperAdmin || !(user.sectionIds || []).length
-        ? (r.data.data || [])
-        : (r.data.data || []).filter((s) => user.sectionIds.includes(s.id));
-      setSections(allowed);
-    }).catch(() => {});
-  }, [header.divisionId]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!selectedSection) {
+      setProducts([]);
+      return;
+    }
+    api.get('/products', { params: { sectionId: selectedSection.id, status: 'active', pageSize: 500 } })
+      .then((r) => setProducts(r.data.data || []))
+      .catch(() => {});
+  }, [selectedSection]);
 
-  // Load the section's size columns (§9.3 matrix shape is data-driven, TC-04)
-  useEffect(() => {
-    if (!header.sectionId) { setSizes([]); return; }
-    api.get(`/sections/${header.sectionId}/sizes`).then((r) => setSizes(r.data.data || [])).catch(() => {});
-  }, [header.sectionId]);
-
-  // Products for the section
-  useEffect(() => {
-    if (!header.sectionId) { setProducts([]); return; }
-    api.get('/products', { params: { sectionId: header.sectionId, status: 'active', pageSize: 500 } }).then((r) => setProducts(r.data.data || [])).catch(() => {});
-  }, [header.sectionId]);
-
-  // Editing a draft (PE-04/PM workflow)
+  // If editing an existing PO
   useEffect(() => {
     if (!editId) return;
     api.get(`/purchase-orders/${editId}`).then(({ data: { data: po } }) => {
-      if (po.status !== 'draft') { setError('Only draft POs can be edited (RB-011).'); return; }
-      setHeader({
-        divisionId: po.division_id, departmentId: po.department_id, sectionId: po.section_id, supplierId: po.supplier_id,
-        taxScheme: po.tax_scheme || 'GST_INTRA', expectedDeliveryDate: po.expected_delivery_date || '', remarks: po.remarks || '',
+      setOrderHeader({
+        supplierId: po.supplier_id,
+        divisionId: po.division_id,
+        expectedDeliveryDate: po.expected_delivery_date || '',
+        remarks: po.remarks || '',
+        taxScheme: po.tax_scheme || 'GST_INTRA',
       });
-      setLines(po.items.map((i) => ({
-        productId: i.product_id, colourId: i.colour_id || '', purchasePrice: String(i.purchase_price),
-        marginPercent: String(i.margin_percent), discountType: i.discount_type || 'percent',
-        discountValue: String(i.discount_value || 0), commercialReason: '',
-        quantities: Object.fromEntries((i.quantities || []).map((q) => [q.sizeLabel, q.quantity])),
-        _sizeIdByLabel: Object.fromEntries(sizes.map((s) => [s.label, s.id])),
-      })));
-      const od = po.discounts?.[0];
-      if (od) setOrderDiscount({ type: od.discount_type, value: String(od.discount_value), reason: od.reason || '' });
-      setCharges((po.charges || []).map((c) => ({ type: c.charge_type, description: c.description || '', amount: String(c.amount) })));
+      // Convert existing lines to cartLines
+      const restored = (po.items || []).map((i) => {
+        const lineQty = Number(i.total_quantity) || 0;
+        const pp = Number(i.purchase_price) || 0;
+        const mp = Number(i.margin_percent) || 0;
+        const sp = Number(i.final_value_per_unit || (pp * (1 + mp / 100)));
+        return {
+          id: i.id || Math.random().toString(),
+          product: { id: i.product_id, name: i.product_name, sku: i.sku },
+          brand: { id: i.brand_id, brand_name: i.brand_name },
+          section: { id: po.section_id, name: po.section_name },
+          sizes: (i.quantities || []).map((q) => q.sizeLabel),
+          colors: [i.colour_name || 'Standard'],
+          quantities: Object.fromEntries((i.quantities || []).map((q) => [`${i.colour_name || 'Standard'}__${q.sizeLabel}`, q.quantity])),
+          purchasePrice: pp,
+          marginPercent: mp,
+          sellingPrice: sp,
+          profitPerPiece: round2(sp - pp),
+          totalQty: lineQty,
+          totalPurchase: round2(pp * lineQty),
+          totalSelling: round2(sp * lineQty),
+          totalProfit: round2((sp - pp) * lineQty),
+        };
+      });
+      setCartLines(restored);
+      setStep(8); // Go straight to Review & Submit
     }).catch((e) => setError(errMessage(e)));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editId]);
 
-  const totals = useMemo(() => {
-    const lineTotals = lines.map(previewLine);
-    const subtotal = round2(lineTotals.reduce((a, t) => a + t.lineTotal, 0));
-    const odv = Number(orderDiscount.value) || 0;
-    const orderDisc = odv > 0 ? (orderDiscount.type === 'flat' ? round2(odv) : round2(subtotal * odv / 100)) : 0;
-    const taxable = round2(subtotal - orderDisc);
-    const tax = round2(taxable * gstPercent / 100);
-    const chargesTotal = round2(charges.reduce((a, c) => a + (Number(c.amount) || 0), 0));
-    return { lineTotals, subtotal, orderDisc, tax, chargesTotal, grandTotal: round2(taxable + tax + chargesTotal) };
-  }, [lines, orderDiscount, charges, gstPercent]);
+  // Filter sections by collection/department
+  const filteredSections = useMemo(() => {
+    if (!selectedCollection) return [];
+    return sections.filter((s) => {
+      if (selectedCollection.id && s.department_id === selectedCollection.id) return true;
+      const cCode = (selectedCollection.code || '').toUpperCase();
+      return (s.code || '').toUpperCase().startsWith(cCode);
+    });
+  }, [selectedCollection, sections]);
 
-  function validateStep(idx) {
+  // Filter products by search term
+  const filteredProducts = useMemo(() => {
+    if (!productSearch) return products;
+    const term = productSearch.toLowerCase();
+    return products.filter((p) =>
+      (p.name && p.name.toLowerCase().includes(term)) ||
+      (p.sku && p.sku.toLowerCase().includes(term)) ||
+      (p.brand_name && p.brand_name.toLowerCase().includes(term))
+    );
+  }, [products, productSearch]);
+
+  // Sizes available for selected section
+  const availableSizes = useMemo(() => {
+    if (!selectedSection) return STANDARD_SIZES_BY_CATEGORY.apparel_alpha;
+    const code = (selectedSection.code || '').toLowerCase();
+    const name = (selectedSection.name || '').toLowerCase();
+    if (code.includes('footwear') || name.includes('footwear')) {
+      return STANDARD_SIZES_BY_CATEGORY.footwear;
+    }
+    if (code.includes('kid') || name.includes('kid') || code.includes('infant')) {
+      return STANDARD_SIZES_BY_CATEGORY.kids;
+    }
+    if (code.includes('home') || name.includes('home') || code.includes('linen') || name.includes('towel')) {
+      return STANDARD_SIZES_BY_CATEGORY.home;
+    }
+    if (code.includes('trouser') || code.includes('jean') || name.includes('trouser') || name.includes('jean')) {
+      return STANDARD_SIZES_BY_CATEGORY.apparel_numeric;
+    }
+    return STANDARD_SIZES_BY_CATEGORY.apparel_alpha;
+  }, [selectedSection]);
+
+  // Calculations for current working line
+  const currentLineCalc = useMemo(() => {
+    const pp = Math.max(0, parseFloat(purchasePrice) || 0);
+    const mp = Math.max(0, parseFloat(marginPercent) || 0);
+    const sellingPrice = round2(pp * (1 + mp / 100));
+    const profitPerPiece = round2(sellingPrice - pp);
+
+    let totalQty = 0;
+    Object.values(quantities).forEach((q) => {
+      const n = parseInt(q, 10);
+      if (n > 0) totalQty += n;
+    });
+
+    const totalPurchase = round2(pp * totalQty);
+    const totalSelling = round2(sellingPrice * totalQty);
+    const totalProfit = round2(profitPerPiece * totalQty);
+
+    return {
+      purchasePrice: pp,
+      marginPercent: mp,
+      sellingPrice,
+      profitPerPiece,
+      totalQty,
+      totalPurchase,
+      totalSelling,
+      totalProfit,
+    };
+  }, [purchasePrice, marginPercent, quantities]);
+
+  // Overall Cart Totals
+  const cartSummary = useMemo(() => {
+    const lines = [...cartLines];
+    // If currently configuring an item and it has quantity > 0
+    let totalPieces = lines.reduce((acc, l) => acc + (l.totalQty || 0), 0);
+    let totalPurchaseVal = lines.reduce((acc, l) => acc + (l.totalPurchase || 0), 0);
+    let totalSellingVal = lines.reduce((acc, l) => acc + (l.totalSelling || 0), 0);
+    let totalProfit = lines.reduce((acc, l) => acc + (l.totalProfit || 0), 0);
+
+    const overallMargin = totalPurchaseVal > 0 ? round2((totalProfit / totalPurchaseVal) * 100) : 0;
+    const tax = round2((totalPurchaseVal * gstPercent) / 100);
+    const grandTotal = round2(totalPurchaseVal + tax);
+
+    return {
+      itemCount: lines.length,
+      totalPieces,
+      totalPurchaseVal,
+      totalSellingVal,
+      totalProfit,
+      overallMargin,
+      tax,
+      grandTotal,
+    };
+  }, [cartLines, gstPercent]);
+
+  // Step Validation
+  function canAdvance(targetStep) {
     setError('');
-    if (idx === 0 && (!header.divisionId || !header.departmentId || !header.sectionId)) { setError('Select division, department and an active section.'); return false; }
-    if (idx === 1 && !header.supplierId) { setError('Select a supplier.'); return false; }
-    if (idx === 2) {
-      if (!lines.length) { setError('Add at least one product line.'); return false; }
-      for (const [i, l] of lines.entries()) {
-        if (!l.productId) { setError(`Line ${i + 1}: choose a product.`); return false; }
-        if (previewLine(l).totalQty <= 0) { setError(`Line ${i + 1}: enter size-wise quantities (RB-006/RB-007).`); return false; }
-      }
+    if (targetStep > 0 && !selectedCollection) {
+      setError('Please select a main collection first.');
+      return false;
+    }
+    if (targetStep > 1 && !selectedSection) {
+      setError('Please select a product type / category.');
+      return false;
+    }
+    if (targetStep > 2 && !selectedProduct) {
+      setError('Please choose a product.');
+      return false;
+    }
+    if (targetStep > 3 && !selectedBrand) {
+      setError('Please choose or add a brand.');
+      return false;
+    }
+    if (targetStep > 4 && (!selectedSizes || !selectedSizes.length)) {
+      setError('Please select at least one size.');
+      return false;
+    }
+    if (targetStep > 5 && (!selectedColors || !selectedColors.length)) {
+      setError('Please select at least one color.');
+      return false;
+    }
+    if (targetStep > 6 && currentLineCalc.totalQty <= 0) {
+      setError('Please enter a quantity of at least 1 piece.');
+      return false;
+    }
+    if (targetStep > 7 && currentLineCalc.purchasePrice <= 0) {
+      setError('Please enter a valid purchase value.');
+      return false;
     }
     return true;
   }
-  function go(next) {
-    if (next > step && !validateStep(step)) return;
-    setStep(Math.max(0, Math.min(STEPS.length - 1, next)));
+
+  function goToStep(s) {
+    if (s > step && !canAdvance(s)) return;
+    setStep(s);
   }
 
-  function addLine() { setLines([...lines, { ...EMPTY_LINE, quantities: {} }]); }
-  function updateLine(i, patch) { setLines(lines.map((l, j) => (j === i ? { ...l, ...patch } : l))); }
-  function removeLine(i) { setLines(lines.filter((_, j) => j !== i)); }
+  // Quick fill quantities
+  function applyQuickFill() {
+    const qty = parseInt(quickFillQty, 10);
+    if (isNaN(qty) || qty < 0) return;
+    const next = {};
+    selectedColors.forEach((c) => {
+      selectedSizes.forEach((s) => {
+        next[`${c}__${s}`] = qty;
+      });
+    });
+    setQuantities(next);
+  }
 
-  async function quickCreate() {
-    setBusy(true); setError('');
-    try {
-      if (inline === 'supplier') {
-        const { data } = await api.post('/suppliers', { ...inlineForm, divisionIds: [header.divisionId], paymentTerms: 'net_30' });
-        setSuppliers((s) => [...s, data.data]); setHeader((h) => ({ ...h, supplierId: data.data.id }));
-      } else if (inline === 'colour') {
-        const { data } = await api.post('/colours', { name: inlineForm.name, isCustom: true });
-        setColours((c) => [...c, data.data]);
-      } else if (inline === 'product') {
-        const prod = products[0];
-        const { data } = await api.post('/products', {
-          sku: inlineForm.sku, name: inlineForm.name, brandId: inlineForm.brandId,
-          sectionId: header.sectionId, categoryId: prod?.category_id || null,
-        });
-        setProducts((p) => [...p, data.data]);
+  // Toggle size selection
+  function toggleSize(sz) {
+    if (selectedSizes.includes(sz)) {
+      setSelectedSizes(selectedSizes.filter((s) => s !== sz));
+    } else {
+      setSelectedSizes([...selectedSizes, sz]);
+    }
+  }
+
+  // Toggle color selection
+  function toggleColor(colName) {
+    if (selectedColors.includes(colName)) {
+      if (selectedColors.length === 1) {
+        setError('At least one color must remain selected.');
+        return;
       }
-      setInline(null); setInlineForm({});
-    } catch (e) { setError(errMessage(e)); } finally { setBusy(false); }
+      setSelectedColors(selectedColors.filter((c) => c !== colName));
+    } else {
+      setSelectedColors([...selectedColors, colName]);
+    }
   }
 
-  function payload() {
-    return {
-      ...header,
-      expectedDeliveryDate: header.expectedDeliveryDate || null,
-      lines: lines.map((l) => ({
-        productId: l.productId, colourId: l.colourId || null,
-        purchasePrice: Number(l.purchasePrice), marginPercent: Number(l.marginPercent),
-        discountType: Number(l.discountValue) > 0 ? l.discountType : null,
-        discountValue: Number(l.discountValue) || 0,
-        commercialReason: l.commercialReason || undefined,
-        quantities: sizes
-          .map((s) => ({ sizeId: s.id, quantity: Number(l.quantities[s.label]) || 0 }))
-          .filter((q) => q.quantity > 0),
-      })),
-      orderDiscount: Number(orderDiscount.value) > 0 ? { type: orderDiscount.type, value: Number(orderDiscount.value), reason: orderDiscount.reason || undefined } : null,
-      charges: charges.filter((c) => Number(c.amount) > 0).map((c) => ({ type: c.type, description: c.description, amount: Number(c.amount) })),
+  // Add line to cart and reset line-level inputs
+  function commitCurrentLineToCart(stayOrReview = 'stay') {
+    if (!canAdvance(7)) return false;
+
+    const newLine = {
+      id: Math.random().toString(36).substring(2, 9),
+      product: selectedProduct,
+      brand: selectedBrand,
+      section: selectedSection,
+      collection: selectedCollection,
+      sizes: [...selectedSizes],
+      colors: [...selectedColors],
+      quantities: { ...quantities },
+      purchasePrice: currentLineCalc.purchasePrice,
+      marginPercent: currentLineCalc.marginPercent,
+      sellingPrice: currentLineCalc.sellingPrice,
+      profitPerPiece: currentLineCalc.profitPerPiece,
+      totalQty: currentLineCalc.totalQty,
+      totalPurchase: currentLineCalc.totalPurchase,
+      totalSelling: currentLineCalc.totalSelling,
+      totalProfit: currentLineCalc.totalProfit,
     };
+
+    setCartLines((prev) => [...prev, newLine]);
+    setSuccessMsg(`✓ Added "${selectedProduct.name}" (${currentLineCalc.totalQty} pcs) to Purchase Order!`);
+    setTimeout(() => setSuccessMsg(''), 3500);
+
+    if (stayOrReview === 'review') {
+      setStep(8);
+    } else {
+      // Clear line selections to add another product
+      setSelectedProduct(null);
+      setSelectedSizes([]);
+      setQuantities({});
+      setStep(2); // Go back to Product Selection
+    }
+    return true;
   }
 
-  async function save(andSubmit) {
-    for (let i = 0; i < 3; i++) { if (!validateStep(i)) { setStep(i); return; } }
-    setBusy(true); setError('');
+  function removeCartLine(lineId) {
+    setCartLines(cartLines.filter((l) => l.id !== lineId));
+  }
+
+  // Inline Brand Creation
+  async function handleCreateBrand() {
+    if (!brandForm.brandName.trim()) {
+      setError('Brand name is required');
+      return;
+    }
+    setBusy(true);
+    setError('');
     try {
-      let poId = editId;
-      let created = null;
-      if (editId) await api.put(`/purchase-orders/${editId}`, payload());
-      else {
-        created = (await api.post('/purchase-orders', payload())).data.data;
-        poId = created.id;
-        addToCart(created); // order lands in the top-nav cart for crosscheck & checkout
-      }
-      if (andSubmit) await api.post(`/purchase-orders/${poId}/submit`);
-      navigate(`/purchase-orders/${poId}`, { state: { submitted: andSubmit } });
-    } catch (e) { setError(errMessage(e)); } finally { setBusy(false); }
+      const res = await api.post('/brands', {
+        brandName: brandForm.brandName.trim(),
+        brandCode: brandForm.brandCode.trim() || undefined,
+        manufacturer: brandForm.manufacturer.trim() || undefined,
+      });
+      const newBrand = res.data.data;
+      setBrands((prev) => [newBrand, ...prev]);
+      setSelectedBrand(newBrand);
+      setInlineModal(null);
+      setBrandForm({ brandName: '', brandCode: '', manufacturer: '' });
+      setSuccessMsg(`✓ Brand "${newBrand.brand_name}" created and selected!`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (e) {
+      setError(errMessage(e));
+    } finally {
+      setBusy(false);
+    }
   }
 
-  const deptSections = sections.filter((s) => s.department_id === header.departmentId);
+  // Inline Custom Color Creation
+  async function handleCreateColor() {
+    if (!colorForm.name.trim()) {
+      setError('Color name is required');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const res = await api.post('/colours', { name: colorForm.name.trim() });
+      const newCol = res.data.data;
+      setColours((prev) => [...prev, newCol]);
+      if (!selectedColors.includes(newCol.name)) {
+        setSelectedColors([...selectedColors, newCol.name]);
+      }
+      setInlineModal(null);
+      setColorForm({ name: '' });
+      setSuccessMsg(`✓ Color "${newCol.name}" added and selected!`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (e) {
+      setError(errMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Inline Custom Product Creation
+  async function handleCreateCustomProduct() {
+    if (!customProductForm.name.trim()) {
+      setError('Product name is required');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const sku = customProductForm.sku.trim() || `SKU-${Date.now().toString(36).slice(-5).toUpperCase()}`;
+      const res = await api.post('/products', {
+        name: customProductForm.name.trim(),
+        sku,
+        hsnSac: customProductForm.hsn.trim() || '6205',
+        sectionId: selectedSection.id,
+        brandId: selectedBrand?.id || (brands[0]?.id || null),
+        purchasePrice: parseFloat(customProductForm.purchasePrice) || 800,
+      });
+      const newP = res.data.data;
+      setProducts((prev) => [newP, ...prev]);
+      setSelectedProduct(newP);
+      if (newP.brand_id) {
+        const b = brands.find((x) => x.id === newP.brand_id);
+        if (b) setSelectedBrand(b);
+      }
+      setInlineModal(null);
+      setCustomProductForm({ name: '', sku: '', hsn: '6205', purchasePrice: '800' });
+      setSuccessMsg(`✓ Product "${newP.name}" created and selected!`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+      setStep(3); // Proceed to brand
+    } catch (e) {
+      setError(errMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Inline Supplier Creation
+  async function handleCreateSupplier() {
+    if (!supplierForm.companyName.trim()) {
+      setError('Supplier company name is required');
+      return;
+    }
+    setBusy(true);
+    setError('');
+    try {
+      const code = supplierForm.code.trim() || `SUP-${Date.now().toString(36).slice(-4).toUpperCase()}`;
+      const res = await api.post('/suppliers', {
+        companyName: supplierForm.companyName.trim(),
+        code,
+        contactPerson: supplierForm.contactPerson.trim() || undefined,
+        mobile: supplierForm.mobile.trim() || undefined,
+        gstin: supplierForm.gstin.trim() || undefined,
+        divisionIds: orderHeader.divisionId ? [orderHeader.divisionId] : undefined,
+      });
+      const newSup = res.data.data;
+      setSuppliers((prev) => [...prev, newSup]);
+      setOrderHeader((h) => ({ ...h, supplierId: newSup.id }));
+      setInlineModal(null);
+      setSupplierForm({ companyName: '', code: '', contactPerson: '', mobile: '', gstin: '' });
+      setSuccessMsg(`✓ Supplier "${newSup.company_name}" created and selected!`);
+      setTimeout(() => setSuccessMsg(''), 3000);
+    } catch (e) {
+      setError(errMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Submit Final PO
+  async function handleFinalSave(submitForApproval = false) {
+    if (!orderHeader.supplierId) {
+      setError('Please select a supplier for this purchase order.');
+      return;
+    }
+    if (!orderHeader.divisionId) {
+      setError('Please select a division for this order.');
+      return;
+    }
+
+    // Determine lines to persist: cartLines + active line if not committed
+    let finalLines = [...cartLines];
+    if (finalLines.length === 0) {
+      if (currentLineCalc.totalQty > 0) {
+        finalLines = [{
+          product: selectedProduct,
+          brand: selectedBrand,
+          section: selectedSection,
+          quantities: { ...quantities },
+          purchasePrice: currentLineCalc.purchasePrice,
+          marginPercent: currentLineCalc.marginPercent,
+          totalQty: currentLineCalc.totalQty,
+        }];
+      } else {
+        setError('Your purchase order has no items. Add at least one product.');
+        return;
+      }
+    }
+
+    setBusy(true);
+    setError('');
+    try {
+      const primarySectionId = finalLines[0]?.section?.id || selectedSection?.id || sections[0]?.id;
+      const primaryDepartmentId = selectedCollection?.id || departments[0]?.id;
+
+      // Format payload for /api/purchase-orders
+      const payload = {
+        supplierId: orderHeader.supplierId,
+        divisionId: orderHeader.divisionId,
+        departmentId: primaryDepartmentId,
+        sectionId: primarySectionId,
+        expectedDeliveryDate: orderHeader.expectedDeliveryDate || null,
+        remarks: orderHeader.remarks || undefined,
+        taxScheme: orderHeader.taxScheme || 'GST_INTRA',
+        lines: finalLines.map((l) => {
+          // Break quantities into array of { sizeLabel, quantity }
+          const qtyList = Object.entries(l.quantities || {})
+            .map(([k, v]) => {
+              const [, sLabel] = k.includes('__') ? k.split('__') : ['', k];
+              return { sizeLabel: sLabel || k, quantity: Number(v) || 0 };
+            })
+            .filter((q) => q.quantity > 0);
+
+          return {
+            productId: l.product?.id,
+            colourId: colours.find((c) => (l.colors || [])[0] === c.name)?.id || null,
+            purchasePrice: l.purchasePrice,
+            marginPercent: l.marginPercent,
+            discountType: null,
+            discountValue: 0,
+            quantities: qtyList,
+          };
+        }),
+      };
+
+      let poId = editId;
+      if (editId) {
+        await api.put(`/purchase-orders/${editId}`, payload);
+      } else {
+        const { data } = await api.post('/purchase-orders', payload);
+        poId = data.data.id;
+        addToCart(data.data);
+      }
+
+      if (submitForApproval) {
+        await api.post(`/purchase-orders/${poId}/submit`);
+      }
+
+      navigate(`/purchase-orders/${poId}`, { state: { submitted: submitForApproval } });
+    } catch (e) {
+      setError(errMessage(e));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="page">
-      <h1 className="page-title">{editId ? 'Edit Draft PO' : 'Create Master PO'}</h1>
-      <p className="page-sub">Guided creation (§12.2) — totals shown are a preview; the server recalculates everything before persistence (RB-017).</p>
+      {/* Header */}
+      <div className="row" style={{ alignItems: 'baseline', marginBottom: 6 }}>
+        <h1 className="page-title">{editId ? 'Edit Draft Purchase Order' : 'Create Purchase Order'}</h1>
+        <span className="muted" style={{ fontSize: 13 }}>
+          {selectedCollection ? `${selectedCollection.name} ${selectedSection ? `· ${selectedSection.name}` : ''}` : 'Guided Procurement Workflow'}
+        </span>
+        <button className="btn sm ghost right" onClick={() => navigate('/purchase-orders')}>
+          Cancel & Exit
+        </button>
+      </div>
+      <p className="page-sub">Progressive 9-step guided workflow for fast, error-free purchase ordering.</p>
 
-      <div className="stepper">
-        {STEPS.map((label, i) => (
-          <div key={label} className={`step ${i === step ? 'active' : i < step ? 'done' : ''}`} onClick={() => go(i)} style={{ cursor: 'pointer' }}>
-            {i < step ? '✓ ' : ''}{i + 1}. {label}
+      {/* Progress Stepper */}
+      <div className="po-wizard-stepper">
+        {WIZARD_STEPS.map((s, idx) => (
+          <div
+            key={s.id}
+            className={`po-wizard-step ${step === idx ? 'active' : step > idx ? 'done' : ''}`}
+            onClick={() => goToStep(idx)}
+          >
+            <span className="po-wizard-step-num">{step > idx ? '✓' : idx + 1}</span>
+            <span>{s.label}</span>
           </div>
         ))}
       </div>
 
       {error && <div className="alert error">{error}</div>}
+      {successMsg && <div className="alert ok">{successMsg}</div>}
 
-      {step === 0 && (
-        <div className="panel">
-          <div className="fields-3">
-            <Field label="Division (§5)">
-              <select value={header.divisionId} onChange={(e) => setHeader({ ...header, divisionId: e.target.value, departmentId: '', sectionId: '' })}>
-                <option value="">— select —</option>
-                {divisions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </Field>
-            <Field label="Department">
-              <select value={header.departmentId} onChange={(e) => setHeader({ ...header, departmentId: e.target.value, sectionId: '' })} disabled={!header.divisionId}>
-                <option value="">— select —</option>
-                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-              </select>
-            </Field>
-            <Field label="Section (active only, RB-002)" hint={`Sizing method drives the matrix columns`}>
-              <select value={header.sectionId} onChange={(e) => setHeader({ ...header, sectionId: e.target.value })} disabled={!header.departmentId}>
-                <option value="">— select —</option>
-                {deptSections.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.sizing_method_name}</option>)}
-              </select>
-            </Field>
-          </div>
-          <button className="btn primary" onClick={() => go(1)}>Next →</button>
-        </div>
-      )}
+      {/* Two-Column Layout (Wizard on Left, Working PO Cart on Right) */}
+      <div className="po-wizard-layout">
+        {/* Left: Step Content */}
+        <div className="po-wizard-main">
+          {/* STEP 0: MAIN COLLECTION */}
+          {step === 0 && (
+            <div className="panel">
+              <h3>1. What are you purchasing? Select Main Collection</h3>
+              <p className="muted" style={{ margin: '0 0 16px', fontSize: 13 }}>
+                Choose the department to begin. Unrelated categories will be filtered out automatically.
+              </p>
 
-      {step === 1 && (
-        <div className="panel">
-          <div className="row" style={{ alignItems: 'flex-end' }}>
-            <Field label="Supplier / Dealer (§11)">
-              <select value={header.supplierId} onChange={(e) => setHeader({ ...header, supplierId: e.target.value })} style={{ minWidth: 320 }}>
-                <option value="">— select —</option>
-                {suppliers.map((s) => <option key={s.id} value={s.id}>{s.company_name} ({s.code})</option>)}
-              </select>
-            </Field>
-            <button className="btn" onClick={() => { setInline('supplier'); setInlineForm({ code: '', companyName: '', contactPerson: '', gstin: '' }); }}>+ Other / New Supplier</button>
-          </div>
-          <button className="btn primary" onClick={() => go(2)}>Next →</button>
-        </div>
-      )}
+              <div className="po-collection-grid">
+                {STANDARD_COLLECTIONS.map((col) => {
+                  const matchedDept = departments.find((d) => (d.code || '').toUpperCase() === col.code) || col;
+                  const isSelected = selectedCollection?.code === col.code;
+                  return (
+                    <div
+                      key={col.code}
+                      className={`po-collection-card ${isSelected ? 'selected' : ''}`}
+                      onClick={() => {
+                        setSelectedCollection(matchedDept);
+                        setSelectedSection(null);
+                        setSelectedProduct(null);
+                        goToStep(1);
+                      }}
+                    >
+                      <div className="po-collection-icon">{col.icon}</div>
+                      <div className="po-collection-title">{col.name}</div>
+                      <div className="po-collection-desc">{col.desc}</div>
+                      <button className={`btn sm ${isSelected ? 'primary' : ''}`} style={{ marginTop: 6 }}>
+                        {isSelected ? 'Selected ✓' : 'Select Collection →'}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
-      {step === 2 && (
-        <div className="panel">
-          <div className="row" style={{ marginBottom: 12 }}>
-            <strong>Product lines ({lines.length})</strong>
-            <button className="btn primary sm right" onClick={addLine} disabled={!header.sectionId}>+ Add line</button>
-          </div>
+          {/* STEP 1: PRODUCT TYPE / CATEGORY */}
+          {step === 1 && (
+            <div className="panel">
+              <div className="row" style={{ alignItems: 'center', marginBottom: 10 }}>
+                <h3 style={{ margin: 0 }}>2. Select Product Type / Category in {selectedCollection?.name}</h3>
+                <button className="btn sm ghost right" onClick={() => goToStep(0)}>
+                  ← Change Collection
+                </button>
+              </div>
+              <p className="muted" style={{ fontSize: 13, margin: '0 0 16px' }}>
+                Select the specific garment, item, or fabric section you want to order.
+              </p>
 
-          {lines.map((line, i) => {
-            const pv = previewLine(line);
-            const product = products.find((p) => p.id === line.productId);
-            return (
-              <div key={i} className="panel" style={{ background: '#fafbfd' }}>
-                <div className="fields-3">
-                  <Field label={`Line ${i + 1} — Product (section-filtered)`}>
-                    <select value={line.productId} onChange={(e) => updateLine(i, { productId: e.target.value })}>
-                      <option value="">— select —</option>
-                      {products.map((p) => <option key={p.id} value={p.id}>{p.name} · {p.brand_name}</option>)}
-                    </select>
-                    {product && (
-                      <span className="field-hint">
-                        Brand {product.brand_name} · Manufacturer: {product.manufacturer || '—'} · Providers: {(product.providers || []).join(', ') || '—'}
-                      </span>
-                    )}
-                  </Field>
-                  <Field label="Colour">
-                    <select value={line.colourId} onChange={(e) => updateLine(i, { colourId: e.target.value })}>
-                      <option value="">— none —</option>
-                      {colours.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                    </select>
-                  </Field>
-                  <div className="row" style={{ alignItems: 'flex-end' }}>
-                    <button className="btn sm" onClick={() => { setInline('colour'); setInlineForm({ name: '' }); }}>+ Other colour</button>
-                    <button className="btn sm" onClick={() => { setInline('product'); setInlineForm({ sku: '', name: '', brandId: '' }); }}>+ Other product</button>
-                    <button className="btn sm danger right" onClick={() => removeLine(i)}>Remove</button>
+              <div className="po-category-grid">
+                {filteredSections.map((sec) => {
+                  const isSelected = selectedSection?.id === sec.id;
+                  return (
+                    <div
+                      key={sec.id}
+                      className={`po-category-tile ${isSelected ? 'selected' : ''}`}
+                      onClick={() => {
+                        setSelectedSection(sec);
+                        setSelectedProduct(null);
+                        goToStep(2);
+                      }}
+                    >
+                      <div className="po-category-name">{sec.name}</div>
+                      <div className="po-category-sub">Code: {sec.code}</div>
+                    </div>
+                  );
+                })}
+                {filteredSections.length === 0 && (
+                  <div className="muted" style={{ padding: 20, textAlign: 'center', gridColumn: '1 / -1' }}>
+                    No specific sub-sections found. You can proceed with general ordering or configure sections in Masters.
                   </div>
-                </div>
+                )}
+              </div>
 
-                <div className="fields-3">
-                  <Field label="Purchase price / unit (₹)" hint="RB-008: cannot be negative">
-                    <input type="number" min="0" value={line.purchasePrice} onChange={(e) => updateLine(i, { purchasePrice: e.target.value })} />
-                  </Field>
-                  <Field label="Margin %" hint="RB-010 policy applies">
-                    <input type="number" min="0" value={line.marginPercent} onChange={(e) => updateLine(i, { marginPercent: e.target.value })} />
-                  </Field>
-                  <div className="row">
-                    <Field label="Discount">
-                      <select value={line.discountType} onChange={(e) => updateLine(i, { discountType: e.target.value })}>
-                        <option value="percent">%</option><option value="flat">Flat ₹</option>
-                      </select>
-                    </Field>
-                    <Field label="Value"><input type="number" min="0" value={line.discountValue} onChange={(e) => updateLine(i, { discountValue: e.target.value })} /></Field>
-                  </div>
-                </div>
+              <div className="row mt">
+                <button className="btn" onClick={() => goToStep(0)}>← Back to Collection</button>
+              </div>
+            </div>
+          )}
 
-                <table className="grid matrix-table">
+          {/* STEP 2: PRODUCT SELECTION */}
+          {step === 2 && (
+            <div className="panel">
+              <div className="row" style={{ alignItems: 'center', marginBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>3. Select Product in {selectedSection?.name}</h3>
+                  <div className="muted" style={{ fontSize: 12 }}>Showing active products for {selectedCollection?.name} › {selectedSection?.name}</div>
+                </div>
+                <div className="right row" style={{ gap: 8 }}>
+                  <button className="btn sm" onClick={() => setInlineModal('product')}>+ Add New Product</button>
+                  <button className="btn sm ghost" onClick={() => goToStep(1)}>← Change Section</button>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <input
+                  type="text"
+                  placeholder="🔍 Search product by name, SKU, or brand..."
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  style={{ width: '100%', padding: '10px 14px', borderRadius: 8, border: '1.5px solid var(--line)', fontSize: 14 }}
+                />
+              </div>
+
+              <div className="po-product-grid">
+                {filteredProducts.map((p) => {
+                  const isSelected = selectedProduct?.id === p.id;
+                  return (
+                    <div
+                      key={p.id}
+                      className={`po-product-card ${isSelected ? 'selected' : ''}`}
+                      onClick={() => {
+                        setSelectedProduct(p);
+                        if (p.purchase_price) setPurchasePrice(String(p.purchase_price));
+                        // Auto-assign brand if product already has brand
+                        if (p.brand_id) {
+                          const b = brands.find((x) => x.id === p.brand_id);
+                          if (b) setSelectedBrand(b);
+                        }
+                        goToStep(3);
+                      }}
+                    >
+                      <div className="po-product-title">{p.name}</div>
+                      <div className="po-product-sku">SKU: {p.sku || 'N/A'} · Brand: {p.brand_name || 'Standard'}</div>
+                      <div className="po-product-meta">
+                        <span className="po-product-price">₹{Number(p.purchase_price || 850).toFixed(2)}</span>
+                        <button className={`btn sm ${isSelected ? 'primary' : ''}`}>
+                          {isSelected ? 'Selected ✓' : 'Select'}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {filteredProducts.length === 0 && (
+                <div style={{ padding: '36px 16px', textAlign: 'center' }}>
+                  <p className="muted">No products found matching &quot;{productSearch}&quot; in this category.</p>
+                  <button className="btn primary" onClick={() => setInlineModal('product')}>
+                    + Create &quot;{productSearch || 'Custom Product'}&quot;
+                  </button>
+                </div>
+              )}
+
+              <div className="row mt">
+                <button className="btn" onClick={() => goToStep(1)}>← Back</button>
+                {selectedProduct && (
+                  <button className="btn primary right" onClick={() => goToStep(3)}>Continue to Brand →</button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 3: BRAND SELECTION */}
+          {step === 3 && (
+            <div className="panel">
+              <div className="row" style={{ alignItems: 'center', marginBottom: 12 }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>4. Select Brand for {selectedProduct?.name}</h3>
+                  <div className="muted" style={{ fontSize: 12 }}>Choose the manufacturer brand or add a new one.</div>
+                </div>
+                <button className="btn sm primary right" onClick={() => setInlineModal('brand')}>
+                  + Add New Brand
+                </button>
+              </div>
+
+              <div className="po-brand-grid">
+                {brands.map((b) => {
+                  const isSelected = selectedBrand?.id === b.id;
+                  return (
+                    <div
+                      key={b.id}
+                      className={`po-brand-tile ${isSelected ? 'selected' : ''}`}
+                      onClick={() => {
+                        setSelectedBrand(b);
+                        goToStep(4);
+                      }}
+                    >
+                      <div style={{ fontWeight: 700, fontSize: 14 }}>{b.brand_name}</div>
+                      {b.manufacturer && (
+                        <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
+                          {b.manufacturer}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                <div className="po-brand-tile add-new" onClick={() => setInlineModal('brand')}>
+                  + Add New Brand
+                </div>
+              </div>
+
+              <div className="row mt">
+                <button className="btn" onClick={() => goToStep(2)}>← Back</button>
+                {selectedBrand && (
+                  <button className="btn primary right" onClick={() => goToStep(4)}>Continue to Sizes →</button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* STEP 4: SIZES SELECTION */}
+          {step === 4 && (
+            <div className="panel">
+              <div className="row" style={{ alignItems: 'center', marginBottom: 8 }}>
+                <h3 style={{ margin: 0 }}>5. Select Sizes to Include</h3>
+                <button
+                  className="btn sm ghost right"
+                  onClick={() => setSelectedSizes([...availableSizes])}
+                >
+                  Select All Sizes
+                </button>
+              </div>
+              <p className="muted" style={{ fontSize: 13, margin: '0 0 14px' }}>
+                Pick all sizes needed for this order. Industry sizes tailored for {selectedSection?.name || 'apparel'}.
+              </p>
+
+              <div className="po-chip-group">
+                {availableSizes.map((sz) => {
+                  const isSelected = selectedSizes.includes(sz);
+                  return (
+                    <div
+                      key={sz}
+                      className={`po-size-chip ${isSelected ? 'selected' : ''}`}
+                      onClick={() => toggleSize(sz)}
+                    >
+                      {sz} {isSelected ? '✓' : ''}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div style={{ marginTop: 14 }}>
+                <span className="muted" style={{ fontSize: 12 }}>Selected sizes: </span>
+                {selectedSizes.length > 0 ? (
+                  selectedSizes.map((sz) => (
+                    <span key={sz} className="po-tag" style={{ marginRight: 6 }}>
+                      {sz} <span className="po-tag-remove" onClick={() => toggleSize(sz)}>×</span>
+                    </span>
+                  ))
+                ) : (
+                  <span className="muted" style={{ fontStyle: 'italic', fontSize: 12 }}>None selected yet. Click size chips above.</span>
+                )}
+              </div>
+
+              <div className="row mt">
+                <button className="btn" onClick={() => goToStep(3)}>← Back</button>
+                <button
+                  className="btn primary right"
+                  disabled={selectedSizes.length === 0}
+                  onClick={() => goToStep(5)}
+                >
+                  Continue to Colors →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 5: COLOR SELECTION */}
+          {step === 5 && (
+            <div className="panel">
+              <div className="row" style={{ alignItems: 'center', marginBottom: 8 }}>
+                <h3 style={{ margin: 0 }}>6. Select Color Variants</h3>
+                <button className="btn sm right" onClick={() => setInlineModal('color')}>
+                  + Add Custom Color
+                </button>
+              </div>
+              <p className="muted" style={{ fontSize: 13, margin: '0 0 14px' }}>
+                Choose one or multiple colors. Each color will be combined with your selected sizes.
+              </p>
+
+              <div className="po-chip-group">
+                {STANDARD_COLORS.map((c) => {
+                  const isSelected = selectedColors.includes(c.name);
+                  return (
+                    <div
+                      key={c.name}
+                      className={`po-color-chip ${isSelected ? 'selected' : ''}`}
+                      onClick={() => toggleColor(c.name)}
+                    >
+                      <span className="po-color-dot" style={{ background: c.hex }} />
+                      <span>{c.name}</span>
+                      {isSelected && <span style={{ marginLeft: 4 }}>✓</span>}
+                    </div>
+                  );
+                })}
+                {colours
+                  .filter((c) => !STANDARD_COLORS.some((sc) => sc.name.toLowerCase() === c.name.toLowerCase()))
+                  .map((c) => {
+                    const isSelected = selectedColors.includes(c.name);
+                    return (
+                      <div
+                        key={c.id}
+                        className={`po-color-chip ${isSelected ? 'selected' : ''}`}
+                        onClick={() => toggleColor(c.name)}
+                      >
+                        <span className="po-color-dot" style={{ background: '#94a3b8' }} />
+                        <span>{c.name}</span>
+                        {isSelected && <span style={{ marginLeft: 4 }}>✓</span>}
+                      </div>
+                    );
+                  })}
+              </div>
+
+              <div style={{ marginTop: 14 }}>
+                <span className="muted" style={{ fontSize: 12 }}>Selected colors: </span>
+                {selectedColors.map((c) => (
+                  <span key={c} className="po-tag" style={{ marginRight: 6 }}>
+                    {c} <span className="po-tag-remove" onClick={() => toggleColor(c)}>×</span>
+                  </span>
+                ))}
+              </div>
+
+              <div className="row mt">
+                <button className="btn" onClick={() => goToStep(4)}>← Back</button>
+                <button
+                  className="btn primary right"
+                  disabled={selectedColors.length === 0}
+                  onClick={() => goToStep(6)}
+                >
+                  Continue to Quantity Matrix →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 6: QUANTITY MATRIX */}
+          {step === 6 && (
+            <div className="panel">
+              <div className="row" style={{ alignItems: 'center', marginBottom: 10 }}>
+                <div>
+                  <h3 style={{ margin: 0 }}>7. Enter Quantities per Color & Size</h3>
+                  <div className="muted" style={{ fontSize: 12 }}>Non-negative piece counts for {selectedProduct?.name} ({selectedBrand?.brand_name})</div>
+                </div>
+                <div className="right row" style={{ alignItems: 'center', gap: 6 }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted)' }}>Quick Fill:</span>
+                  <input
+                    type="number"
+                    min="0"
+                    value={quickFillQty}
+                    onChange={(e) => setQuickFillQty(e.target.value)}
+                    style={{ width: 54, padding: '4px 6px', textAlign: 'center', border: '1px solid var(--line)', borderRadius: 6 }}
+                  />
+                  <button className="btn sm" onClick={applyQuickFill}>Fill All</button>
+                </div>
+              </div>
+
+              <div className="po-matrix-container">
+                <table className="po-matrix-table">
                   <thead>
                     <tr>
-                      <th>Colour × Size</th>
-                      {sizes.map((s) => <th key={s.id} className="num">{s.label}</th>)}
-                      <th className="num">Total</th>
-                      <th className="num">Net/unit</th><th className="num">Final/unit</th><th className="num">Line total</th>
+                      <th>Color</th>
+                      <th>Size</th>
+                      <th style={{ width: 120 }}>Quantity (pcs)</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr>
-                      <td className="muted">{colours.find((c) => c.id === line.colourId)?.name || product?.name || 'quantities'}</td>
-                      {sizes.map((s) => (
-                        <td key={s.id} className="num">
-                          <input type="number" min="0" value={line.quantities[s.label] ?? ''} onChange={(e) => updateLine(i, { quantities: { ...line.quantities, [s.label]: e.target.value } })} />
-                        </td>
-                      ))}
-                      <td className="num"><strong>{pv.totalQty}</strong></td>
-                      <td className="num">₹{pv.net.toFixed(2)}</td>
-                      <td className="num">₹{pv.final.toFixed(2)}</td>
-                      <td className="num"><strong><Money value={pv.lineTotal} /></strong></td>
-                    </tr>
+                    {selectedColors.flatMap((c) =>
+                      selectedSizes.map((sz) => {
+                        const key = `${c}__${sz}`;
+                        return (
+                          <tr key={key}>
+                            <td>
+                              <strong>{c}</strong>
+                            </td>
+                            <td>
+                              <span className="chip">{sz}</span>
+                            </td>
+                            <td>
+                              <input
+                                type="number"
+                                min="0"
+                                className="po-matrix-input"
+                                value={quantities[key] ?? ''}
+                                onChange={(e) => {
+                                  const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                  setQuantities({ ...quantities, [key]: val });
+                                }}
+                                placeholder="0"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
                   </tbody>
                 </table>
               </div>
-            );
-          })}
 
-          {!lines.length && <p className="muted">No lines yet — add a line, pick a product and fill the size matrix.</p>}
-          <div className="row mt">
-            <button className="btn" onClick={() => go(1)}>← Back</button>
-            <button className="btn primary right" onClick={() => go(3)}>Next →</button>
-          </div>
-        </div>
-      )}
+              <div className="row mt" style={{ alignItems: 'center', background: '#f8fafc', padding: '12px 16px', borderRadius: 8 }}>
+                <strong style={{ fontSize: 15 }}>Total Quantity: {currentLineCalc.totalQty} Pieces</strong>
+                <span className="muted" style={{ marginLeft: 12, fontSize: 13 }}>
+                  across {selectedColors.length * selectedSizes.length} variant combinations
+                </span>
+              </div>
 
-      {step === 3 && (
-        <div className="panel">
-          <h3>Order-level commercials (§13.2)</h3>
-          <div className="fields-3">
-            <Field label="Order discount type">
-              <select value={orderDiscount.type} onChange={(e) => setOrderDiscount({ ...orderDiscount, type: e.target.value })}>
-                <option value="percent">Percent %</option><option value="flat">Flat ₹</option>
-              </select>
-            </Field>
-            <Field label="Value" hint={`RB-009: over-policy needs exception approval`}>
-              <input type="number" min="0" value={orderDiscount.value} onChange={(e) => setOrderDiscount({ ...orderDiscount, value: e.target.value })} />
-            </Field>
-            <Field label="Reason (mandatory if over policy)">
-              <input value={orderDiscount.reason} onChange={(e) => setOrderDiscount({ ...orderDiscount, reason: e.target.value })} />
-            </Field>
-          </div>
-
-          <h3 className="mt">Additional charges</h3>
-          {charges.map((c, i) => (
-            <div className="row" key={i}>
-              <Field label="Type">
-                <select value={c.type} onChange={(e) => setCharges(charges.map((x, j) => j === i ? { ...x, type: e.target.value } : x))}>
-                  {['freight','packing','transport','installation','assembly','other'].map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </Field>
-              <Field label="Description"><input value={c.description} onChange={(e) => setCharges(charges.map((x, j) => j === i ? { ...x, description: e.target.value } : x))} /></Field>
-              <Field label="Amount (₹)"><input type="number" min="0" value={c.amount} onChange={(e) => setCharges(charges.map((x, j) => j === i ? { ...x, amount: e.target.value } : x))} /></Field>
-              <button className="btn sm danger" style={{ alignSelf: 'flex-end' }} onClick={() => setCharges(charges.filter((_, j) => j !== i))}>✕</button>
+              <div className="row mt">
+                <button className="btn" onClick={() => goToStep(5)}>← Back</button>
+                <button
+                  className="btn primary right"
+                  disabled={currentLineCalc.totalQty <= 0}
+                  onClick={() => goToStep(7)}
+                >
+                  Continue to Pricing →
+                </button>
+              </div>
             </div>
-          ))}
-          <button className="btn sm" onClick={() => setCharges([...charges, { type: 'freight', description: '', amount: '' }])}>+ Add charge</button>
+          )}
 
-          <div className="fields-3 mt">
-            <Field label="Tax scheme">
-              <select value={header.taxScheme} onChange={(e) => setHeader({ ...header, taxScheme: e.target.value })}>
-                <option value="GST_INTRA">GST Intra-state (CGST+SGST)</option>
-                <option value="GST_INTER">GST Inter-state (IGST)</option>
-              </select>
+          {/* STEP 7: PRICING & MARGINS */}
+          {step === 7 && (
+            <div className="panel">
+              <h3>8. Pricing, Margin & Selling Value Calculation</h3>
+              <p className="muted" style={{ fontSize: 13, margin: '0 0 16px' }}>
+                Enter purchase price and target margin. Selling price and net profit per piece calculate automatically.
+              </p>
+
+              <div className="fields-2">
+                <Field label="Purchase Value / Cost Price (₹ per piece)" hint="Must be greater than 0">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={purchasePrice}
+                    onChange={(e) => setPurchasePrice(e.target.value)}
+                  />
+                </Field>
+                <Field label="Expected Margin %" hint="Profit margin percentage applied to cost">
+                  <input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={marginPercent}
+                    onChange={(e) => setMarginPercent(e.target.value)}
+                  />
+                </Field>
+              </div>
+
+              {/* Real-time Calculation Panel */}
+              <div className="po-calc-panel">
+                <div className="po-calc-grid">
+                  <div className="po-calc-metric">
+                    <span className="po-calc-metric-label">Purchase Value</span>
+                    <span className="po-calc-metric-val">₹{currentLineCalc.purchasePrice.toFixed(2)}</span>
+                  </div>
+                  <div className="po-calc-metric">
+                    <span className="po-calc-metric-label">Margin Applied</span>
+                    <span className="po-calc-metric-val">{currentLineCalc.marginPercent}%</span>
+                  </div>
+                  <div className="po-calc-metric">
+                    <span className="po-calc-metric-label">Selling Price</span>
+                    <span className="po-calc-metric-val">₹{currentLineCalc.sellingPrice.toFixed(2)}</span>
+                  </div>
+                  <div className="po-calc-metric">
+                    <span className="po-calc-metric-label">Profit / Piece</span>
+                    <span className="po-calc-metric-val profit">₹{currentLineCalc.profitPerPiece.toFixed(2)}</span>
+                  </div>
+                </div>
+
+                <div style={{ borderTop: '1px solid #e2e8f0', marginTop: 14, paddingTop: 12 }} className="po-calc-grid">
+                  <div className="po-calc-metric">
+                    <span className="po-calc-metric-label">Line Total Qty</span>
+                    <span className="po-calc-metric-val">{currentLineCalc.totalQty} Pieces</span>
+                  </div>
+                  <div className="po-calc-metric">
+                    <span className="po-calc-metric-label">Total Purchase Value</span>
+                    <span className="po-calc-metric-val">₹{currentLineCalc.totalPurchase.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="po-calc-metric">
+                    <span className="po-calc-metric-label">Total Expected Sales</span>
+                    <span className="po-calc-metric-val">₹{currentLineCalc.totalSelling.toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="po-calc-metric">
+                    <span className="po-calc-metric-label">Total Expected Profit</span>
+                    <span className="po-calc-metric-val profit">₹{currentLineCalc.totalProfit.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="row mt" style={{ gap: 12 }}>
+                <button className="btn" onClick={() => goToStep(6)}>← Back</button>
+                <button
+                  className="btn"
+                  style={{ marginLeft: 'auto', fontWeight: 600 }}
+                  onClick={() => commitCurrentLineToCart('stay')}
+                >
+                  + Add Another Product
+                </button>
+                <button
+                  className="btn primary"
+                  onClick={() => commitCurrentLineToCart('review')}
+                >
+                  Review Order →
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* STEP 8: FINAL REVIEW & SUBMIT */}
+          {step === 8 && (
+            <div className="panel">
+              <h3>9. Review & Finalize Purchase Order</h3>
+              <p className="muted" style={{ fontSize: 13, margin: '0 0 16px' }}>
+                Verify supplier details, line items, and financial summary before creating the purchase order.
+              </p>
+
+              {/* Order Metadata Form */}
+              <div className="fields-3" style={{ marginBottom: 16 }}>
+                <Field label="Supplier / Dealer" hint="Mandatory vendor assignment">
+                  <div className="row" style={{ gap: 6 }}>
+                    <select
+                      value={orderHeader.supplierId}
+                      onChange={(e) => setOrderHeader({ ...orderHeader, supplierId: e.target.value })}
+                      style={{ flex: 1 }}
+                    >
+                      <option value="">— Select Supplier —</option>
+                      {suppliers.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.company_name} ({s.code})
+                        </option>
+                      ))}
+                    </select>
+                    <button className="btn sm" type="button" onClick={() => setInlineModal('supplier')}>+ New</button>
+                  </div>
+                </Field>
+
+                <Field label="Division / Hub">
+                  <select
+                    value={orderHeader.divisionId}
+                    onChange={(e) => setOrderHeader({ ...orderHeader, divisionId: e.target.value })}
+                  >
+                    {divisions.map((d) => (
+                      <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                    ))}
+                  </select>
+                </Field>
+
+                <Field label="Expected Delivery Date">
+                  <input
+                    type="date"
+                    value={orderHeader.expectedDeliveryDate}
+                    onChange={(e) => setOrderHeader({ ...orderHeader, expectedDeliveryDate: e.target.value })}
+                  />
+                </Field>
+              </div>
+
+              <div className="fields-2" style={{ marginBottom: 18 }}>
+                <Field label="Tax Scheme">
+                  <select
+                    value={orderHeader.taxScheme}
+                    onChange={(e) => setOrderHeader({ ...orderHeader, taxScheme: e.target.value })}
+                  >
+                    <option value="GST_INTRA">GST Intra-state (CGST + SGST)</option>
+                    <option value="GST_INTER">GST Inter-state (IGST)</option>
+                  </select>
+                </Field>
+                <Field label="Remarks / Procurement Notes">
+                  <input
+                    placeholder="e.g. Urgent delivery required for festive collection"
+                    value={orderHeader.remarks}
+                    onChange={(e) => setOrderHeader({ ...orderHeader, remarks: e.target.value })}
+                  />
+                </Field>
+              </div>
+
+              {/* Items Table */}
+              <h4 style={{ margin: '14px 0 8px', color: 'var(--brand-ink)' }}>Purchase Order Items ({cartLines.length})</h4>
+              <div style={{ overflowX: 'auto', border: '1px solid var(--line)', borderRadius: 8, marginBottom: 16 }}>
+                <table className="grid">
+                  <thead>
+                    <tr>
+                      <th>Product</th>
+                      <th>Brand</th>
+                      <th>Sizes & Colors</th>
+                      <th className="num">Qty</th>
+                      <th className="num">Cost / Unit</th>
+                      <th className="num">Margin</th>
+                      <th className="num">Selling Price</th>
+                      <th className="num">Profit / Piece</th>
+                      <th className="num">Total Value</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cartLines.map((line, idx) => (
+                      <tr key={line.id || idx}>
+                        <td>
+                          <strong>{line.product?.name}</strong>
+                          <div className="muted" style={{ fontSize: 11 }}>SKU: {line.product?.sku}</div>
+                        </td>
+                        <td>{line.brand?.brand_name || '—'}</td>
+                        <td>
+                          <div style={{ fontSize: 12 }}>{line.colors?.join(', ')}</div>
+                          <div className="muted" style={{ fontSize: 11 }}>{line.sizes?.join(', ')}</div>
+                        </td>
+                        <td className="num"><strong>{line.totalQty}</strong></td>
+                        <td className="num">₹{line.purchasePrice?.toFixed(2)}</td>
+                        <td className="num">{line.marginPercent}%</td>
+                        <td className="num">₹{line.sellingPrice?.toFixed(2)}</td>
+                        <td className="num" style={{ color: '#16a34a' }}>+₹{line.profitPerPiece?.toFixed(2)}</td>
+                        <td className="num"><strong><Money value={line.totalPurchase} /></strong></td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            className="btn sm danger"
+                            style={{ padding: '2px 8px' }}
+                            onClick={() => removeCartLine(line.id)}
+                            title="Remove line"
+                          >
+                            ×
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {cartLines.length === 0 && (
+                      <tr>
+                        <td colSpan={10} style={{ padding: 24, textAlign: 'center', color: 'var(--muted)' }}>
+                          No items committed to this purchase order yet. Click &quot;Add Another Product&quot; to configure lines.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="row" style={{ gap: 12, alignItems: 'center' }}>
+                <button className="btn" onClick={() => goToStep(7)}>
+                  ← Back to Pricing
+                </button>
+                <button
+                  className="btn"
+                  onClick={() => {
+                    setSelectedProduct(null);
+                    setSelectedSizes([]);
+                    setQuantities({});
+                    setStep(2);
+                  }}
+                >
+                  + Add More Products
+                </button>
+
+                <div className="right row" style={{ gap: 10 }}>
+                  <button
+                    className="btn"
+                    disabled={busy || cartLines.length === 0}
+                    onClick={() => handleFinalSave(false)}
+                  >
+                    {busy ? 'Saving…' : editId ? 'Save Draft Changes' : 'Save Draft'}
+                  </button>
+                  {hasPermission('po.submit') && (
+                    <button
+                      className="btn accent"
+                      disabled={busy || cartLines.length === 0}
+                      onClick={() => handleFinalSave(true)}
+                    >
+                      {busy ? 'Submitting…' : 'Create & Submit for Approval'}
+                    </button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right: Persistent Working PO Cart */}
+        <div className="po-wizard-sidebar">
+          <div className="po-cart-panel">
+            <div className="po-cart-title">
+              <span>Current PO Cart</span>
+              <span className="chip st-active">{cartSummary.itemCount} SKUs</span>
+            </div>
+
+            {/* List of items in cart */}
+            <div style={{ maxHeight: 280, overflowY: 'auto' }}>
+              {cartLines.map((line, i) => (
+                <div key={line.id || i} className="po-cart-item">
+                  <div className="po-cart-item-header">
+                    <span>{line.product?.name}</span>
+                    <span style={{ color: '#b3261e', cursor: 'pointer' }} onClick={() => removeCartLine(line.id)}>×</span>
+                  </div>
+                  <div className="po-cart-item-sub">
+                    {line.brand?.brand_name} · {line.totalQty} pcs · ₹{line.purchasePrice}/pc
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontWeight: 700 }}>
+                    <span style={{ color: '#16a34a', fontSize: 11.5 }}>+{line.marginPercent}% (₹{line.totalProfit} profit)</span>
+                    <span>₹{line.totalPurchase?.toLocaleString('en-IN')}</span>
+                  </div>
+                </div>
+              ))}
+              {cartLines.length === 0 && (
+                <p className="muted" style={{ fontSize: 12.5, textAlign: 'center', padding: '16px 0' }}>
+                  No items in cart yet. Select a product, sizes, and quantities to add.
+                </p>
+              )}
+            </div>
+
+            {/* Cart Aggregations */}
+            <div className="po-cart-totals">
+              <div className="po-cart-totals-row">
+                <span>Total Quantity:</span>
+                <strong>{cartSummary.totalPieces} Pieces</strong>
+              </div>
+              <div className="po-cart-totals-row">
+                <span>Purchase Value:</span>
+                <strong>₹{cartSummary.totalPurchaseVal.toLocaleString('en-IN')}</strong>
+              </div>
+              <div className="po-cart-totals-row">
+                <span>Expected Sales:</span>
+                <strong>₹{cartSummary.totalSellingVal.toLocaleString('en-IN')}</strong>
+              </div>
+              <div className="po-cart-totals-row" style={{ color: '#16a34a' }}>
+                <span>Expected Profit:</span>
+                <strong style={{ color: '#16a34a' }}>₹{cartSummary.totalProfit.toLocaleString('en-IN')} ({cartSummary.overallMargin}%)</strong>
+              </div>
+              <div className="po-cart-totals-row grand">
+                <span>Total (incl. GST):</span>
+                <span>₹{cartSummary.grandTotal.toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {step < 8 && cartLines.length > 0 && (
+                <button className="btn primary" style={{ width: '100%' }} onClick={() => goToStep(8)}>
+                  Review & Finalize Order ({cartSummary.itemCount}) →
+                </button>
+              )}
+              {step >= 2 && step <= 7 && selectedProduct && currentLineCalc.totalQty > 0 && (
+                <button
+                  className="btn"
+                  style={{ width: '100%', fontSize: 12.5 }}
+                  onClick={() => commitCurrentLineToCart('stay')}
+                >
+                  + Add Another Product
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ---------- Inline Modal: Add New Brand ---------- */}
+      {inlineModal === 'brand' && (
+        <Modal title="+ Add New Brand" onClose={() => setInlineModal(null)}>
+          <div style={{ padding: '8px 0' }}>
+            <Field label="Brand Name" hint="Brand name must be unique">
+              <input
+                placeholder="e.g. Louis Philippe"
+                value={brandForm.brandName}
+                onChange={(e) => setBrandForm({ ...brandForm, brandName: e.target.value })}
+                autoFocus
+              />
             </Field>
-            <Field label="Expected delivery date"><input type="date" value={header.expectedDeliveryDate} onChange={(e) => setHeader({ ...header, expectedDeliveryDate: e.target.value })} /></Field>
-            <Field label="Remarks"><input value={header.remarks} onChange={(e) => setHeader({ ...header, remarks: e.target.value })} /></Field>
-          </div>
-
-          <div className="row mt">
-            <button className="btn" onClick={() => go(2)}>← Back</button>
-            <button className="btn primary right" onClick={() => go(4)}>Review →</button>
-          </div>
-        </div>
-      )}
-
-      {step === 4 && (
-        <div className="panel">
-          <h3>Review — server will recompute these values (RB-017)</h3>
-          <table className="grid">
-            <thead><tr><th>Product</th><th>Colour</th><th className="num">Qty</th><th className="num">Net/unit</th><th className="num">Final/unit</th><th className="num">Line total</th></tr></thead>
-            <tbody>
-              {lines.map((l, i) => {
-                const p = products.find((x) => x.id === l.productId);
-                const pv = totals.lineTotals[i];
-                return (
-                  <tr key={i}>
-                    <td>{p?.name || '—'}</td>
-                    <td>{colours.find((c) => c.id === l.colourId)?.name || '—'}</td>
-                    <td className="num">{pv.totalQty}</td>
-                    <td className="num">₹{pv.net.toFixed(2)}</td>
-                    <td className="num">₹{pv.final.toFixed(2)}</td>
-                    <td className="num"><Money value={pv.lineTotal} /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          <div className="totals-bar mt">
-            <div><div className="t-label">Subtotal</div><div className="t-value"><Money value={totals.subtotal} /></div></div>
-            <div><div className="t-label">Order discount</div><div className="t-value">− <Money value={totals.orderDisc} /></div></div>
-            <div><div className="t-label">Tax ({gstPercent}%)</div><div className="t-value"><Money value={totals.tax} /></div></div>
-            <div><div className="t-label">Charges</div><div className="t-value"><Money value={totals.chargesTotal} /></div></div>
-            <div className="right"><div className="t-label">Grand total</div><div className="t-value"><Money value={totals.grandTotal} /></div></div>
-          </div>
-          <div className="row mt">
-            <button className="btn" onClick={() => go(3)}>← Back</button>
-            {hasPermission('po.submit')
-              ? <button className="btn accent right" disabled={busy} onClick={() => save(true)}>{busy ? 'Working…' : 'Save & Submit for approval'}</button>
-              : null}
-            <button className="btn primary" style={!hasPermission('po.submit') ? { marginLeft: 'auto' } : {}} disabled={busy} onClick={() => save(false)}>
-              {editId ? 'Save draft changes' : 'Save draft'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {inline && (
-        <Modal title={`Other — create ${inline === 'supplier' ? 'supplier' : inline === 'colour' ? 'colour (flagged custom, RB-016)' : 'product'}`} onClose={() => setInline(null)}>
-          {inline === 'supplier' && (
             <div className="fields-2">
-              <Field label="Code"><input value={inlineForm.code || ''} onChange={(e) => setInlineForm({ ...inlineForm, code: e.target.value })} /></Field>
-              <Field label="Company name"><input value={inlineForm.companyName || ''} onChange={(e) => setInlineForm({ ...inlineForm, companyName: e.target.value })} /></Field>
-              <Field label="Contact person"><input value={inlineForm.contactPerson || ''} onChange={(e) => setInlineForm({ ...inlineForm, contactPerson: e.target.value })} /></Field>
-              <Field label="GSTIN"><input value={inlineForm.gstin || ''} onChange={(e) => setInlineForm({ ...inlineForm, gstin: e.target.value })} /></Field>
-            </div>
-          )}
-          {inline === 'colour' && (
-            <Field label="Colour name" hint="Duplicate names are rejected (§9.2). Entry is flagged custom (RB-016).">
-              <input value={inlineForm.name || ''} onChange={(e) => setInlineForm({ name: e.target.value })} />
-            </Field>
-          )}
-          {inline === 'product' && (
-            <div className="fields-2">
-              <Field label="SKU"><input value={inlineForm.sku || ''} onChange={(e) => setInlineForm({ ...inlineForm, sku: e.target.value })} /></Field>
-              <Field label="Product name"><input value={inlineForm.name || ''} onChange={(e) => setInlineForm({ ...inlineForm, name: e.target.value })} /></Field>
-              <Field label="Brand">
-                <select value={inlineForm.brandId || ''} onChange={(e) => setInlineForm({ ...inlineForm, brandId: e.target.value })}>
-                  <option value="">— select —</option>
-                  {[...new Map(products.map((p) => [p.brand_id, p.brand_name])).entries()].map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-                </select>
+              <Field label="Brand Code (Optional)" hint="e.g. LP">
+                <input
+                  placeholder="e.g. LP"
+                  value={brandForm.brandCode}
+                  onChange={(e) => setBrandForm({ ...brandForm, brandCode: e.target.value })}
+                />
+              </Field>
+              <Field label="Company / Manufacturer">
+                <input
+                  placeholder="e.g. Madura Fashion & Lifestyle"
+                  value={brandForm.manufacturer}
+                  onChange={(e) => setBrandForm({ ...brandForm, manufacturer: e.target.value })}
+                />
               </Field>
             </div>
-          )}
-          <button className="btn primary" disabled={busy} onClick={quickCreate}>Create & select</button>
+            <div className="row mt" style={{ justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn" onClick={() => setInlineModal(null)}>Cancel</button>
+              <button className="btn primary" disabled={busy || !brandForm.brandName.trim()} onClick={handleCreateBrand}>
+                {busy ? 'Saving…' : 'Save Brand'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ---------- Inline Modal: Add Custom Color ---------- */}
+      {inlineModal === 'color' && (
+        <Modal title="+ Add Custom Color" onClose={() => setInlineModal(null)}>
+          <div style={{ padding: '8px 0' }}>
+            <Field label="Color Name" hint="e.g. Sage Green, Coral Pink">
+              <input
+                placeholder="e.g. Mustard Yellow"
+                value={colorForm.name}
+                onChange={(e) => setColorForm({ ...colorForm, name: e.target.value })}
+                autoFocus
+              />
+            </Field>
+            <div className="row mt" style={{ justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn" onClick={() => setInlineModal(null)}>Cancel</button>
+              <button className="btn primary" disabled={busy || !colorForm.name.trim()} onClick={handleCreateColor}>
+                {busy ? 'Adding…' : 'Add Color'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ---------- Inline Modal: Add Custom Product ---------- */}
+      {inlineModal === 'product' && (
+        <Modal title="+ Add New Product" onClose={() => setInlineModal(null)}>
+          <div style={{ padding: '8px 0' }}>
+            <Field label="Product Name" hint="Full descriptive name">
+              <input
+                placeholder="e.g. Premium Cotton Formal Shirt"
+                value={customProductForm.name}
+                onChange={(e) => setCustomProductForm({ ...customProductForm, name: e.target.value })}
+                autoFocus
+              />
+            </Field>
+            <div className="fields-3">
+              <Field label="SKU (Optional)">
+                <input
+                  placeholder="e.g. RAY-SH-09"
+                  value={customProductForm.sku}
+                  onChange={(e) => setCustomProductForm({ ...customProductForm, sku: e.target.value })}
+                />
+              </Field>
+              <Field label="HSN Code">
+                <input
+                  placeholder="6205"
+                  value={customProductForm.hsn}
+                  onChange={(e) => setCustomProductForm({ ...customProductForm, hsn: e.target.value })}
+                />
+              </Field>
+              <Field label="Estimated Cost (₹)">
+                <input
+                  type="number"
+                  min="0"
+                  value={customProductForm.purchasePrice}
+                  onChange={(e) => setCustomProductForm({ ...customProductForm, purchasePrice: e.target.value })}
+                />
+              </Field>
+            </div>
+            <div className="row mt" style={{ justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn" onClick={() => setInlineModal(null)}>Cancel</button>
+              <button className="btn primary" disabled={busy || !customProductForm.name.trim()} onClick={handleCreateCustomProduct}>
+                {busy ? 'Creating…' : 'Create & Select Product'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ---------- Inline Modal: Add Supplier ---------- */}
+      {inlineModal === 'supplier' && (
+        <Modal title="+ Add New Supplier" onClose={() => setInlineModal(null)}>
+          <div style={{ padding: '8px 0' }}>
+            <div className="fields-2">
+              <Field label="Company Name">
+                <input
+                  placeholder="e.g. Arvind Textiles Ltd"
+                  value={supplierForm.companyName}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, companyName: e.target.value })}
+                  autoFocus
+                />
+              </Field>
+              <Field label="Supplier Code">
+                <input
+                  placeholder="e.g. ARV-01"
+                  value={supplierForm.code}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, code: e.target.value })}
+                />
+              </Field>
+            </div>
+            <div className="fields-3">
+              <Field label="Contact Person">
+                <input
+                  placeholder="e.g. Rajesh Kumar"
+                  value={supplierForm.contactPerson}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, contactPerson: e.target.value })}
+                />
+              </Field>
+              <Field label="Phone / Mobile">
+                <input
+                  placeholder="9876543210"
+                  value={supplierForm.mobile}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, mobile: e.target.value })}
+                />
+              </Field>
+              <Field label="GSTIN">
+                <input
+                  placeholder="29AAAAA0000A1Z5"
+                  value={supplierForm.gstin}
+                  onChange={(e) => setSupplierForm({ ...supplierForm, gstin: e.target.value })}
+                />
+              </Field>
+            </div>
+            <div className="row mt" style={{ justifyContent: 'flex-end', gap: 8 }}>
+              <button className="btn" onClick={() => setInlineModal(null)}>Cancel</button>
+              <button className="btn primary" disabled={busy || !supplierForm.companyName.trim()} onClick={handleCreateSupplier}>
+                {busy ? 'Saving…' : 'Save Supplier'}
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>

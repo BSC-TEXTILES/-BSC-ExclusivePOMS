@@ -1,14 +1,16 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api, { API_BASE, errMessage } from '../api.js';
 import StatusChip from '../components/StatusChip.jsx';
 import { Money } from '../components/DataTable.jsx';
 import Icon from '../components/Icon.jsx';
+import Modal from '../components/Modal.jsx';
+import CSVImportModal from '../components/CSVImportModal.jsx';
 import { useAuth } from '../auth.jsx';
 
 export default function POList() {
   const navigate = useNavigate();
-  const { selectedSectionId } = useAuth();
+  const { selectedSectionId, hasPermission } = useAuth();
   const [rows, setRows] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [sections, setSections] = useState([]);
@@ -16,6 +18,8 @@ export default function POList() {
   const [page, setPage] = useState(1);
   const [filters, setFilters] = useState({ status: '', search: '', from: '', to: '', departmentId: '', sectionId: '' });
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [showCsvModal, setShowCsvModal] = useState(false);
   const pageSize = 20;
 
   // Apply section filter from auth context if a section is selected
@@ -30,13 +34,17 @@ export default function POList() {
     api.get('/sections').then((r) => setSections(r.data.data || [])).catch(() => {});
   }, []);
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     const params = { page, pageSize };
     Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v; });
     api.get('/purchase-orders', { params })
       .then((r) => { setRows(r.data.data || []); setTotal(r.data.total || 0); setError(''); })
       .catch((e) => setError(errMessage(e)));
   }, [page, filters]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   async function exportCsv() {
     try {
@@ -65,21 +73,47 @@ export default function POList() {
 
   return (
     <div className="page">
-      <div className="row" style={{ alignItems: 'baseline', marginBottom: 4 }}>
-        <h1 className="page-title" style={{ margin: 0 }}>Purchase Orders</h1>
-        <div className="right">
+      <div className="row" style={{ alignItems: 'center', marginBottom: 4, flexWrap: 'wrap', gap: 10 }}>
+        <div>
+          <h1 className="page-title" style={{ margin: 0 }}>Purchase Orders</h1>
+          <p className="page-sub" style={{ margin: '4px 0 0 0' }}>
+            {total} orders in your authorized scope
+            {selectedSectionId && <span style={{ marginLeft: 8, color: '#6b7280', fontSize: 13 }}> · Filtered by section</span>}
+          </p>
+        </div>
+        <div className="right row" style={{ gap: 8, flexWrap: 'wrap' }}>
           {selectedSectionId && (
             <button className="btn ghost sm" onClick={() => { setFilters({ ...filters, sectionId: '' }); localStorage.removeItem('poms_selected_section'); }} title="Clear section filter">
               <Icon name="x" size={14} /> Clear Section Filter
             </button>
           )}
-          <button className="btn" onClick={exportCsv} title="Export all matching POs to CSV">
+          <button className="btn sm" onClick={exportCsv} title="Export all matching POs to CSV">
             <Icon name="reports" size={14} /> Export to CSV
           </button>
+          {(hasPermission('po.create') || hasPermission('masters.manage')) && (
+            <button className="btn sm" onClick={() => setShowCsvModal(true)} title="Upload product catalogs and inventory from CSV">
+              <Icon name="upload" size={14} /> Upload CSV
+            </button>
+          )}
+          {hasPermission('po.create') && (
+            <button className="btn primary sm" onClick={() => navigate('/purchase-orders/new')} title="Create new Purchase Order with guided wizard">
+              <Icon name="plus" size={14} /> Create Purchase Order
+            </button>
+          )}
         </div>
       </div>
-      <p className="page-sub">{total} orders in your authorized scope{selectedSectionId && <span style={{ marginLeft: 8, color: '#6b7280', fontSize: 13 }}> · Filtered by section</span>}</p>
+
+      {notice && <div className="alert ok">{notice}</div>}
       {error && <div className="alert error">{error}</div>}
+
+      <CSVImportModal
+        isOpen={showCsvModal}
+        onClose={() => setShowCsvModal(false)}
+        onSuccess={(summary) => {
+          setNotice(`CSV Import Completed: ${summary.productsInserted} products added, ${summary.productsUpdated} updated, ${summary.newBrandsCreated} brands created.`);
+          loadData();
+        }}
+      />
 
       <div className="panel">
         <div className="row">

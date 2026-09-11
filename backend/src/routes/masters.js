@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { query, withTransaction, pool } from '../config/db.js';
-import { authenticate, requirePermission } from '../middleware/auth.js';
+import { authenticate, requirePermission, requireAnyPermission } from '../middleware/auth.js';
 import { badRequest, ah } from '../utils/httpError.js';
 import { logAudit } from '../utils/audit.js';
 import { upload, publicUrl, removeStored, uploadsDir } from '../utils/storage.js';
@@ -241,13 +241,21 @@ r.get('/brands', VIEW, ah(async (req, res) => {
   res.json({ data: rows });
 }));
 
-r.post('/brands', MANAGE, ah(async (req, res) => {
-  const { brandNumber, brandSerial, brandName, brandCode, manufacturer } = req.body || {};
-  if (!brandNumber || !brandSerial || !brandName) throw badRequest('brandNumber, brandSerial, brandName are required (RB-005: independently maintained)');
+r.post('/brands', requireAnyPermission(['masters.manage', 'po.create']), ah(async (req, res) => {
+  let { brandNumber, brandSerial, brandName, brandCode, manufacturer } = req.body || {};
+  brandName = (brandName || '').trim();
+  if (!brandName) throw badRequest('Brand name is required');
+
+  const randCode = Date.now().toString(36).slice(-5).toUpperCase();
+  if (!brandNumber) brandNumber = `BN-${randCode}`;
+  if (!brandSerial) brandSerial = `BS-${randCode}`;
+  if (!brandCode) brandCode = brandName.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || 'BRAND';
+
   const dup = await query(
-    `SELECT id, brand_number, brand_name FROM brands WHERE brand_number=$1 OR brand_serial=$2 OR lower(brand_name)=lower($3)`,
-    [brandNumber, brandSerial, brandName]);
-  if (dup.rows[0]) throw badRequest('Duplicate brand detected — existing matches shown (§25)', { matches: dup.rows });
+    `SELECT id, brand_number, brand_name FROM brands WHERE lower(brand_name) = lower($1) OR (brand_number = $2 AND brand_number IS NOT NULL)`,
+    [brandName, brandNumber]);
+  if (dup.rows[0]) throw badRequest(`Brand "${brandName}" already exists.`, { matches: dup.rows });
+
   const { rows } = await query(
     `INSERT INTO brands (brand_number, brand_serial, brand_name, brand_code, manufacturer) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
     [brandNumber, brandSerial, brandName, brandCode || null, manufacturer || null]);
