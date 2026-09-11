@@ -41,6 +41,26 @@ export default function ShareMenu({
   const profit = totalSelling > purchaseVal ? totalSelling - purchaseVal : 0;
   const margin = purchaseVal > 0 && profit > 0 ? ((profit / purchaseVal) * 100).toFixed(1) : null;
 
+  async function downloadFile(kind) {
+    if (!po?.id) return;
+    const endpoint = `/purchase-orders/${po.id}/export/${kind === 'pdf' ? 'pdf' : 'csv'}`;
+    try {
+      const res = await api.get(endpoint, { responseType: 'blob' });
+      const ext = kind === 'pdf' ? 'pdf' : 'csv';
+      const blobUrl = window.URL.createObjectURL(new Blob([res.data]));
+      const a = document.createElement('a');
+      a.href = blobUrl;
+      a.download = `${poNumber}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(blobUrl);
+    } catch (err) {
+      alert(errMessage(err));
+    }
+    setOpen(false);
+  }
+
   async function copyLink() {
     const url = directPdfUrl ? `${baseUrl}${directPdfUrl}` : currentUrl;
     try {
@@ -160,42 +180,46 @@ export default function ShareMenu({
             }}
           >
             {directPdfUrl && (
-              <a
-                href={directPdfUrl}
-                target="_blank"
-                rel="noreferrer"
-                download={`${poNumber}.pdf`}
+              <button
+                type="button"
+                onClick={() => downloadFile('pdf')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
+                  width: '100%',
                   padding: '8px 14px',
                   fontSize: 13,
                   color: '#1c2333',
-                  textDecoration: 'none',
+                  background: 'none',
+                  border: 'none',
+                  textAlign: 'left',
+                  cursor: 'pointer',
                 }}
-                onClick={() => setOpen(false)}
               >
                 <Icon name="download" size={14} /> Download PDF
-              </a>
+              </button>
             )}
             {directCsvUrl && (
-              <a
-                href={directCsvUrl}
-                download={`${poNumber}.csv`}
+              <button
+                type="button"
+                onClick={() => downloadFile('csv')}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: 8,
+                  width: '100%',
                   padding: '8px 14px',
                   fontSize: 13,
                   color: '#1c2333',
-                  textDecoration: 'none',
+                  background: 'none',
+                  border: 'none',
+                  textAlign: 'left',
+                  cursor: 'pointer',
                 }}
-                onClick={() => setOpen(false)}
               >
                 <Icon name="reports" size={14} /> Download CSV
-              </a>
+              </button>
             )}
             <div style={{ height: 1, background: '#f3f4f6', margin: '4px 0' }} />
             <button
