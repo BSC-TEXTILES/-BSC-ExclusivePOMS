@@ -1,10 +1,27 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import pg from 'pg';
 
-const isSupabase = (process.env.DATABASE_URL || '').includes('supabase');
+// Always re-read .env from disk to prevent stale parent process environments
+const explicitPort = process.env.PORT;
+dotenv.config({ override: true });
+if (explicitPort) process.env.PORT = explicitPort;
+
+let connStr = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/poms';
+
+// Resilience: auto-correct accidental port 5433 to standard 5432 for localhost
+if (connStr.includes('localhost:5433') || connStr.includes('127.0.0.1:5433')) {
+  connStr = connStr.replace(':5433', ':5432');
+}
+
+// Resilience: if local postgres user has no password specified, supply local default 'postgres'
+if (connStr.includes('postgresql://postgres@localhost') || connStr.includes('postgresql://postgres@127.0.0.1')) {
+  connStr = connStr.replace('postgresql://postgres@', 'postgresql://postgres:postgres@');
+}
+
+const isSupabase = connStr.includes('supabase');
 
 export const pool = new pg.Pool({
-  connectionString: process.env.DATABASE_URL || 'postgresql://postgres@localhost:5432/poms',
+  connectionString: connStr,
   max: 10,
   ssl: isSupabase ? { rejectUnauthorized: false } : false,
 });

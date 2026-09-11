@@ -139,6 +139,18 @@ export default function Login() {
   return (
     <div className="login-page">
       <div className="login-left">
+        <button
+          type="button"
+          className="login-back-home-btn"
+          onClick={() => navigate('/landing')}
+          title="Back to Home"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          <span>Back to Home</span>
+        </button>
+
         <div className="login-left-content">
           <div className="login-left-brand">
             <div className="login-left-logo">B</div>

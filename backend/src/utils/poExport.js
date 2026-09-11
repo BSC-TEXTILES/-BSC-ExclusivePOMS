@@ -5,6 +5,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildPDF } from './pdfWriter.js';
+import { round2 } from './pricing.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -98,47 +99,70 @@ export function generatePOCsv({ header, items = [], taxes = [], charges = [], co
   lines.push(['PURCHASE ORDER LINE ITEMS', '']);
   lines.push([
     'Line #',
+    'PO Number',
+    'PO Date',
+    'Collection',
+    'Category',
     'Product SKU',
     'Product Name',
     'Brand',
-    'Brand Code',
+    'Supplier',
     'Colour',
-    'Size Breakdown (Size:Qty)',
-    'Ordered Qty (Units)',
-    'Purchase Price (INR)',
+    'Size Breakdown',
+    'Quantity',
+    'Purchase Value (INR)',
     'Margin %',
-    'Net Unit Price (INR)',
-    'Discount Type',
-    'Discount Value',
-    'Final Unit Price (INR)',
-    'Line Total (INR)',
-    'Received Qty (Units)'
+    'Selling Price (INR)',
+    'Profit Per Piece (INR)',
+    'Total Purchase Value (INR)',
+    'Total Selling Value (INR)',
+    'Total Profit (INR)'
   ]);
 
   let totalQty = 0;
+  let totalPurchaseVal = 0;
+  let totalSellingVal = 0;
+  let totalExpectedProfit = 0;
+
   for (const item of items) {
-    totalQty += Number(item.total_quantity) || 0;
+    const qty = Number(item.total_quantity) || 0;
+    totalQty += qty;
+    const purchaseVal = Number(item.purchase_price) || 0;
+    const marginPct = Number(item.margin_percent) || 0;
+    const sellingPrice = Number(item.final_value_per_unit || (purchaseVal * (1 + marginPct / 100))) || 0;
+    const profitPerPiece = round2(sellingPrice - purchaseVal);
+    const linePurchaseVal = round2(purchaseVal * qty);
+    const lineSellingVal = round2(sellingPrice * qty);
+    const lineProfit = round2(profitPerPiece * qty);
+
+    totalPurchaseVal += linePurchaseVal;
+    totalSellingVal += lineSellingVal;
+    totalExpectedProfit += lineProfit;
+
     const sizeDetails = (item.quantities || [])
       .map((q) => `${q.sizeLabel || 'Standard'}:${q.quantity || 0}`)
       .join(' | ');
 
     lines.push([
       item.line_no || '',
+      header.po_number || '',
+      fmtDate(header.po_date),
+      header.department_name || header.division_name || '',
+      header.section_name || '',
       item.sku || '',
       item.product_name || '',
       item.brand_name || '',
-      item.brand_number || '',
+      header.supplier_name || '',
       item.colour_name || 'Standard',
-      sizeDetails || `${item.total_quantity || 0}`,
-      item.total_quantity || 0,
-      Number(item.purchase_price || 0).toFixed(2),
-      `${Number(item.margin_percent || 0).toFixed(1)}%`,
-      Number(item.net_value_per_unit || item.purchase_price || 0).toFixed(2),
-      item.discount_type || 'None',
-      item.discount_value ? Number(item.discount_value).toFixed(2) : '0.00',
-      Number(item.final_value_per_unit || item.purchase_price || 0).toFixed(2),
-      Number(item.line_total || 0).toFixed(2),
-      item.accepted_qty || 0
+      sizeDetails || `${qty}`,
+      qty,
+      purchaseVal.toFixed(2),
+      `${marginPct.toFixed(1)}%`,
+      sellingPrice.toFixed(2),
+      profitPerPiece.toFixed(2),
+      linePurchaseVal.toFixed(2),
+      lineSellingVal.toFixed(2),
+      lineProfit.toFixed(2)
     ]);
   }
 

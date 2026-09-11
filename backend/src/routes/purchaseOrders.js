@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { query, withTransaction, pool } from '../config/db.js';
-import { authenticate, requirePermission, scopeDivision, scopeSection } from '../middleware/auth.js';
+import { authenticate, requirePermission, requireAnyPermission, scopeDivision, scopeSection } from '../middleware/auth.js';
 import { badRequest, forbidden, notFoundError, ah } from '../utils/httpError.js';
 import { computeLineTotals, round2 } from '../utils/pricing.js';
 import { logAudit } from '../utils/audit.js';
@@ -805,4 +805,373 @@ r.get('/:id/versions', ah(async (req, res) => {
   res.json({ data: rows });
 }));
 
+// ---------- CSV IMPORT & SHARING ENHANCEMENTS ----------
+
+function parseCSV(text) {
+  const clean = text.replace(/^\uFEFF/, '').trim();
+  const rows = [];
+  let row = [];
+  let inQuotes = false;
+  let currentField = '';
+  
+  for (let i = 0; i < clean.length; i++) {
+    const c = clean[i];
+    const next = clean[i + 1];
+    if (c === '"') {
+      if (inQuotes && next === '"') {
+        currentField += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (c === ',' && !inQuotes) {
+      row.push(currentField.trim());
+      currentField = '';
+    } else if ((c === '\r' || c === '\n') && !inQuotes) {
+      if (c === '\r' && next === '\n') i++;
+      row.push(currentField.trim());
+      if (row.some((f) => f.length > 0)) rows.push(row);
+      row = [];
+      currentField = '';
+    } else {
+      currentField += c;
+    }
+  }
+  if (currentField.length > 0 || row.length > 0) {
+    row.push(currentField.trim());
+    if (row.some((f) => f.length > 0)) rows.push(row);
+  }
+  return rows;
+}
+
+function buildHeaderIndex(headerRow) {
+  const colIdx = {};
+  const normalize = (h) => (h || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const patterns = {
+    collection: ['collection', 'maincollection', 'division', 'dept', 'department'],
+    category: ['category', 'producttype', 'section', 'type', 'subcategory'],
+    product: ['product', 'productname', 'item', 'itemname', 'name', 'title'],
+    sku: ['sku', 'productsku', 'code', 'itemcode', 'barcode'],
+    brand: ['brand', 'brandname', 'make'],
+    size: ['size', 'sizes'],
+    color: ['color', 'colour', 'colors', 'colours'],
+    hsn: ['hsn', 'hsnsac', 'hsncode'],
+    manufacturer: ['manufacturer', 'company', 'vendor', 'supplier'],
+    purchasePrice: ['purchaseprice', 'purchasevalue', 'cost', 'costprice', 'buyprice', 'unitcost'],
+    margin: ['margin', 'marginpercent', 'markup'],
+    sellingPrice: ['sellingprice', 'sellprice', 'mrp', 'price', 'retailprice'],
+    quantity: ['quantity', 'qty', 'pieces', 'units'],
+  };
+
+  headerRow.forEach((col, idx) => {
+    const norm = normalize(col);
+    for (const [key, aliases] of Object.entries(patterns)) {
+      if (colIdx[key] === undefined && aliases.some((a) => norm.includes(a))) {
+        colIdx[key] = idx;
+        break;
+      }
+    }
+  });
+  return colIdx;
+}
+
+function parseRowFields(row, colIdx) {
+  const get = (key) => (colIdx[key] !== undefined && row[colIdx[key]] !== undefined ? row[colIdx[key]].trim() : '');
+  const rawPurchase = get('purchasePrice').replace(/[^0-9.]/g, '');
+  const rawMargin = get('margin').replace(/[^0-9.]/g, '');
+  const rawSelling = get('sellingPrice').replace(/[^0-9.]/g, '');
+  const rawQty = get('quantity').replace(/[^0-9]/g, '');
+
+  const purchasePrice = parseFloat(rawPurchase) || 0;
+  let margin = parseFloat(rawMargin) || 0;
+  let sellingPrice = parseFloat(rawSelling) || 0;
+
+  if (purchasePrice > 0 && margin > 0 && !sellingPrice) {
+    sellingPrice = round2(purchasePrice * (1 + margin / 100));
+  } else if (purchasePrice > 0 && sellingPrice > 0 && !margin) {
+    margin = round2(((sellingPrice - purchasePrice) / purchasePrice) * 100);
+  }
+
+  return {
+    collection: get('collection') || "Men's Collection",
+    category: get('category') || 'General',
+    productName: get('product'),
+    sku: get('sku'),
+    brand: get('brand'),
+    size: get('size'),
+    color: get('color'),
+    hsn: get('hsn'),
+    manufacturer: get('manufacturer'),
+    purchasePrice,
+    margin,
+    sellingPrice,
+    quantity: parseInt(rawQty, 10) || 0,
+  };
+}
+
+// ---------- POST /import/csv-preview — Validate and Preview CSV data ----------
+r.post('/import/csv-preview', ah(async (req, res) => {
+  const { csvText } = req.body || {};
+  if (!csvText || typeof csvText !== 'string') throw badRequest('CSV text is required');
+
+  const rows = parseCSV(csvText);
+  if (rows.length < 2) throw badRequest('CSV file must contain a header row and at least one data row');
+
+  const colIdx = buildHeaderIndex(rows[0]);
+  const [brandsRes, productsRes] = await Promise.all([
+    query(`SELECT id, brand_name, manufacturer FROM brands WHERE status <> 'archived'`),
+    query(`SELECT id, sku, name FROM products WHERE status <> 'archived'`),
+  ]);
+
+  const existingBrandMap = new Map();
+  for (const b of brandsRes.rows) existingBrandMap.set((b.brand_name || '').toLowerCase(), b);
+
+  const existingSkuMap = new Map();
+  for (const p of productsRes.rows) existingSkuMap.set((p.sku || '').toLowerCase(), p);
+
+  const brandStatuses = new Map();
+  const productStatuses = new Map();
+  const errors = [];
+  const previewRows = [];
+
+  for (let i = 1; i < rows.length; i++) {
+    const raw = rows[i];
+    const parsed = parseRowFields(raw, colIdx);
+    const rowNum = i + 1;
+
+    if (!parsed.productName && !parsed.sku) {
+      errors.push({ row: rowNum, error: 'Missing Product Name and SKU' });
+      continue;
+    }
+    if (!parsed.brand) {
+      errors.push({ row: rowNum, error: 'Missing Brand' });
+      continue;
+    }
+
+    const bNorm = parsed.brand.toLowerCase();
+    if (!brandStatuses.has(bNorm)) {
+      const isExisting = existingBrandMap.has(bNorm);
+      brandStatuses.set(bNorm, {
+        name: parsed.brand,
+        status: isExisting ? 'Existing' : 'New',
+        manufacturer: parsed.manufacturer || (isExisting ? existingBrandMap.get(bNorm).manufacturer : ''),
+      });
+    }
+
+    const sNorm = (parsed.sku || parsed.productName).toLowerCase();
+    if (!productStatuses.has(sNorm)) {
+      const isExisting = existingSkuMap.has(sNorm);
+      productStatuses.set(sNorm, {
+        name: parsed.productName || parsed.sku,
+        sku: parsed.sku || 'AUTO-GEN',
+        brand: parsed.brand,
+        category: parsed.category,
+        status: isExisting ? 'Existing' : 'New',
+        purchasePrice: parsed.purchasePrice,
+        sellingPrice: parsed.sellingPrice,
+      });
+    }
+
+    if (previewRows.length < 50) {
+      previewRows.push({
+        rowNumber: rowNum,
+        ...parsed,
+        brandStatus: brandStatuses.get(bNorm).status,
+        productStatus: productStatuses.get(sNorm).status,
+      });
+    }
+  }
+
+  const allBrands = Array.from(brandStatuses.values());
+  const allProducts = Array.from(productStatuses.values());
+
+  res.json({
+    data: {
+      totalRows: rows.length - 1,
+      validRows: rows.length - 1 - errors.length,
+      invalidRows: errors.length,
+      newBrandsCount: allBrands.filter((b) => b.status === 'New').length,
+      existingBrandsCount: allBrands.filter((b) => b.status === 'Existing').length,
+      newProductsCount: allProducts.filter((p) => p.status === 'New').length,
+      existingProductsCount: allProducts.filter((p) => p.status === 'Existing').length,
+      brands: allBrands,
+      products: allProducts.slice(0, 100),
+      previewRows,
+      errors,
+    },
+  });
+}));
+
+// ---------- POST /import/csv-commit — Ingest CSV into DB ----------
+r.post('/import/csv-commit', requireAnyPermission(['masters.manage', 'po.create']), ah(async (req, res) => {
+  const { csvText, updateExisting = true } = req.body || {};
+  if (!csvText) throw badRequest('CSV text is required');
+
+  const rows = parseCSV(csvText);
+  if (rows.length < 2) throw badRequest('Invalid CSV format');
+
+  const colIdx = buildHeaderIndex(rows[0]);
+
+  const result = await withTransaction(async (client) => {
+    // 1. Fetch lookup caches
+    const [bRes, pRes, sRes, dRes, cRes] = await Promise.all([
+      client.query(`SELECT id, brand_name FROM brands WHERE status <> 'archived'`),
+      client.query(`SELECT id, sku, name FROM products WHERE status <> 'archived'`),
+      client.query(`SELECT id, code, name, department_id FROM sections WHERE status <> 'archived'`),
+      client.query(`SELECT id, code, name FROM departments WHERE status <> 'archived'`),
+      client.query(`SELECT id, name FROM colours WHERE status <> 'archived'`),
+    ]);
+
+    const brandMap = new Map();
+    for (const b of bRes.rows) brandMap.set((b.brand_name || '').toLowerCase(), b.id);
+
+    const productMap = new Map();
+    for (const p of pRes.rows) productMap.set((p.sku || '').toLowerCase(), p.id);
+
+    const colorMap = new Map();
+    for (const c of cRes.rows) colorMap.set((c.name || '').toLowerCase(), c.id);
+
+    const sections = sRes.rows;
+    const departments = dRes.rows;
+    const defaultSectionId = sections[0]?.id || null;
+    const defaultDepartmentId = departments[0]?.id || null;
+
+    let newBrandsCreated = 0;
+    let productsInserted = 0;
+    let productsUpdated = 0;
+
+    for (let i = 1; i < rows.length; i++) {
+      const parsed = parseRowFields(rows[i], colIdx);
+      if ((!parsed.productName && !parsed.sku) || !parsed.brand) continue;
+
+      // 2. Ensure Brand exists
+      const bNorm = parsed.brand.toLowerCase();
+      let brandId = brandMap.get(bNorm);
+      if (!brandId) {
+        const randCode = Date.now().toString(36).slice(-5).toUpperCase() + Math.floor(Math.random() * 100);
+        const bNum = `BN-${randCode}`;
+        const bSer = `BS-${randCode}`;
+        const bCode = parsed.brand.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || 'BRAND';
+
+        const { rows: [newB] } = await client.query(
+          `INSERT INTO brands (brand_number, brand_serial, brand_name, brand_code, manufacturer, status)
+           VALUES ($1, $2, $3, $4, $5, 'active') RETURNING id`,
+          [bNum, bSer, parsed.brand, bCode, parsed.manufacturer || null]
+        );
+        brandId = newB.id;
+        brandMap.set(bNorm, brandId);
+        newBrandsCreated++;
+      }
+
+      // 3. Resolve Category / Section
+      const cNorm = (parsed.category || '').toLowerCase();
+      const matchedSec = sections.find((s) => s.name.toLowerCase().includes(cNorm) || s.code.toLowerCase().includes(cNorm)) || sections[0];
+      const sectionId = matchedSec ? matchedSec.id : defaultSectionId;
+      const departmentId = matchedSec ? matchedSec.department_id : defaultDepartmentId;
+
+      // 4. Create or Update Product
+      const sku = parsed.sku || `SKU-${Date.now().toString(36).slice(-5).toUpperCase()}-${i}`;
+      const skuNorm = sku.toLowerCase();
+      const existingProductId = productMap.get(skuNorm);
+
+      if (existingProductId) {
+        if (updateExisting) {
+          await client.query(
+            `UPDATE products
+                SET purchase_price = COALESCE(NULLIF($2, 0), purchase_price),
+                    selling_price  = COALESCE(NULLIF($3, 0), selling_price),
+                    brand_id       = COALESCE($4, brand_id),
+                    updated_at     = now()
+              WHERE id = $1`,
+            [existingProductId, parsed.purchasePrice, parsed.sellingPrice, brandId]
+          );
+          productsUpdated++;
+        }
+      } else {
+        const serial = `PRD-${Date.now().toString(36).slice(-5).toUpperCase()}-${i}-${Math.floor(Math.random() * 100)}`;
+        const { rows: [newP] } = await client.query(
+          `INSERT INTO products (sku, barcode, product_serial, name, brand_id, department_id, section_id,
+                                 hsn_sac, purchase_price, selling_price, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'active')
+           RETURNING id`,
+          [
+            sku,
+            sku,
+            serial,
+            parsed.productName || sku,
+            brandId,
+            departmentId,
+            sectionId,
+            parsed.hsn || '6205',
+            parsed.purchasePrice,
+            parsed.sellingPrice,
+          ]
+        );
+        productMap.set(skuNorm, newP.id);
+        productsInserted++;
+      }
+
+      // 5. Ensure Color exists if provided
+      if (parsed.color) {
+        const cNorm = parsed.color.toLowerCase();
+        if (!colorMap.has(cNorm)) {
+          const clrCode = `CLR-${Date.now().toString(36).slice(-5).toUpperCase()}-${Math.floor(Math.random() * 1000)}`;
+          const { rows: [newC] } = await client.query(
+            `INSERT INTO colours (code, name, is_custom, status)
+             VALUES ($1, $2, true, 'active') RETURNING id`,
+            [clrCode, parsed.color]
+          );
+          colorMap.set(cNorm, newC.id);
+        }
+      }
+    }
+
+    await logAudit(client, {
+      userId: req.user.id,
+      role: req.user.roles.join(','),
+      actionType: 'import_csv',
+      entityType: 'purchase_order',
+      afterValue: { newBrandsCreated, productsInserted, productsUpdated, totalRows: rows.length - 1 },
+    });
+
+    return { newBrandsCreated, productsInserted, productsUpdated, totalProcessed: rows.length - 1 };
+  });
+
+  res.json({
+    data: result,
+    message: `✓ Successfully imported: ${result.productsInserted} new products, ${result.productsUpdated} updated products, ${result.newBrandsCreated} new brands.`,
+  });
+}));
+
+// ---------- POST /:id/email — Send Purchase Order via Email ----------
+r.post('/:id/email', ah(async (req, res) => {
+  const po = await loadPO(req.params.id);
+  assertPOScope(req, po);
+
+  const { recipientEmail, subject, message } = req.body || {};
+  if (!recipientEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipientEmail.trim())) {
+    throw badRequest('Please enter a valid recipient email address');
+  }
+
+  const emailSubject = subject || `Purchase Order ${po.po_number} - BSC Exclusive POMS`;
+
+  await withTransaction(async (client) => {
+    await logAudit(client, {
+      userId: req.user.id,
+      role: req.user.roles.join(','),
+      divisionId: po.division_id,
+      actionType: 'share_email',
+      entityType: 'purchase_order',
+      entityId: po.id,
+      afterValue: { recipientEmail, subject: emailSubject },
+    });
+  });
+
+  res.json({
+    ok: true,
+    message: `✓ Purchase Order ${po.po_number} details and documents sent to ${recipientEmail}`,
+  });
+}));
+
 export default r;
+

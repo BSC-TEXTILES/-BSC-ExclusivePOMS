@@ -1,9 +1,9 @@
-﻿// DB connectivity diagnostic — run:  node scripts/check-db.mjs
+// DB connectivity diagnostic — run:  node scripts/check-db.mjs
 // Prints a precise reason when PostgreSQL is unreachable so dev never guesses.
 import 'dotenv/config';
 import pg from 'pg';
 
-const url = process.env.DATABASE_URL || 'postgresql://postgres@localhost:5432/poms';
+const url = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/poms';
 // Never print credentials in the error output
 const safeUrl = url.replace(/:\/\/([^:]+):[^@]*@/, '://$1:***@');
 
