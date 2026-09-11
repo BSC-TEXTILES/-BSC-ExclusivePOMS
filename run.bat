@@ -1,35 +1,63 @@
 @echo off
 setlocal enabledelayedexpansion
-title BSC Exclusive POMS - Launch
+title BSC Exclusive POMS - Full Stack Launcher
 
 REM ============================================================
-REM  BSC Exclusive POMS - ONE-CLICK LAUNCHER (v1.0)
-REM  Runs the ENTIRE project: PostgreSQL check + backend + frontend
-REM  Backend:  http://localhost:4040/api/health
-REM  Frontend: http://localhost:5173   (auto-opens in your browser)
-REM  Login:    admin@bsc.local / Admin@123
+REM  BSC Exclusive POMS - ONE-CLICK FULL STACK LAUNCHER
+REM  Runs the ENTIRE project:
+REM    1. Detects and starts PostgreSQL service (auto-detects 14-18)
+REM    2. Installs dependencies if missing
+REM    3. Verifies & initializes database, schema and seed data
+REM    4. Starts backend API (http://localhost:4040)
+REM    5. Starts frontend UI (http://localhost:5173)
+REM    6. Opens the browser automatically
 REM ============================================================
 
 cd /d "%~dp0"
 
 echo ============================================================
-echo   BSC Exclusive POMS - starting the full project...
+echo   BSC Exclusive POMS - Starting Full Stack Application
 echo ============================================================
 echo.
 
-REM ---- 1. Make sure PostgreSQL is running (Windows service) ----
-sc query postgresql-x64-18 >NUL 2>&1
-if %errorlevel%==0 (
-  sc query postgresql-x64-18 | findstr /i "RUNNING" >NUL
+REM ---- 0. Verify Node.js and npm ----
+where node >NUL 2>&1
+if errorlevel 1 (
+  echo [ERROR] Node.js is not found in PATH.
+  echo         Please install Node.js from https://nodejs.org/
+  pause
+  exit /b 1
+)
+
+REM ---- 1. Detect & Ensure PostgreSQL is running ----
+echo [....] Checking PostgreSQL service...
+set PGSERVICE=
+for %%v in (18 17 16 15 14) do (
+  if not defined PGSERVICE (
+    sc query postgresql-x64-%%v >NUL 2>&1
+    if !errorlevel!==0 set PGSERVICE=postgresql-x64-%%v
+  )
+)
+if not defined PGSERVICE (
+  sc query postgresql >NUL 2>&1
+  if !errorlevel!==0 set PGSERVICE=postgresql
+)
+
+if defined PGSERVICE (
+  sc query !PGSERVICE! | findstr /i "RUNNING" >NUL 2>&1
   if not errorlevel 1 (
-    echo [OK]   PostgreSQL is running on port 5432.
+    echo [OK]   PostgreSQL !PGSERVICE! is running.
   ) else (
-    echo [....] Starting PostgreSQL service...
-    net start postgresql-x64-18 >NUL 2>&1
-    if not errorlevel 1 ( echo [OK]   PostgreSQL started. ) else ( echo [WARN] Could not start PostgreSQL service - continuing. )
+    echo [....] Starting PostgreSQL !PGSERVICE!...
+    net start !PGSERVICE! >NUL 2>&1
+    if not errorlevel 1 (
+      echo [OK]   PostgreSQL started successfully.
+    ) else (
+      echo [WARN] Could not auto-start !PGSERVICE! service. Ensure PostgreSQL is running.
+    )
   )
 ) else (
-  echo [WARN] PostgreSQL service not found. If you use a remote/Supabase DB, that is fine.
+  echo [INFO] No standard local PostgreSQL service detected. Assuming external or custom DB.
 )
 echo.
 
@@ -48,97 +76,87 @@ if not exist "%~dp0frontend\node_modules" (
 )
 echo.
 
-REM ---- 3. Verify the database (gives a precise error if it fails) ----
+REM ---- 3. Auto-setup & verify database ----
+echo [....] Verifying database connection, schema, and seed data...
 pushd "%~dp0backend"
-node scripts\check-db.mjs
-set DBOK=%errorlevel%
+node scripts\setup-db.mjs
+set SETUP_STATUS=%errorlevel%
 popd
-if not "%DBOK%"=="0" (
+
+if not "%SETUP_STATUS%"=="0" (
   echo.
-  echo [WARN] The database could not be reached, OR is not set up yet.
-  echo        This is normal on a fresh machine.
-  echo.
-  set /p FIRST="First-time setup: create the database + schema + demo data now? (Y/N) "
-  if /i "!FIRST!"=="Y" (
-    echo.
-    echo [....] Running one-time database setup...
-    set PGBIN=C:\Program Files\PostgreSQL\18\bin
-    set PGOPTS=-h localhost -p 5432 -U postgres
-    if not exist "%PGBIN%\psql.exe" (
-      echo [ERROR] PostgreSQL tools not found at %PGBIN%.
-      echo         Install PostgreSQL 18, or set DATABASE_URL in backend\.env for a remote DB.
-      pause
-      exit /b 1
-    )
-    "%PGBIN%\createdb.exe" %PGOPTS% poms 2>nul
-    "%PGBIN%\psql.exe" %PGOPTS% -d poms -v ON_ERROR_STOP=1 -f "%~dp0database\schema.sql" || goto :setupfail
-    pushd "%~dp0backend"
-    node scripts\run-all-migrations.mjs || (popd & goto :setupfail)
-    call npm run seed || (popd & goto :setupfail)
-    popd
-    echo [OK]   Database created and seeded.
-    echo.
-    echo [....] Starting the project now...
+  echo [ERROR] Database setup or verification failed.
+  echo         Check backend\.env configuration for DATABASE_URL.
+  pause
+  exit /b 1
+)
+echo.
+
+REM ---- 4. Start backend API if not already active ----
+set BACKEND_RUNNING=0
+curl.exe -s -o NUL -f http://127.0.0.1:4040/api/health >NUL 2>&1
+if not errorlevel 1 set BACKEND_RUNNING=1
+
+if "%BACKEND_RUNNING%"=="1" (
+  echo [OK]   Backend is already running on http://localhost:4040
+) else (
+  echo [....] Starting backend on http://localhost:4040 ...
+  start "POMS Backend" /D "%~dp0backend" cmd /k npm run dev
+  set /a b_tries=0
+  :waitbackend
+  ping -n 2 127.0.0.1 >NUL 2>&1
+  curl.exe -s -o NUL -f http://127.0.0.1:4040/api/health >NUL 2>&1
+  if not errorlevel 1 (
+    echo [OK]   Backend is up on http://localhost:4040
   ) else (
-    echo [ERROR] Cannot continue without a database.
-    echo         Run run.bat again and choose Y for first-time setup, OR
-    echo         fix backend\.env (DATABASE_URL) to a working database.
-    echo.
-    pause
-    exit /b 1
+    set /a b_tries+=1
+    if !b_tries! lss 30 goto waitbackend
+    echo [WARN] Backend did not respond within 30s. Check the POMS Backend window.
   )
 )
 echo.
 
-REM ---- 4. Start the backend API (own window) ----
-start "POMS Backend" /D "%~dp0backend" cmd /k npm run dev
-echo [....] Waiting for backend on http://localhost:4040 ...
-set /a tries=0
-:waitbackend
-timeout /t 2 /nobreak >NUL
-curl -s -o NUL http://localhost:4040/api/health
-if not errorlevel 1 goto backendup
-set /a tries+=1
-if !tries! lss 20 goto waitbackend
-echo [ERROR] Backend did not answer within 40s. Check the POMS Backend window.
-pause
-exit /b 1
-:backendup
-echo [OK]   Backend is up on http://localhost:4040
+REM ---- 5. Start frontend UI if not already active ----
+set FRONTEND_RUNNING=0
+curl.exe -s -o NUL http://localhost:5173 >NUL 2>&1
+if not errorlevel 1 set FRONTEND_RUNNING=1
+
+if "%FRONTEND_RUNNING%"=="1" (
+  echo [OK]   Frontend is already running on http://localhost:5173
+) else (
+  echo [....] Starting frontend on http://localhost:5173 ...
+  start "POMS Frontend" /D "%~dp0frontend" cmd /k npm run dev
+  set /a f_tries=0
+  :waitfrontend
+  ping -n 2 127.0.0.1 >NUL 2>&1
+  curl.exe -s -o NUL http://localhost:5173 >NUL 2>&1
+  if not errorlevel 1 (
+    echo [OK]   Frontend is up on http://localhost:5173
+  ) else (
+    set /a f_tries+=1
+    if !f_tries! lss 30 goto waitfrontend
+    echo [WARN] Frontend did not respond within 30s. Check the POMS Frontend window.
+  )
+)
 echo.
 
-REM ---- 5. Start the frontend dev server (own window) ----
-start "POMS Frontend" /D "%~dp0frontend" cmd /k npm run dev
-echo [....] Waiting for frontend on http://localhost:5173 ...
-set /a tries=0
-:waitfrontend
-timeout /t 2 /nobreak >NUL
-curl -s -o NUL http://localhost:5173
-if not errorlevel 1 goto frontendup
-set /a tries+=1
-if !tries! lss 20 goto waitfrontend
-echo [WARN] Frontend did not answer within 40s. Check the POMS Frontend window.
-:frontendup
-echo [OK]   Frontend is up.
-echo.
-
-REM ---- 6. Open the browser ----
+REM ---- 6. Open browser ----
+echo [....] Opening browser...
 start "" http://localhost:5173
 
 echo ============================================================
-echo   POMS is running:
+echo   BSC Exclusive POMS is running!
+echo.
 echo     Frontend : http://localhost:5173
 echo     Backend  : http://localhost:4040
-echo     Login    : admin@bsc.local / Admin@123
-echo   Keep the two POMS windows open. Close them to stop.
-echo ============================================================
-pause
-exit /b 0
-
-:setupfail
 echo.
-echo [ERROR] Database setup failed - see the messages above.
-echo         Common cause: Postgres password. Edit backend\.env and set
-echo         DATABASE_URL=postgresql://postgres:YOURPASSWORD@localhost:5432/poms
+echo     Demo Credentials:
+echo       Admin      : admin@bsc.local / Admin@123
+echo       Buyer      : buyer.dvg@bsc.local / Admin@123
+echo       Approver   : approver.dvg@bsc.local / Admin@123
+echo.
+echo   Keep the POMS Backend and Frontend windows open.
+echo   Close them when you want to stop the application.
+echo ============================================================
+echo.
 pause
-exit /b 1

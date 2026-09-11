@@ -1,0 +1,12 @@
+{
+  "name": "bsc-exclusive-poms",
+  "version": "1.0.0",
+  "description": "BSC Exclusive Purchase Order Management System (POMS)",
+  "private": true,
+  "scripts": {
+    "dev": "run.bat",
+    "start": "run.bat",
+    "backend": "cd backend && npm run dev",
+    "frontend": "cd frontend && npm run dev"
+  }
+}
