@@ -1,4 +1,5 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
+dotenv.config({ override: true });
 import app from './app.js';
 import { pool } from './config/db.js';
 import { attachChatWs } from './ws/chat.js';
