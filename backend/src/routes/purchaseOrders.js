@@ -3,6 +3,8 @@ import { query, withTransaction, pool } from '../config/db.js';
 import { authenticate, requirePermission, requireAnyPermission, scopeDivision, scopeSection } from '../middleware/auth.js';
 import { badRequest, forbidden, notFoundError, ah } from '../utils/httpError.js';
 import { computeLineTotals, round2 } from '../utils/pricing.js';
+import { generateBrandQR } from '../utils/qrCode.js';
+import { fetchBrandImage } from '../utils/brandImage.js';
 import { logAudit } from '../utils/audit.js';
 import { notifyUsers, notifyRole } from '../utils/notify.js';
 import { generatePOCsv, generatePOPdf, generatePOListCsv } from '../utils/poExport.js';
@@ -924,6 +926,15 @@ r.post('/import/csv-preview', ah(async (req, res) => {
     query(`SELECT id, sku, name FROM products WHERE status <> 'archived'`),
   ]);
 
+  // Root-cause detection: if required columns are missing, EVERY row fails — surface the real reason.
+  const missingRequired = [];
+  if (colIdx.brand === undefined) missingRequired.push('Brand');
+  if (colIdx.product === undefined && colIdx.sku === undefined) missingRequired.push('Product Name / SKU');
+  const headerErrors = missingRequired.map((name) => ({
+    column: name,
+    error: `Required column "${name}" was not found in the header. Row-level errors are all caused by this — add a "${name}" column (aliases accepted, e.g. "Brand Name", "Product Name", "SKU").`,
+  }));
+
   const existingBrandMap = new Map();
   for (const b of brandsRes.rows) existingBrandMap.set((b.brand_name || '').toLowerCase(), b);
 
@@ -991,6 +1002,7 @@ r.post('/import/csv-preview', ah(async (req, res) => {
       totalRows: rows.length - 1,
       validRows: rows.length - 1 - errors.length,
       invalidRows: errors.length,
+      headerErrors,
       newBrandsCount: allBrands.filter((b) => b.status === 'New').length,
       existingBrandsCount: allBrands.filter((b) => b.status === 'Existing').length,
       newProductsCount: allProducts.filter((p) => p.status === 'New').length,
@@ -1054,10 +1066,15 @@ r.post('/import/csv-commit', requireAnyPermission(['masters.manage', 'po.create'
         const bSer = `BS-${randCode}`;
         const bCode = parsed.brand.replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase() || 'BRAND';
 
+        const [qrCode, imageUrl] = await Promise.all([
+          generateBrandQR(bNum, parsed.brand),
+          fetchBrandImage(parsed.brand),
+        ]);
+
         const { rows: [newB] } = await client.query(
-          `INSERT INTO brands (brand_number, brand_serial, brand_name, brand_code, manufacturer, status)
-           VALUES ($1, $2, $3, $4, $5, 'active') RETURNING id`,
-          [bNum, bSer, parsed.brand, bCode, parsed.manufacturer || null]
+          `INSERT INTO brands (brand_number, brand_serial, brand_name, brand_code, manufacturer, qr_code, image_url, status)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'active') RETURNING id`,
+          [bNum, bSer, parsed.brand, bCode, parsed.manufacturer || null, qrCode, imageUrl]
         );
         brandId = newB.id;
         brandMap.set(bNorm, brandId);

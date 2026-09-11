@@ -1010,6 +1010,7 @@ html[data-theme='dark'] .qa-tile-icon.slate { background: #1d2942; color: #94a3b
 .brand-card {
   background: #fff; border: 1px solid var(--line); border-radius: 14px;
   overflow: hidden; transition: all .2s; position: relative;
+  display: flex; flex-direction: column;
 }
 .brand-card:hover { border-color: #b98a2f; box-shadow: 0 4px 16px rgba(0,0,0,.06); }
 .brand-card-logo {
@@ -1028,12 +1029,21 @@ html[data-theme='dark'] .qa-tile-icon.slate { background: #1d2942; color: #94a3b
   font-size: 22px; opacity: 0; transition: opacity .15s;
 }
 .brand-card-logo:hover .brand-card-upload-overlay { opacity: 1; }
-.brand-card-info { padding: 16px; }
+.brand-card-info { padding: 16px; flex: 1; }
 .brand-card-name { font-size: 15px; font-weight: 700; color: var(--brand-ink); margin-bottom: 4px; }
 .brand-card-meta { font-size: 12px; color: var(--muted); margin-bottom: 4px; display: flex; gap: 6px; }
 .brand-card-mfr { font-size: 12px; color: #6b7280; margin-bottom: 8px; }
 .brand-card-footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; }
 .brand-card-count { font-size: 11px; color: var(--muted); }
+.brand-card-collections { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 8px; }
+.collection-chip {
+  font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 6px;
+  background: #fef9ee; color: #92640d; border: 1px solid #f3d89e;
+}
+.brand-card-qr {
+  padding: 4px 16px 8px 16px; display: flex; justify-content: center;
+}
+.brand-card-qr svg { width: 56px !important; height: 56px !important; }
 .brand-card-edit {
   position: absolute; top: 10px; right: 10px;
   background: rgba(255,255,255,0.9); border: 1px solid var(--line);
@@ -1848,8 +1858,8 @@ html[data-theme='dark'] .collection-prod-section { background: transparent; }
   background: #fff;
   border: 1.5px solid var(--line);
   border-radius: 8px;
-  padding: 14px;
-  text-align: center;
+  padding: 12px 14px;
+  text-align: left;
   cursor: pointer;
   transition: all .15s;
 }
@@ -1868,6 +1878,7 @@ html[data-theme='dark'] .collection-prod-section { background: transparent; }
   color: #2563eb;
   background: #f8fafc;
   font-weight: 600;
+  text-align: center;
 }
 .po-brand-tile.add-new:hover {
   border-color: #2563eb;

@@ -4,7 +4,7 @@ import { query, withTransaction, pool } from '../config/db.js';
 import { authenticate, requirePermission, scopeDivision } from '../middleware/auth.js';
 import { badRequest, notFoundError, ah } from '../utils/httpError.js';
 import { logAudit } from '../utils/audit.js';
-import { upload, publicUrl, removeStored, uploadsDir } from '../utils/storage.js';
+import { upload, publicUrl, removeStored, uploadsDir, fileStorageKey } from '../utils/storage.js';
 
 // Uploads + attachment drawers — accepts EVERY file type (images, PDF, Excel,
 // Word, video, audio, archives, anything else) up to uploads.policy maxSizeMb.
@@ -12,7 +12,7 @@ const r = Router();
 r.use(authenticate);
 
 function filePayload(file) {
-  const storageKey = path.relative(uploadsDir, file.path);
+  const storageKey = fileStorageKey(file.path);
   return {
     fileName: file.originalname,
     mimeType: file.mimetype || 'application/octet-stream',

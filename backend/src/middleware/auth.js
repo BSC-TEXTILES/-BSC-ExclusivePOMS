@@ -5,6 +5,7 @@ import { ApiError, forbidden } from '../utils/httpError.js';
 const USER_SELECT = `
   SELECT u.id, u.email, u.username, u.full_name, u.status, u.force_password_reset,
          u.profile_photo_url, u.designation, u.profile_updated_at,
+         u.password_changed_at, u.failed_attempts, u.locked_until,
          COALESCE(json_agg(DISTINCT r.code)  FILTER (WHERE r.code  IS NOT NULL), '[]')  AS roles,
          COALESCE(json_agg(DISTINCT ud.division_id::text) FILTER (WHERE ud.division_id IS NOT NULL), '[]') AS division_ids,
          COALESCE(json_agg(DISTINCT us.section_id::text)  FILTER (WHERE us.section_id IS NOT NULL), '[]') AS section_ids,
@@ -20,10 +21,20 @@ const USER_SELECT = `
    GROUP BY u.id`;
 
 export function signAccessToken(user) {
-  return jwt.sign({ sub: user.id, type: 'access' }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '8h' });
+  const payload = { sub: user.id, type: 'access' };
+  // Include password_changed_at to invalidate tokens after password change
+  if (user.profileUpdatedAt) {
+    payload.pwChanged = new Date(user.profileUpdatedAt).getTime();
+  }
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '8h' });
 }
+
 export function signRefreshToken(user) {
-  return jwt.sign({ sub: user.id, type: 'refresh' }, process.env.JWT_SECRET, { expiresIn: process.env.REFRESH_EXPIRES_IN || '7d' });
+  const payload = { sub: user.id, type: 'refresh' };
+  if (user.profileUpdatedAt) {
+    payload.pwChanged = new Date(user.profileUpdatedAt).getTime();
+  }
+  return jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: process.env.REFRESH_EXPIRES_IN || '7d' });
 }
 
 export async function loadUser(userId) {
@@ -45,6 +56,9 @@ export async function loadUser(userId) {
     sectionIds: typeof u.section_ids === 'string' ? JSON.parse(u.section_ids) : u.section_ids,
     permissions: typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions,
     profileUpdatedAt: u.profile_updated_at,
+    passwordChangedAt: u.password_changed_at,
+    failedAttempts: u.failed_attempts,
+    lockedUntil: u.locked_until,
     isSuperAdmin: roles.includes('super_admin'),
   };
 }
@@ -63,6 +77,18 @@ export async function authenticate(req, res, next) {
     if (payload.type !== 'access') throw new ApiError(401, 'Invalid token type');
     const user = await loadUser(payload.sub);
     if (!user || user.status !== 'active') throw new ApiError(401, 'Account inactive or missing');
+
+    // Token invalidation: if the token was issued before the user's last
+    // password change, reject it. This ensures password changes invalidate
+    // all existing sessions.
+    if (payload.pwChanged && user.passwordChangedAt) {
+      const tokenIssuedAt = payload.iat * 1000;
+      const passwordChangedAt = new Date(user.passwordChangedAt).getTime();
+      if (tokenIssuedAt < passwordChangedAt) {
+        throw new ApiError(401, 'Session invalidated — password was changed. Please sign in again');
+      }
+    }
+
     req.user = user;
     req.requestId = req.headers['x-request-id'] || null;
     next();
@@ -71,6 +97,9 @@ export async function authenticate(req, res, next) {
   }
 }
 
+/**
+ * Middleware: require a specific permission (or super_admin).
+ */
 export function requirePermission(code) {
   return (req, res, next) => {
     if (req.user.isSuperAdmin || req.user.permissions.includes(code)) return next();
@@ -78,6 +107,9 @@ export function requirePermission(code) {
   };
 }
 
+/**
+ * Middleware: require ANY of the listed permissions (or super_admin).
+ */
 export function requireAnyPermission(codes) {
   return (req, res, next) => {
     if (req.user.isSuperAdmin) return next();

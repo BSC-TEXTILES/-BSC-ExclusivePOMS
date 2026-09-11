@@ -1,9 +1,36 @@
 node_modules/
 dist/
 .env
+.env.*
+!.env.example
 pgdata/
 *.log
 backend/uploads/
 .claude/
 nul
 backend.log
+frontend.log
+
+# Security: never commit these
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Debug / coverage
+coverage/
+.nyc_output/

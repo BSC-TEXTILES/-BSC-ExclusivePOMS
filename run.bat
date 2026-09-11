@@ -97,21 +97,25 @@ if not errorlevel 1 set BACKEND_RUNNING=1
 
 if "%BACKEND_RUNNING%"=="1" (
   echo [OK]   Backend is already running on http://localhost:4040
-) else (
-  echo [....] Starting backend on http://localhost:4040 ...
-  start "POMS Backend" /D "%~dp0backend" cmd /k npm run dev
-  set /a b_tries=0
-  :waitbackend
-  ping -n 2 127.0.0.1 >NUL 2>&1
-  curl.exe -s -o NUL -f http://127.0.0.1:4040/api/health >NUL 2>&1
-  if not errorlevel 1 (
-    echo [OK]   Backend is up on http://localhost:4040
-  ) else (
-    set /a b_tries+=1
-    if !b_tries! lss 30 goto waitbackend
-    echo [WARN] Backend did not respond within 30s. Check the POMS Backend window.
-  )
+  goto backend_done
 )
+
+echo [....] Starting backend on http://localhost:4040 ...
+start "POMS Backend" /D "%~dp0backend" cmd /k npm run dev
+set /a b_tries=0
+
+:waitbackend
+ping -n 2 127.0.0.1 >NUL 2>&1
+curl.exe -s -o NUL -f http://127.0.0.1:4040/api/health >NUL 2>&1
+if not errorlevel 1 (
+  echo [OK]   Backend is up on http://localhost:4040
+) else (
+  set /a b_tries+=1
+  if !b_tries! lss 30 goto waitbackend
+  echo [WARN] Backend did not respond within 30s. Check the POMS Backend window.
+)
+
+:backend_done
 echo.
 
 REM ---- 5. Start frontend UI if not already active ----
@@ -121,21 +125,25 @@ if not errorlevel 1 set FRONTEND_RUNNING=1
 
 if "%FRONTEND_RUNNING%"=="1" (
   echo [OK]   Frontend is already running on http://localhost:5173
-) else (
-  echo [....] Starting frontend on http://localhost:5173 ...
-  start "POMS Frontend" /D "%~dp0frontend" cmd /k npm run dev
-  set /a f_tries=0
-  :waitfrontend
-  ping -n 2 127.0.0.1 >NUL 2>&1
-  curl.exe -s -o NUL http://localhost:5173 >NUL 2>&1
-  if not errorlevel 1 (
-    echo [OK]   Frontend is up on http://localhost:5173
-  ) else (
-    set /a f_tries+=1
-    if !f_tries! lss 30 goto waitfrontend
-    echo [WARN] Frontend did not respond within 30s. Check the POMS Frontend window.
-  )
+  goto frontend_done
 )
+
+echo [....] Starting frontend on http://localhost:5173 ...
+start "POMS Frontend" /D "%~dp0frontend" cmd /k npm run dev
+set /a f_tries=0
+
+:waitfrontend
+ping -n 2 127.0.0.1 >NUL 2>&1
+curl.exe -s -o NUL http://localhost:5173 >NUL 2>&1
+if not errorlevel 1 (
+  echo [OK]   Frontend is up on http://localhost:5173
+) else (
+  set /a f_tries+=1
+  if !f_tries! lss 30 goto waitfrontend
+  echo [WARN] Frontend did not respond within 30s. Check the POMS Frontend window.
+)
+
+:frontend_done
 echo.
 
 REM ---- 6. Open browser ----

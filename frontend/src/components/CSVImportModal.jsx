@@ -69,6 +69,7 @@ export default function CSVImportModal({ isOpen, onClose, onSuccess }) {
     try {
       const res = await api.post('/purchase-orders/import/csv-preview', { csvText: text });
       setPreviewData(res.data.data);
+      setShowErrors(res.data.data?.invalidRows > 0); // auto-open row issues so the reason is visible
     } catch (e) {
       setError(errMessage(e));
       setPreviewData(null);
@@ -257,6 +258,19 @@ export default function CSVImportModal({ isOpen, onClose, onSuccess }) {
                 </span>
               </div>
             </div>
+
+            {/* Root-cause header errors — shown first so the user sees WHY rows are invalid */}
+            {(previewData.headerErrors || []).length > 0 && (
+              <div style={{
+                background: '#7f1d1d', color: '#fff', border: 'none',
+                borderRadius: 8, padding: '12px 14px', fontSize: 13,
+              }}>
+                <div style={{ fontWeight: 700, marginBottom: 6 }}>⚠️ Header problem — nothing can be imported until this is fixed</div>
+                {previewData.headerErrors.map((he, i) => (
+                  <div key={i} style={{ marginBottom: 6 }}>• {he.error}</div>
+                ))}
+              </div>
+            )}
 
             {/* Config & Toggles */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>

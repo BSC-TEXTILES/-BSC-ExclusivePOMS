@@ -1,16 +1,73 @@
-// Security middleware: hardened response headers + dependency-free sliding
-// window rate limiter. Render/Heroku sit behind a proxy, so the client IP is
-// taken from X-Forwarded-For (first hop), falling back to socket address.
+// Security middleware: hardened response headers, helmet integration, and
+// dependency-free sliding window rate limiter. Render/Heroku sit behind a
+// proxy, so the client IP is taken from X-Forwarded-For (first hop).
+import helmet from 'helmet';
 import { tooManyRequests } from '../utils/httpError.js';
 
-export function securityHeaders(req, res, next) {
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-  res.setHeader('Permissions-Policy', 'geolocation=(self), camera=(), microphone=()');
+/**
+ * Helmet-based security headers. Applies industry-standard protections:
+ * - X-Content-Type-Options: nosniff
+ * - X-Frame-Options: DENY
+ * - Strict-Transport-Security (HSTS)
+ * - Content-Security-Policy
+ * - X-DNS-Prefetch-Control
+ * - X-XSS-Protection (legacy browsers)
+ * - X-Download-Options
+ * - Referrer-Policy
+ * - Permissions-Policy
+ * - Cross-Origin-Opener-Policy
+ */
+export const helmetMiddleware = helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      baseUri: ["'self'"],
+      objectSrc: ["'none'"],
+      frameAncestors: ["'self'"],
+      formAction: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      fontSrc: ["'self'", "data:"],
+      imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
+      mediaSrc: ["'self'", "blob:", "https:", "http:"],
+      connectSrc: ["'self'", "ws:", "wss:", "https:", "http:"],
+    },
+  },
+  hsts: {
+    maxAge: 31536000,
+    includeSubDomains: true,
+    preload: true,
+  },
+  referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
+  crossOriginEmbedderPolicy: false,   // needed for external images
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+  noSniff: true,
+  xssFilter: true,
+  hidePoweredBy: true,
+  frameguard: { action: 'sameorigin' },
+  dnsPrefetchControl: { allow: false },
+  ieNoOpen: true,
+});
+
+/**
+ * Additional security headers beyond what helmet provides.
+ * These supplement helmet for project-specific needs.
+ */
+export function additionalSecurityHeaders(req, res, next) {
+  res.setHeader('Permissions-Policy', 'geolocation=(self), camera=(), microphone=(), payment=(), usb=(), battery=(), midi=(), accelerometer=(), gyroscope=(), magnetometer=(), fullscreen=(self), autoplay=(self)');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+  // Prevent MIME type sniffing beyond what helmet covers
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  next();
+}
+
+/**
+ * HSTS enforcement for HTTPS connections.
+ */
+export function hstsEnforcement(req, res, next) {
   if ((req.headers['x-forwarded-proto'] || '') === 'https' || req.secure) {
-    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains; preload');
   }
   next();
 }
@@ -57,4 +114,11 @@ export function rateLimit(max, windowMs, keyOf) {
     }
     next();
   };
+}
+
+/**
+ * Stricter rate limiter for sensitive operations (password reset, etc.)
+ */
+export function strictRateLimit(max, windowMs) {
+  return rateLimit(max, windowMs);
 }

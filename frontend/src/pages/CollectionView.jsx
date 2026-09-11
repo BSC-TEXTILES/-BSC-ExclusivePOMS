@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, Fragment } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import api, { API_BASE, API_ORIGIN, errMessage, assetUrl } from '../api.js';
 import { useAuth, useCart } from '../auth.jsx';
@@ -22,6 +22,7 @@ export const DEPARTMENT_CONFIG = {
       { code: 'MEN-TSHIRTS', name: "Men's T-Shirts", icon: 'tshirts' },
       { code: 'MEN-ETHNIC', name: "Men's Ethnic Wear (Kurta/Sherwani)", icon: 'ethnic' },
       { code: 'MEN-INNERWEAR', name: "Men's Innerwear", icon: 'innerwear' },
+      { code: 'MEN-FOOTWEAR', name: 'Footwear - Men', icon: 'shoes' },
       { code: 'FOOTWEAR-M', name: "Footwear — Men", icon: 'footwear' },
     ],
   },
@@ -108,8 +109,18 @@ export const MARKET_SIZE_PRESETS = {
   },
 };
 
-const INR = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
+  const INR = (n) => '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const round2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
+
+  // Map section codes to their sizing preset key
+  const SECTION_SIZE_MAP = {
+    'MEN-SHIRTS': 'apparel',
+    'MEN-TSHIRTS': 'apparel',
+    'MEN-INNERWEAR': 'apparel',
+    'MEN-ETHNIC': 'apparel',
+    'MEN-TROUSERS': 'waist',
+    'MEN-FOOTWEAR': 'footwear',
+  };
 
 export default function CollectionView() {
   const { deptKey } = useParams();
@@ -133,7 +144,7 @@ export default function CollectionView() {
   };
   const activeSectionCode = searchParams.get('sectionCode') || '';
 
-  const [activeTab, setActiveTab] = useState('catalogue'); // 'catalogue' | 'po_form'
+  const [activeTab, setActiveTab] = useState('catalogue'); // 'catalogue' | 'po_form' | 'orders'
   const [department, setDepartment] = useState(null);
   const [deptSections, setDeptSections] = useState([]);
   const [brands, setBrands] = useState([]);
@@ -155,13 +166,16 @@ export default function CollectionView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedBrand, setSelectedBrand] = useState('');
   const [page, setPage] = useState(1);
-  const pageSize = 16;
+  const pageSize = 500;
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
   // Purchase Orders placed from this collection — list shown in the PO Studio
   const [recentPOs, setRecentPOs] = useState([]);
+  const [pendingPOs, setPendingPOs] = useState([]);
   const [recentPOsTotal, setRecentPOsTotal] = useState(0);
+  const [pendingPOsTotal, setPendingPOsTotal] = useState(0);
+  const [orderTab, setOrderTab] = useState('all'); // 'all' | 'pending'
   const [posLoading, setPosLoading] = useState(false);
 
   // Product image gallery (upload / set primary / delete) — masters.manage only
@@ -170,24 +184,37 @@ export default function CollectionView() {
 
   // PO Studio State
   const [poSectionId, setPoSectionId] = useState('');
-  const [poSupplierId, setPoSupplierId] = useState('');
-  const [poDivisionId, setPoDivisionId] = useState('');
-  const [poWarehouse, setPoWarehouse] = useState('WH-DVG-01');
-  const [poDeliveryDate, setPoDeliveryDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 14);
-    return d.toISOString().slice(0, 10);
+  const [poRemarks, setPoRemarks] = useState(() => localStorage.getItem(`pom-po-remarks-${deptKey}`) || '');
+  const [poLines, setPoLines] = useState(() => {
+    try { return JSON.parse(localStorage.getItem(`pom-po-lines-${deptKey}`)) || []; } catch { return []; }
   });
-  const [poRemarks, setPoRemarks] = useState('');
-  const [poLines, setPoLines] = useState([]);
+  const [poSupplierId, setPoSupplierId] = useState(() => localStorage.getItem(`pom-po-supplier-${deptKey}`) || '');
+  const [poDivisionId, setPoDivisionId] = useState(() => localStorage.getItem(`pom-po-division-${deptKey}`) || '');
+  const [poWarehouse, setPoWarehouse] = useState(() => localStorage.getItem(`pom-po-warehouse-${deptKey}`) || 'WH-BGV-01');
+  const [poDeliveryDate, setPoDeliveryDate] = useState(() => localStorage.getItem(`pom-po-delivery-${deptKey}`) || (() => { const d = new Date(); d.setDate(d.getDate() + 14); return d.toISOString().slice(0, 10); })());
   // Per-card quick quantity — the units prefilled per size when adding to PO
   const [cardQty, setCardQty] = useState({});
   const [poSubmitting, setPoSubmitting] = useState(false);
   const [createdPO, setCreatedPO] = useState(null);
 
+  // Persist PO form data to localStorage on change
+  useEffect(() => { localStorage.setItem(`pom-po-lines-${deptKey}`, JSON.stringify(poLines)); }, [poLines, deptKey]);
+  useEffect(() => { localStorage.setItem(`pom-po-remarks-${deptKey}`, poRemarks); }, [poRemarks, deptKey]);
+  useEffect(() => { localStorage.setItem(`pom-po-supplier-${deptKey}`, poSupplierId); }, [poSupplierId, deptKey]);
+  useEffect(() => { localStorage.setItem(`pom-po-division-${deptKey}`, poDivisionId); }, [poDivisionId, deptKey]);
+  useEffect(() => { localStorage.setItem(`pom-po-warehouse-${deptKey}`, poWarehouse); }, [poWarehouse, deptKey]);
+  useEffect(() => { localStorage.setItem(`pom-po-delivery-${deptKey}`, poDeliveryDate); }, [poDeliveryDate, deptKey]);
+
   // Add Product Modal State
   const [showAddProduct, setShowAddProduct] = useState(false);
   const [categories, setCategories] = useState([]);
+
+  // Inline creation modals
+  const [inlineModal, setInlineModal] = useState(null); // 'brand' | 'product'
+  const [inlineBrand, setInlineBrand] = useState({ name: '', code: '' });
+  const [inlineProduct, setInlineProduct] = useState({ name: '', sku: '', purchasePrice: '', sellingPrice: '' });
+  const [inlineLoading, setInlineLoading] = useState(false);
+
   const [newProd, setNewProd] = useState({
     name: '',
     sku: '',
@@ -197,7 +224,7 @@ export default function CollectionView() {
     hsnSac: '620520',
     taxCategory: 'GST_12',
     purchasePrice: '',
-    mrp: '',
+    sellingPrice: '',
     description: '',
   });
 
@@ -256,19 +283,17 @@ export default function CollectionView() {
     if (!poSectionId) return;
     const sec = deptSections.find((s) => s.id === poSectionId);
     const secCode = (sec?.code || '').toUpperCase();
+    const matchedKey = SECTION_SIZE_MAP[secCode];
 
-    if (secCode.includes('FOOTWEAR') || secCode.includes('SHOE')) {
-      setActiveSizes(MARKET_SIZE_PRESETS.footwear.sizes);
-      setActivePresetKey('footwear');
-    } else if (secCode.includes('TROUSER') || secCode.includes('JEANS')) {
-      setActiveSizes(MARKET_SIZE_PRESETS.waist.sizes);
-      setActivePresetKey('waist');
-    } else if (secCode.startsWith('KIDS') || secCode.includes('INFANT')) {
-      setActiveSizes(MARKET_SIZE_PRESETS.kids.sizes);
-      setActivePresetKey('kids');
+    if (matchedKey) {
+      setActiveSizes(MARKET_SIZE_PRESETS[matchedKey].sizes);
+      setActivePresetKey(matchedKey);
     } else if (secCode.includes('SAREE') || secCode.includes('HOME') || secCode.includes('FURN') || secCode.includes('BLOUSE')) {
       setActiveSizes(MARKET_SIZE_PRESETS.free_sets.sizes);
       setActivePresetKey('free_sets');
+    } else if (secCode.startsWith('KIDS') || secCode.includes('INFANT')) {
+      setActiveSizes(MARKET_SIZE_PRESETS.kids.sizes);
+      setActivePresetKey('kids');
     } else {
       setActiveSizes(MARKET_SIZE_PRESETS.apparel.sizes);
       setActivePresetKey('apparel');
@@ -315,14 +340,22 @@ export default function CollectionView() {
   const loadRecentPOs = useCallback(() => {
     if (!department?.id) return;
     setPosLoading(true);
-    const params = { departmentId: department.id, pageSize: 50, page: 1 };
-    if (activeSection) params.sectionId = activeSection.id;
-    api.get('/purchase-orders', { params })
-      .then((r) => {
-        setRecentPOs(r.data.data || []);
-        setRecentPOsTotal(r.data.total ?? (r.data.data || []).length);
-      })
-      .catch(() => { /* the PO list is a convenience panel — catalogue stays usable */ })
+    const baseParams = { departmentId: department.id, pageSize: 50, page: 1 };
+    const params = activeSection ? { ...baseParams, sectionId: activeSection.id } : baseParams;
+    Promise.all([
+      api.get('/purchase-orders', { params }),
+      api.get('/purchase-orders', { params: { ...params, status: 'draft' } }),
+      api.get('/purchase-orders', { params: { ...params, status: 'submitted' } }),
+      api.get('/purchase-orders', { params: { ...params, status: 'partially_received' } }),
+    ]).then(([allRes, draftRes, submittedRes, partialRes]) => {
+      setRecentPOs(allRes.data.data || []);
+      setRecentPOsTotal(allRes.data.total ?? (allRes.data.data || []).length);
+      const pending = [...(draftRes.data.data || []), ...(submittedRes.data.data || []), ...(partialRes.data.data || [])];
+      const seen = new Set();
+      const uniquePending = pending.filter((po) => { if (seen.has(po.id)) return false; seen.add(po.id); return true; });
+      setPendingPOs(uniquePending);
+      setPendingPOsTotal(uniquePending.length);
+    }).catch(() => {})
       .finally(() => setPosLoading(false));
   }, [department, activeSection]);
 
@@ -356,6 +389,8 @@ export default function CollectionView() {
       initialQty[sz] = Math.max(1, Number(qtyPerSize) || 10);
     });
 
+    const defaultPP = Number(prod.purchase_price) > 0 ? Number(prod.purchase_price) : 450;
+
     setPoLines((prev) => [
       ...prev,
       {
@@ -365,23 +400,26 @@ export default function CollectionView() {
         brandId: prod.brand_id || '',
         brand: prod.brand_name || '',
         sectionName: prod.section_name || '',
-        colourId: colours[0]?.id || '',
-        purchasePrice: Number(prod.purchase_price) > 0 ? Number(prod.purchase_price) : 450,
-        marginPercent: 30,
-        discountType: 'percent',
-        discountValue: 0,
-        quantities: initialQty,
+        colourVariants: colours[0] ? [{
+          colourId: colours[0].id,
+          purchasePrice: defaultPP,
+          marginPercent: 30,
+          quantities: { ...initialQty },
+        }] : [],
       },
     ]);
   }
 
   // Quick fill all active lines
   function fillAllLines(qty) {
-    setPoLines((prev) => prev.map((l) => {
-      const q = {};
-      activeSizes.forEach((sz) => { q[sz] = qty; });
-      return { ...l, quantities: q };
-    }));
+    setPoLines((prev) => prev.map((l) => ({
+      ...l,
+      colourVariants: (l.colourVariants || []).map((cv) => {
+        const q = {};
+        activeSizes.forEach((sz) => { q[sz] = qty; });
+        return { ...cv, quantities: q };
+      }),
+    })));
   }
 
   // Add custom size
@@ -415,17 +453,15 @@ export default function CollectionView() {
     let subtotal = 0;
 
     poLines.forEach((line) => {
-      const units = Object.values(line.quantities || {}).reduce((sum, q) => sum + (Number(q) || 0), 0);
-      const pp = Number(line.purchasePrice) || 0;
-      const margin = Number(line.marginPercent) || 0;
-      const net = round2(pp * (1 + margin / 100));
-      const dv = Number(line.discountValue) || 0;
-      const disc = line.discountType === 'flat' ? dv : round2(net * dv / 100);
-      const finalPrice = Math.max(0, net - disc);
-      const lineTotal = round2(finalPrice * units);
-
-      grandUnits += units;
-      subtotal += lineTotal;
+      (line.colourVariants || []).forEach((cv) => {
+        const units = Object.values(cv.quantities || {}).reduce((sum, q) => sum + (Number(q) || 0), 0);
+        const pp = Number(cv.purchasePrice) || 0;
+        const margin = Number(cv.marginPercent) || 0;
+        const net = round2(pp * (1 + margin / 100));
+        const lineTotal = round2(net * units);
+        grandUnits += units;
+        subtotal += lineTotal;
+      });
     });
 
     const gstAmount = round2(subtotal * 0.18);
@@ -457,15 +493,13 @@ export default function CollectionView() {
         taxScheme: 'GST_INTRA',
         expectedDeliveryDate: poDeliveryDate,
         remarks: `${config.title} Procurement — ${poRemarks}`.trim(),
-        lines: poLines.map((l) => ({
+        lines: poLines.flatMap((l) => (l.colourVariants || []).map((cv) => ({
           productId: l.productId,
-          colourId: l.colourId || colours[0]?.id,
-          purchasePrice: Number(l.purchasePrice) || 300,
-          marginPercent: Number(l.marginPercent) || 0,
-          discountType: l.discountType || 'percent',
-          discountValue: Number(l.discountValue) || 0,
-          quantities: Object.entries(l.quantities || {}).map(([sizeLabel, quantity]) => ({ sizeLabel, quantity: Number(quantity) || 0 })).filter((q) => q.quantity > 0),
-        })),
+          colourId: cv.colourId || colours[0]?.id || null,
+          purchasePrice: Number(cv.purchasePrice) || 300,
+          marginPercent: Number(cv.marginPercent) || 0,
+          quantities: Object.entries(cv.quantities || {}).map(([sizeLabel, quantity]) => ({ sizeLabel, quantity: Number(quantity) || 0 })).filter((q) => q.quantity > 0),
+        }))),
         orderDiscount: { type: 'percent', value: 0, reason: '' },
         charges: [],
       };
@@ -482,12 +516,68 @@ export default function CollectionView() {
       setCreatedPO(created);
       addToCart(created); // show in the top-nav cart for crosscheck & checkout
       setPoLines([]);
+      // Clear persisted PO form data
+      localStorage.removeItem(`pom-po-lines-${deptKey}`);
+      localStorage.removeItem(`pom-po-remarks-${deptKey}`);
+      localStorage.removeItem(`pom-po-supplier-${deptKey}`);
+      localStorage.removeItem(`pom-po-division-${deptKey}`);
+      localStorage.removeItem(`pom-po-warehouse-${deptKey}`);
+      localStorage.removeItem(`pom-po-delivery-${deptKey}`);
       setSuccessMsg(`Purchase Order ${created?.po_number || ''} created successfully!`);
       loadRecentPOs(); // refresh the collection's PO list with the new order
     } catch (e) {
       setError(errMessage(e));
     } finally {
       setPoSubmitting(false);
+    }
+  }
+
+  // Inline create brand from PO Studio
+  async function handleInlineBrand(e) {
+    e.preventDefault();
+    if (!inlineBrand.name.trim()) return;
+    setInlineLoading(true);
+    try {
+      const res = await api.post('/brands', {
+        brandName: inlineBrand.name.trim(),
+        brandCode: inlineBrand.code.trim().toUpperCase() || inlineBrand.name.trim().replace(/\s+/g, '').slice(0, 6).toUpperCase(),
+        collectionIds: [],
+      });
+      const newBrand = res.data.data;
+      setBrands((prev) => [newBrand, ...prev]);
+      setInlineBrand({ name: '', code: '' });
+      setInlineModal(null);
+      setSuccessMsg(`Brand "${newBrand.brand_name}" created! Add it to a collection from Brands page.`);
+    } catch (err) {
+      setError(errMessage(err));
+    } finally {
+      setInlineLoading(false);
+    }
+  }
+
+  // Inline create product from PO Studio
+  async function handleInlineProduct(e) {
+    e.preventDefault();
+    if (!inlineProduct.name.trim() || !inlineProduct.sku.trim()) return;
+    setInlineLoading(true);
+    try {
+      const res = await api.post('/products', {
+        sku: inlineProduct.sku.trim().toUpperCase(),
+        name: inlineProduct.name.trim(),
+        sectionId: poSectionId || deptSections[0]?.id,
+        brandId: brands[0]?.id,
+        hsnSac: '620520',
+        purchasePrice: inlineProduct.purchasePrice ? Number(inlineProduct.purchasePrice) : undefined,
+        sellingPrice: inlineProduct.sellingPrice ? Number(inlineProduct.sellingPrice) : undefined,
+      });
+      setInlineProduct({ name: '', sku: '', purchasePrice: '', sellingPrice: '' });
+      setInlineModal(null);
+      setSuccessMsg(`Product "${res.data.data.name}" created! Browse catalogue to add to PO.`);
+      loadProducts();
+    } catch (err) {
+      setError(errMessage(err));
+    } finally {
+      setInlineLoading(false);
     }
   }
 
@@ -508,6 +598,8 @@ export default function CollectionView() {
         hsnSac: newProd.hsnSac || '620520',
         taxCategory: newProd.taxCategory || 'GST_12',
         description: newProd.description,
+        purchasePrice: newProd.purchasePrice ? Number(newProd.purchasePrice) : undefined,
+        sellingPrice: newProd.sellingPrice ? Number(newProd.sellingPrice) : undefined,
       });
 
       setShowAddProduct(false);
@@ -522,7 +614,7 @@ export default function CollectionView() {
         hsnSac: '620520',
         taxCategory: 'GST_12',
         purchasePrice: '',
-        mrp: '',
+        sellingPrice: '',
         description: '',
       });
     } catch (err) {
@@ -566,6 +658,16 @@ export default function CollectionView() {
             <Icon name="po" size={16} />
             {activeTab === 'po_form' ? 'Back to Catalogue' : `Create ${config.title} PO`}
           </button>
+
+          <button
+            type="button"
+            className={`btn ${activeTab === 'orders' ? 'primary' : 'secondary'}`}
+            onClick={() => setActiveTab(activeTab === 'orders' ? 'catalogue' : 'orders')}
+            style={activeTab === 'orders' ? { background: config.themeColor, borderColor: config.themeColor, color: '#fff' } : {}}
+          >
+            <Icon name="po" size={16} />
+            {activeTab === 'orders' ? 'Back to Catalogue' : 'Order List'}
+          </button>
         </div>
       </div>
 
@@ -573,34 +675,46 @@ export default function CollectionView() {
       {successMsg && <div className="alert success">{successMsg}</div>}
 
       {/* Sub-Section Filter Bar */}
-      <div className="collection-section-bar">
+      <div className="collection-section-bar" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
         <span className="collection-filter-label">Filter Section:</span>
-        <div className="collection-pills-wrap">
-          <button
-            type="button"
-            className={`collection-pill ${!activeSectionCode ? 'active' : ''}`}
-            onClick={() => handleSectionFilter('')}
-          >
-            <span className="collection-pill-icon"><CollectionIcon name={config.icon} size={13} /></span>
-            <span>All Sections ({totalProducts})</span>
-          </button>
+        <select
+          value={activeSectionCode}
+          onChange={(e) => handleSectionFilter(e.target.value)}
+          style={{ padding: '6px 10px', fontSize: 13, borderRadius: 6, border: '1px solid #d1d5db', minWidth: 200 }}
+        >
+          <option value="">All Sections ({totalProducts})</option>
           {deptSections.map((sec) => {
-            const isSelected = activeSectionCode === sec.code;
-            const secCfg = config.sections.find((s) => s.code === sec.code);
+            const count = products.filter((p) => p.section_code === sec.code || p.section_id === sec.id).length;
             return (
-              <button
-                key={sec.id}
-                type="button"
-                className={`collection-pill ${isSelected ? 'active' : ''}`}
-                style={isSelected ? { background: config.themeColor, borderColor: config.themeColor, color: '#fff' } : {}}
-                onClick={() => handleSectionFilter(sec.code)}
-              >
-                <span className="collection-pill-icon"><CollectionIcon name={secCfg?.icon || config.icon} size={13} /></span>
-                <span>{sec.name}</span>
-              </button>
+              <option key={sec.id} value={sec.code}>{sec.name} ({count})</option>
             );
           })}
-        </div>
+        </select>
+
+        {/* Quick pill buttons for user's assigned sections */}
+        {deptSections.length > 1 && (
+          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+            {deptSections.map((sec) => {
+              const isSelected = activeSectionCode === sec.code;
+              const secCfg = config.sections.find((s) => s.code === sec.code);
+              return (
+                <button
+                  key={sec.id}
+                  type="button"
+                  className={`collection-pill ${isSelected ? 'active' : ''}`}
+                  style={isSelected
+                    ? { background: config.themeColor, borderColor: config.themeColor, color: '#fff', fontSize: 11, padding: '3px 8px' }
+                    : { fontSize: 11, padding: '3px 8px' }
+                  }
+                  onClick={() => handleSectionFilter(sec.code)}
+                >
+                  <span className="collection-pill-icon"><CollectionIcon name={secCfg?.icon || config.icon} size={11} /></span>
+                  <span>{sec.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Tab 1: Catalogue & Products View */}
@@ -662,20 +776,24 @@ export default function CollectionView() {
                 const brandInitials = (p.brand_name || 'BSC')
                   .split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
                 const hue = [...(p.brand_name || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
-                // Real product photo (uploaded by the administrator) — no random images
+                // Real product photo (uploaded by the administrator) — no random images.
+                // Fall back to the brand logo, then to initials, so connected imagery is always visible.
                 const photoKey = p.primary_image_key
                   ? String(p.primary_image_key).split(/[\\/]/).join('/')
                   : '';
+                const cardBrand = brands.find((x) => x.id === p.brand_id);
+                const brandLogo = cardBrand?.logo_url || cardBrand?.image_url || '';
+                const cardMedia = photoKey || brandLogo;
                 return (
                   <div key={p.id} className={`collection-prod-card ${inPO ? 'in-po' : ''}`}>
                     <div
-                      className={`collection-prod-photo ${photoKey ? 'has-photo' : ''}`}
+                      className={`collection-prod-photo ${cardMedia ? 'has-photo' : ''}`}
                       onClick={() => canManageMaster && setGalleryProduct({ id: p.id, product_id: p.product_serial, name: p.name })}
                       title={canManageMaster ? (photoKey ? 'View / manage photos' : 'Upload product photos') : p.name}
                       style={canManageMaster ? { cursor: 'pointer' } : undefined}
                     >
-                      {photoKey ? (
-                        <img src={assetUrl(`/uploads/${photoKey}`)} alt={p.name} loading="lazy" />
+                      {cardMedia ? (
+                        <img src={cardMedia === photoKey ? assetUrl(`/uploads/${photoKey}`) : assetUrl(brandLogo)} alt={p.name} loading="lazy" />
                       ) : (
                         <span
                           className="collection-prod-photo-fallback"
@@ -805,36 +923,14 @@ export default function CollectionView() {
             </label>
           </div>
 
-          {/* Brand List — every brand available for ordering in this collection */}
-          <div className="collection-brand-bar">
-            <span className="collection-preset-label">Brands ({brands.length}):</span>
-            <div className="collection-brand-chips">
-              {brands.map((b) => {
-                const bName = b.brand_name || 'BSC';
-                const bInit = bName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
-                const bHue = [...bName].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
-                const bLogo = b.logo_url || b.image_url || '';
-                return (
-                  <button
-                    key={b.id}
-                    type="button"
-                    className={`collection-brand-chip ${selectedBrand === b.id ? 'active' : ''}`}
-                    onClick={() => { setSelectedBrand(b.id); setPage(1); setActiveTab('catalogue'); }}
-                    title={`Show ${bName} products in the catalogue`}
-                  >
-                    <span
-                      className="brand-chip-logo"
-                      style={bLogo ? undefined : { background: `hsl(${bHue} 45% 92%)`, color: `hsl(${bHue} 55% 32%)` }}
-                    >
-                      {bLogo ? <img src={assetUrl(bLogo)} alt={bName} /> : bInit}
-                    </span>
-                    <span className="brand-chip-name">{bName}</span>
-                    <em>{b.product_count ?? 0}</em>
-                  </button>
-                );
-              })}
-              {!brands.length && <span className="muted" style={{ fontSize: 12 }}>No brands configured yet.</span>}
-            </div>
+          {/* Quick Action Buttons */}
+          <div style={{ display: 'flex', gap: 8, margin: '12px 0', flexWrap: 'wrap' }}>
+            <button type="button" className="btn sm" onClick={() => setInlineModal('brand')} style={{ border: '1px dashed #9ca3af' }}>
+              + Add New Brand
+            </button>
+            <button type="button" className="btn sm" onClick={() => setInlineModal('product')} style={{ border: '1px dashed #9ca3af' }}>
+              + Add New Product
+            </button>
           </div>
 
           {/* Lines Table */}
@@ -853,20 +949,16 @@ export default function CollectionView() {
             {/* Market Sizes Preset Switcher & Quick Fill Tools */}
             <div className="collection-size-preset-bar">
               <span className="collection-preset-label">Market Sizes:</span>
-              {Object.entries(MARKET_SIZE_PRESETS).map(([k, preset]) => (
-                <button
-                  key={k}
-                  type="button"
-                  className={`btn sm ghost collection-preset-btn ${activePresetKey === k ? 'active' : ''}`}
-                  onClick={() => {
-                    setActivePresetKey(k);
-                    setActiveSizes(preset.sizes);
-                  }}
-                  title={`Switch matrix to ${preset.name}`}
-                >
-                  <span><CollectionIcon name={preset.icon} size={13} /></span> {preset.name}
-                </button>
-              ))}
+              {(() => {
+                const sectionCode = (activeSection?.code || '').toUpperCase();
+                const matchedKey = SECTION_SIZE_MAP[sectionCode] || activePresetKey;
+                const preset = MARKET_SIZE_PRESETS[matchedKey] || MARKET_SIZE_PRESETS.apparel;
+                return (
+                  <span className="btn sm ghost collection-preset-btn active" style={{ cursor: 'default' }}>
+                    <span><CollectionIcon name={preset.icon} size={13} /></span> {preset.name}
+                  </span>
+                );
+              })()}
 
               <div className="collection-quick-fill-group">
                 <button
@@ -919,127 +1011,180 @@ export default function CollectionView() {
                       <th style={{ width: 40 }}>#</th>
                       <th>Product & SKU</th>
                       <th>Color / Shade</th>
-                      <th style={{ width: 110 }}>Purchase Price</th>
-                      <th style={{ width: 90 }}>Margin %</th>
-                      <th style={{ minWidth: 260 }}>
-                        Size Quantities Matrix ({activeSizes.slice(0, 5).join(' · ')}{activeSizes.length > 5 ? ` +${activeSizes.length - 5}` : ''})
-                      </th>
-                      <th style={{ width: 80 }}>Units</th>
-                      <th style={{ width: 110, textAlign: 'right' }}>Total</th>
+                      <th style={{ width: 100 }}>Purchase Price</th>
+                      <th style={{ width: 80 }}>Margin %</th>
+                      <th style={{ minWidth: 280 }}>Size Quantities</th>
+                      <th style={{ width: 70 }}>Units</th>
+                      <th style={{ width: 100, textAlign: 'right' }}>Total</th>
                       <th style={{ width: 40 }}></th>
                     </tr>
                   </thead>
                   <tbody>
                     {poLines.map((line, idx) => {
-                      const totalUnits = Object.values(line.quantities || {}).reduce((sum, q) => sum + (Number(q) || 0), 0);
-                      const pp = Number(line.purchasePrice) || 0;
-                      const margin = Number(line.marginPercent) || 0;
-                      const net = round2(pp * (1 + margin / 100));
-                      const lineTotal = round2(net * totalUnits);
+                      const lineUnits = (line.colourVariants || []).reduce((sum, cv) => sum + Object.values(cv.quantities || {}).reduce((s, q) => s + (Number(q) || 0), 0), 0);
+                      const lineTotal = (line.colourVariants || []).reduce((sum, cv) => {
+                        const u = Object.values(cv.quantities || {}).reduce((s, q) => s + (Number(q) || 0), 0);
+                        const pp = Number(cv.purchasePrice) || 0;
+                        const m = Number(cv.marginPercent) || 0;
+                        return sum + round2(pp * (1 + m / 100)) * u;
+                      }, 0);
 
                       return (
-                        <tr key={line.productId}>
-                          <td>{idx + 1}</td>
-                          <td>
-                            <div className="collection-line-prod">
-                              {(() => {
-                                const b = brands.find((x) => x.id === line.brandId);
-                                const bLogo = b?.logo_url || b?.image_url || '';
-                                const bName = line.brand || b?.brand_name || 'BSC';
-                                const bInitials = bName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || 'BSC';
-                                const bHue = [...bName].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
-                                return bLogo ? (
-                                  <img className="collection-line-brand" src={assetUrl(bLogo)} alt={bName} title={bName} />
-                                ) : (
-                                  <span
-                                    className="collection-line-brand"
-                                    style={{ background: `hsl(${bHue} 45% 92%)`, color: `hsl(${bHue} 55% 32%)` }}
-                                    title={bName}
-                                  >
-                                    {bInitials}
-                                  </span>
-                                );
-                              })()}
-                              <div className="collection-line-prod-text">
-                                <strong>{line.name}</strong>
-                                <div className="muted" style={{ fontSize: 11 }}>{line.sku} · {line.brand}</div>
-                              </div>
-                            </div>
-                          </td>
-                          <td>
-                            <div className="collection-line-colour">
-                              {(() => {
-                                const c = colours.find((x) => x.id === line.colourId);
-                                const hex = c?.swatch_hex || '#e2e8f0';
-                                return (
-                                  <span
-                                    className="colour-swatch-dot"
-                                    style={{ background: hex }}
-                                    title={`${c?.name || ''}${c?.code ? ' (' + c.code + ')' : ''}`}
+                        <Fragment key={line.productId}>
+                          {(line.colourVariants || []).map((cv, cvIdx) => {
+                            const c = colours.find((x) => x.id === cv.colourId);
+                            const hex = c?.swatch_hex || '#e2e8f0';
+                            const pp = Number(cv.purchasePrice) || 0;
+                            const margin = Number(cv.marginPercent) || 0;
+                            const net = round2(pp * (1 + margin / 100));
+                            const cvUnits = Object.values(cv.quantities || {}).reduce((s, q) => s + (Number(q) || 0), 0);
+                            const cvTotal = round2(net * cvUnits);
+                            const isLast = cvIdx === (line.colourVariants || []).length - 1;
+
+                            return (
+                              <tr key={`${line.productId}-${cv.colourId}`} style={{ background: cvIdx % 2 === 0 ? '#fff' : '#fafbfc' }}>
+                                {cvIdx === 0 && (
+                                  <>
+                                    <td rowSpan={(line.colourVariants || []).length + 1} style={{ verticalAlign: 'top', fontWeight: 700, color: '#9ca3af' }}>{idx + 1}</td>
+                                    <td rowSpan={(line.colourVariants || []).length + 1} style={{ verticalAlign: 'top' }}>
+                                      <div className="collection-line-prod">
+                                        {(() => {
+                                          const b = brands.find((x) => x.id === line.brandId);
+                                          const bLogo = b?.logo_url || b?.image_url || '';
+                                          const bName = line.brand || b?.brand_name || 'BSC';
+                                          const bInitials = bName.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0]).join('').toUpperCase() || 'BSC';
+                                          const bHue = [...bName].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+                                          return bLogo ? (
+                                            <img className="collection-line-brand" src={assetUrl(bLogo)} alt={bName} title={bName} />
+                                          ) : (
+                                            <span className="collection-line-brand" style={{ background: `hsl(${bHue} 45% 92%)`, color: `hsl(${bHue} 55% 32%)` }} title={bName}>{bInitials}</span>
+                                          );
+                                        })()}
+                                        <div className="collection-line-prod-text">
+                                          <strong>{line.name}</strong>
+                                          <div className="muted" style={{ fontSize: 11 }}>{line.sku} · {line.brand}</div>
+                                        </div>
+                                      </div>
+                                    </td>
+                                  </>
+                                )}
+                                <td>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, background: '#f9fafb', borderRadius: 4, padding: '3px 6px', border: '1px solid #e5e7eb' }}>
+                                    <span style={{ width: 18, height: 18, borderRadius: '50%', background: hex, border: '2px solid #d1d5db', flexShrink: 0 }} />
+                                    <span style={{ flex: 1, fontWeight: 600, color: '#374151' }}>{c?.name || 'Unknown'}</span>
+                                    <button
+                                      type="button"
+                                      className="icon-btn text-danger"
+                                      onClick={() => {
+                                        const next = (line.colourVariants || []).filter((_, i) => i !== cvIdx);
+                                        updateLine(idx, { colourVariants: next });
+                                      }}
+                                      style={{ fontSize: 10, padding: '0 3px', lineHeight: 1 }}
+                                    >
+                                      ✕
+                                    </button>
+                                  </div>
+                                  {isLast && (
+                                    <div style={{ marginTop: 4 }}>
+                                      <select
+                                        defaultValue=""
+                                        onChange={(e) => {
+                                          const cid = e.target.value;
+                                          if (!cid) return;
+                                          const defaultPP = Number(line.colourVariants?.[0]?.purchasePrice) || 450;
+                                          const defaultMargin = Number(line.colourVariants?.[0]?.marginPercent) || 30;
+                                          const defaultQty = { ...(line.colourVariants?.[0]?.quantities || {}) };
+                                          const nextVariants = [...(line.colourVariants || []), { colourId: cid, purchasePrice: defaultPP, marginPercent: defaultMargin, quantities: defaultQty }];
+                                          updateLine(idx, { colourVariants: nextVariants });
+                                          e.target.value = '';
+                                        }}
+                                        style={{ padding: '3px 6px', fontSize: 11, border: '1px dashed #9ca3af', borderRadius: 4, width: '100%' }}
+                                      >
+                                        <option value="" disabled>+ Add colour…</option>
+                                        {colours.filter((c) => !(line.colourVariants || []).some((cv) => cv.colourId === c.id)).map((c) => (
+                                          <option key={c.id} value={c.id}>{c.name}</option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  )}
+                                </td>
+                                <td>
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={cv.purchasePrice}
+                                    onChange={(e) => {
+                                      const next = [...(line.colourVariants || [])];
+                                      next[cvIdx] = { ...next[cvIdx], purchasePrice: e.target.value };
+                                      updateLine(idx, { colourVariants: next });
+                                    }}
+                                    style={{ width: 90, padding: '4px 6px', fontSize: 12 }}
                                   />
-                                );
-                              })()}
-                              <select
-                                value={line.colourId}
-                                onChange={(e) => updateLine(idx, { colourId: e.target.value })}
-                                style={{ padding: '4px 6px', fontSize: 12 }}
-                              >
-                                {colours.map((c) => (
-                                  <option key={c.id} value={c.id}>{c.name}</option>
-                                ))}
-                              </select>
-                            </div>
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              min="1"
-                              value={line.purchasePrice}
-                              onChange={(e) => updateLine(idx, { purchasePrice: e.target.value })}
-                              style={{ width: 90, padding: '4px 6px', fontSize: 12 }}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              min="0"
-                              max="100"
-                              value={line.marginPercent}
-                              onChange={(e) => updateLine(idx, { marginPercent: e.target.value })}
-                              style={{ width: 70, padding: '4px 6px', fontSize: 12 }}
-                            />
-                          </td>
-                          <td>
-                            <div className="collection-size-inputs">
-                              {activeSizes.map((sz) => (
-                                <label key={sz} className="collection-size-col">
-                                  <span>{sz}</span>
+                                </td>
+                                <td>
                                   <input
                                     type="number"
                                     min="0"
-                                    value={line.quantities?.[sz] ?? 0}
+                                    max="100"
+                                    value={cv.marginPercent}
                                     onChange={(e) => {
-                                      const next = { ...(line.quantities || {}), [sz]: Number(e.target.value) || 0 };
-                                      updateLine(idx, { quantities: next });
+                                      const next = [...(line.colourVariants || [])];
+                                      next[cvIdx] = { ...next[cvIdx], marginPercent: e.target.value };
+                                      updateLine(idx, { colourVariants: next });
                                     }}
+                                    style={{ width: 70, padding: '4px 6px', fontSize: 12 }}
                                   />
-                                </label>
-                              ))}
-                            </div>
-                          </td>
-                          <td style={{ fontWeight: 700 }}>{totalUnits}</td>
-                          <td style={{ textAlign: 'right', fontWeight: 700 }}>{INR(lineTotal)}</td>
-                          <td>
-                            <button
-                              type="button"
-                              className="icon-btn text-danger"
-                              onClick={() => removeLine(idx)}
-                              title="Remove item"
-                            >
-                              ✕
-                            </button>
-                          </td>
-                        </tr>
+                                </td>
+                                <td>
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                                    {activeSizes.map((sz) => {
+                                      const qty = Number(cv.quantities?.[sz]) || 0;
+                                      return (
+                                        <div key={sz} style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, background: qty > 0 ? '#f0fdf4' : 'transparent', borderRadius: 3, padding: '1px 3px' }}>
+                                          <span style={{ fontWeight: 600, minWidth: 34, color: qty > 0 ? '#166534' : '#9ca3af' }}>{sz}</span>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            value={qty}
+                                            onChange={(e) => {
+                                              const val = Number(e.target.value) || 0;
+                                              const nextVariants = [...(line.colourVariants || [])];
+                                              const nextQty = { ...(nextVariants[cvIdx].quantities || {}) };
+                                              if (val > 0) nextQty[sz] = val; else delete nextQty[sz];
+                                              nextVariants[cvIdx] = { ...nextVariants[cvIdx], quantities: nextQty };
+                                              updateLine(idx, { colourVariants: nextVariants });
+                                            }}
+                                            style={{ width: 40, padding: '1px 3px', fontSize: 11 }}
+                                          />
+                                          {qty > 0 && <span style={{ fontSize: 10, color: '#6b7280' }}>₹{round2(net * qty).toLocaleString('en-IN')}</span>}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </td>
+                                <td style={{ fontWeight: 700, fontSize: 12 }}>{cvUnits}</td>
+                                <td style={{ textAlign: 'right', fontWeight: 700, fontSize: 12 }}>₹{cvTotal.toLocaleString('en-IN')}</td>
+                                <td></td>
+                              </tr>
+                            );
+                          })}
+                          {/* Product subtotal row */}
+                          <tr style={{ background: '#f1f5f9', fontWeight: 700 }}>
+                            <td colSpan={5} style={{ textAlign: 'right', fontSize: 12, color: '#64748b' }}>Subtotal ({line.name})</td>
+                            <td style={{ textAlign: 'right', fontSize: 12 }}>{lineUnits} units</td>
+                            <td style={{ textAlign: 'right', fontSize: 13, color: '#166534' }}>₹{lineTotal.toLocaleString('en-IN')}</td>
+                            <td>
+                              <button
+                                type="button"
+                                className="icon-btn text-danger"
+                                onClick={() => removeLine(idx)}
+                                title="Remove item"
+                              >
+                                ✕
+                              </button>
+                            </td>
+                          </tr>
+                        </Fragment>
                       );
                     })}
                   </tbody>
@@ -1082,6 +1227,7 @@ export default function CollectionView() {
                   className="btn"
                   disabled={poSubmitting || poLines.length === 0}
                   onClick={() => submitPO(false)}
+                  style={{ padding: '12px 24px', borderRadius: 8, fontSize: 14 }}
                 >
                   Save as Draft
                 </button>
@@ -1090,10 +1236,25 @@ export default function CollectionView() {
                   className="btn primary"
                   disabled={poSubmitting || poLines.length === 0}
                   onClick={() => submitPO(true)}
-                  style={{ background: config.themeColor, borderColor: config.themeColor }}
+                  style={{
+                    background: poSubmitting ? '#94a3b8' : config.themeColor,
+                    borderColor: poSubmitting ? '#94a3b8' : config.themeColor,
+                    padding: '12px 28px',
+                    borderRadius: 8,
+                    fontSize: 14,
+                    fontWeight: 600,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    transition: 'all .2s',
+                  }}
                 >
+                  {poSubmitting && (
+                    <span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .6s linear infinite' }} />
+                  )}
                   {poSubmitting ? 'Creating PO…' : `Submit ${config.title} PO`}
                 </button>
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
               </div>
             </div>
           </div>
@@ -1151,36 +1312,225 @@ export default function CollectionView() {
         </div>
       )}
 
+      {/* Tab 3: Order List */}
+      {activeTab === 'orders' && (
+        <div className="panel">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <div>
+              <h2 style={{ margin: 0 }}>Order List</h2>
+              <p className="muted" style={{ margin: '4px 0 0' }}>Purchase Orders for {config.title}</p>
+            </div>
+            <button type="button" className="btn sm" onClick={loadRecentPOs}>Refresh</button>
+          </div>
+
+          {/* Sub-tabs: All / Pending */}
+          <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+            <button
+              type="button"
+              className={`btn sm ${orderTab === 'all' ? 'primary' : 'ghost'}`}
+              style={orderTab === 'all' ? { background: config.themeColor, borderColor: config.themeColor, color: '#fff' } : {}}
+              onClick={() => setOrderTab('all')}
+            >
+              All Orders ({recentPOsTotal})
+            </button>
+            <button
+              type="button"
+              className={`btn sm ${orderTab === 'pending' ? 'primary' : 'ghost'}`}
+              style={orderTab === 'pending' ? { background: '#f59e0b', borderColor: '#f59e0b', color: '#fff' } : {}}
+              onClick={() => setOrderTab('pending')}
+            >
+              ⏳ Pending ({pendingPOsTotal})
+            </button>
+          </div>
+
+          {posLoading ? (
+            <div className="muted" style={{ padding: 30, textAlign: 'center' }}>Loading orders…</div>
+          ) : (
+            <>
+              {/* All Orders Table */}
+              {orderTab === 'all' && (
+                recentPOs.length === 0 ? (
+                  <div className="muted" style={{ padding: 40, textAlign: 'center' }}>
+                    <p style={{ fontSize: 40, margin: '0 0 8px' }}>📋</p>
+                    <p>No Purchase Orders placed yet for {config.title}.</p>
+                    <button type="button" className="btn primary" style={{ marginTop: 12, background: config.themeColor, borderColor: config.themeColor, color: '#fff' }} onClick={() => setActiveTab('po_form')}>
+                      Create First PO
+                    </button>
+                  </div>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="grid">
+                      <thead>
+                        <tr>
+                          <th>PO Number</th>
+                          <th>Date</th>
+                          <th>Supplier</th>
+                          <th>Section</th>
+                          <th style={{ textAlign: 'right' }}>Units</th>
+                          <th style={{ textAlign: 'right' }}>Grand Total</th>
+                          <th>Status</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {recentPOs.map((po) => (
+                          <tr key={po.id}>
+                            <td><strong>{po.po_number}</strong></td>
+                            <td>{po.po_date ? String(po.po_date).slice(0, 10) : '—'}</td>
+                            <td>{po.supplier_name}</td>
+                            <td>{po.section_name}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700 }}>{po.total_quantity ?? 0}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700 }}>{INR(po.grand_total)}</td>
+                            <td><span className={`chip st-${po.status}`}>{po.status}</span></td>
+                            <td><Link className="btn sm ghost" to={`/purchase-orders/${po.id}`}>View</Link></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              )}
+
+              {/* Pending Orders Table */}
+              {orderTab === 'pending' && (
+                pendingPOs.length === 0 ? (
+                  <div className="muted" style={{ padding: 40, textAlign: 'center' }}>
+                    <p style={{ fontSize: 40, margin: '0 0 8px' }}>✅</p>
+                    <p>No pending orders. All caught up!</p>
+                  </div>
+                ) : (
+                  <div className="table-wrap">
+                    <table className="grid">
+                      <thead>
+                        <tr>
+                          <th>PO Number</th>
+                          <th>Date</th>
+                          <th>Supplier</th>
+                          <th>Section</th>
+                          <th style={{ textAlign: 'right' }}>Units</th>
+                          <th style={{ textAlign: 'right' }}>Grand Total</th>
+                          <th>Status</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pendingPOs.map((po) => (
+                          <tr key={po.id}>
+                            <td><strong>{po.po_number}</strong></td>
+                            <td>{po.po_date ? String(po.po_date).slice(0, 10) : '—'}</td>
+                            <td>{po.supplier_name}</td>
+                            <td>{po.section_name}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700 }}>{po.total_quantity ?? 0}</td>
+                            <td style={{ textAlign: 'right', fontWeight: 700 }}>{INR(po.grand_total)}</td>
+                            <td><span className={`chip st-${po.status}`}>{po.status}</span></td>
+                            <td><Link className="btn sm ghost" to={`/purchase-orders/${po.id}`}>View</Link></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {/* PO Success Confirmation Modal */}
       {createdPO && (
-        <Modal title="Purchase Order Created Successfully" onClose={() => setCreatedPO(null)}>
-          <div className="collection-success-modal">
-            <div className="collection-modal-icon">✓</div>
-            <h3>{createdPO.po_number}</h3>
-            <p>
-              Your Purchase Order for <strong>{config.title}</strong> has been drafted and submitted into the approval workflow.
-            </p>
-            <div className="collection-modal-actions">
-              <Link to={`/purchase-orders/${createdPO.id}`} className="btn primary">
-                View PO Details & Workflow
+        <Modal title="" onClose={() => setCreatedPO(null)}>
+          <div style={{ textAlign: 'center', padding: '20px 10px' }}>
+            {/* Animated checkmark */}
+            <div style={{ margin: '0 auto 20px', width: 80, height: 80, borderRadius: '50%', background: 'linear-gradient(135deg, #22c55e, #16a34a)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(34,197,94,0.3)', animation: 'popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275)' }}>
+              <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'drawCheck 0.4s 0.3s ease forwards', opacity: 0 }}>
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </div>
+
+            <h2 style={{ margin: '0 0 6px', fontSize: 22, color: '#111827' }}>Order Placed Successfully!</h2>
+            <p style={{ margin: '0 0 20px', color: '#6b7280', fontSize: 14 }}>Your Purchase Order has been created and submitted for approval.</p>
+
+            {/* PO Number Card */}
+            <div style={{ background: '#f0fdf4', border: '2px solid #bbf7d0', borderRadius: 12, padding: '16px 24px', marginBottom: 20, animation: 'slideUp 0.4s 0.2s ease forwards', opacity: 0, transform: 'translateY(10px)' }}>
+              <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Purchase Order Number</div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: '#166534', margin: '4px 0', fontFamily: 'monospace', letterSpacing: 2 }}>{createdPO.po_number}</div>
+              <div style={{ fontSize: 12, color: '#6b7280' }}>
+                ID: {createdPO.id?.slice(0, 8)}… · {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+              </div>
+            </div>
+
+            {/* Summary Stats */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 24, animation: 'slideUp 0.4s 0.35s ease forwards', opacity: 0, transform: 'translateY(10px)' }}>
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>{poCalculations.grandUnits}</div>
+                <div style={{ fontSize: 11, color: '#6b7280' }}>Total Units</div>
+              </div>
+              <div style={{ width: 1, background: '#e5e7eb' }} />
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>₹{poCalculations.subtotal.toLocaleString('en-IN')}</div>
+                <div style={{ fontSize: 11, color: '#6b7280' }}>Subtotal</div>
+              </div>
+              <div style={{ width: 1, background: '#e5e7eb' }} />
+              <div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: config.themeColor }}>₹{poCalculations.grandTotal.toLocaleString('en-IN')}</div>
+                <div style={{ fontSize: 11, color: '#6b7280' }}>Grand Total</div>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, animation: 'slideUp 0.4s 0.5s ease forwards', opacity: 0, transform: 'translateY(10px)' }}>
+              <Link
+                to={`/purchase-orders/${createdPO.id}`}
+                className="btn primary"
+                style={{ background: config.themeColor, borderColor: config.themeColor, padding: '12px 24px', fontSize: 14, fontWeight: 600, borderRadius: 8, textDecoration: 'none', textAlign: 'center' }}
+              >
+                View PO Details & Workflow →
               </Link>
-              <a
-                href={`${API_BASE}/purchase-orders/${createdPO.id}/export/pdf`}
-                target="_blank"
-                rel="noreferrer"
-                className="btn secondary"
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  style={{ flex: 1, padding: '10px', fontSize: 13, borderRadius: 8 }}
+                  onClick={async () => {
+                    try {
+                      const res = await api.get(`/purchase-orders/${createdPO.id}/export/pdf`, { responseType: 'blob' });
+                      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+                      const a = document.createElement('a'); a.href = url; a.download = `${createdPO.po_number || 'PO'}.pdf`; a.click(); window.URL.revokeObjectURL(url);
+                    } catch { setError('Failed to download PDF'); }
+                  }}
+                >
+                  📄 Download PDF
+                </button>
+                <button
+                  type="button"
+                  className="btn"
+                  style={{ flex: 1, padding: '10px', fontSize: 13, borderRadius: 8 }}
+                  onClick={async () => {
+                    try {
+                      const res = await api.get(`/purchase-orders/${createdPO.id}/export/csv`, { responseType: 'blob' });
+                      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'text/csv' }));
+                      const a = document.createElement('a'); a.href = url; a.download = `${createdPO.po_number || 'PO'}.csv`; a.click(); window.URL.revokeObjectURL(url);
+                    } catch { setError('Failed to download CSV'); }
+                  }}
+                >
+                  📊 Download CSV
+                </button>
+              </div>
+              <button
+                type="button"
+                className="btn ghost"
+                onClick={() => { setCreatedPO(null); setActiveTab('orders'); }}
+                style={{ padding: '10px', fontSize: 13, borderRadius: 8 }}
               >
-                Download Official PDF
-              </a>
-              <a
-                href={`${API_BASE}/purchase-orders/${createdPO.id}/export/csv`}
-                download
-                className="btn"
-              >
-                Download CSV
-              </a>
+                View All Orders
+              </button>
             </div>
           </div>
+          <style>{`
+            @keyframes popIn { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+            @keyframes drawCheck { 0% { opacity: 0; stroke-dasharray: 30; stroke-dashoffset: 30; } 100% { opacity: 1; stroke-dasharray: 30; stroke-dashoffset: 0; } }
+            @keyframes slideUp { 0% { opacity: 0; transform: translateY(10px); } 100% { opacity: 1; transform: translateY(0); } }
+          `}</style>
         </Modal>
       )}
 
@@ -1223,18 +1573,51 @@ export default function CollectionView() {
                 </select>
               </label>
 
-              <label className="field">
+              <label className="field" style={{ gridColumn: '1 / -1' }}>
                 <span className="field-label">Brand *</span>
-                <select
-                  required
-                  value={newProd.brandId}
-                  onChange={(e) => setNewProd({ ...newProd, brandId: e.target.value })}
-                >
-                  <option value="">Select Brand…</option>
-                  {brands.map((b) => (
-                    <option key={b.id} value={b.id}>{b.brand_name}</option>
-                  ))}
-                </select>
+                <div className="po-brand-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8, marginTop: 6 }}>
+                  {brands
+                    .filter((b) => {
+                      if (!department) return true;
+                      if (!b.collections?.length) return true;
+                      return b.collections.some((c) => {
+                        const deptCode = (department.code || '').toUpperCase();
+                        return c.code?.toUpperCase().includes(deptCode) || c.name?.toLowerCase().includes(deptCode.toLowerCase());
+                      });
+                    })
+                    .map((b) => {
+                      const selected = newProd.brandId === b.id;
+                      const brandInitials = b.brand_name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+                      return (
+                        <div
+                          key={b.id}
+                          onClick={() => setNewProd({ ...newProd, brandId: b.id })}
+                          className={`po-brand-tile ${selected ? 'selected' : ''}`}
+                          style={{
+                            border: selected ? `2px solid ${config.themeColor}` : '2px solid #e5e7eb',
+                            borderRadius: 8,
+                            padding: '8px 4px',
+                            textAlign: 'center',
+                            cursor: 'pointer',
+                            background: selected ? config.accentBg : '#fff',
+                            transition: 'all .15s',
+                          }}
+                        >
+                          <div style={{ width: 40, height: 40, borderRadius: '50%', margin: '0 auto 4px', overflow: 'hidden', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            {(b.image_url || b.logo_url) ? (
+                              <img src={b.image_url || b.logo_url} alt={b.brand_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              <span style={{ fontWeight: 700, fontSize: 13, color: '#6b7280' }}>{brandInitials}</span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: selected ? config.themeColor : '#374151', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {b.brand_name}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </div>
+                {!newProd.brandId && <span style={{ fontSize: 12, color: '#9ca3af', marginTop: 4, display: 'block' }}>Click a brand to select</span>}
               </label>
 
               <label className="field">
@@ -1258,6 +1641,30 @@ export default function CollectionView() {
                   placeholder="e.g. 620520"
                 />
               </label>
+
+              <label className="field">
+                <span className="field-label">Purchase Price (₹)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={newProd.purchasePrice || ''}
+                  onChange={(e) => setNewProd({ ...newProd, purchasePrice: e.target.value })}
+                  placeholder="e.g. 850"
+                />
+              </label>
+
+              <label className="field">
+                <span className="field-label">Selling Price (₹)</span>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.5"
+                  value={newProd.sellingPrice || ''}
+                  onChange={(e) => setNewProd({ ...newProd, sellingPrice: e.target.value })}
+                  placeholder="e.g. 1299"
+                />
+              </label>
             </div>
 
             <label className="field" style={{ marginTop: 10 }}>
@@ -1276,6 +1683,99 @@ export default function CollectionView() {
               </button>
               <button type="submit" className="btn primary" style={{ background: config.themeColor, borderColor: config.themeColor }}>
                 Save Product & Add to Catalogue
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Inline Brand Creation Modal */}
+      {inlineModal === 'brand' && (
+        <Modal title="Add New Brand" onClose={() => setInlineModal(null)}>
+          <form onSubmit={handleInlineBrand}>
+            <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+              Create a new brand. After creation, assign it to a collection from the <strong>Brands</strong> page.
+            </p>
+            <label className="field">
+              <span className="field-label">Brand Name *</span>
+              <input
+                autoFocus
+                required
+                value={inlineBrand.name}
+                onChange={(e) => setInlineBrand({ ...inlineBrand, name: e.target.value })}
+                placeholder="e.g. Allen Solly"
+              />
+            </label>
+            <label className="field" style={{ marginTop: 10 }}>
+              <span className="field-label">Brand Code</span>
+              <input
+                value={inlineBrand.code}
+                onChange={(e) => setInlineBrand({ ...inlineBrand, code: e.target.value.toUpperCase() })}
+                placeholder="e.g. ALNSLL (auto-generated if empty)"
+              />
+            </label>
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button type="button" className="btn" onClick={() => setInlineModal(null)}>Cancel</button>
+              <button type="submit" className="btn primary" disabled={inlineLoading}>
+                {inlineLoading ? 'Creating…' : 'Create Brand'}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
+      {/* Inline Product Creation Modal */}
+      {inlineModal === 'product' && (
+        <Modal title="Add New Product" onClose={() => setInlineModal(null)}>
+          <form onSubmit={handleInlineProduct}>
+            <p className="muted" style={{ fontSize: 13, marginBottom: 12 }}>
+              Quick-create a product in section <strong>{deptSections.find((s) => s.id === poSectionId)?.name || 'Current'}</strong>.
+            </p>
+            <label className="field">
+              <span className="field-label">Product Name *</span>
+              <input
+                autoFocus
+                required
+                value={inlineProduct.name}
+                onChange={(e) => setInlineProduct({ ...inlineProduct, name: e.target.value })}
+                placeholder="e.g. Slim Fit Linen Shirt"
+              />
+            </label>
+            <label className="field" style={{ marginTop: 10 }}>
+              <span className="field-label">SKU Code *</span>
+              <input
+                required
+                value={inlineProduct.sku}
+                onChange={(e) => setInlineProduct({ ...inlineProduct, sku: e.target.value.toUpperCase() })}
+                placeholder="e.g. MSH-2026-042"
+              />
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10 }}>
+              <label className="field">
+                <span className="field-label">Purchase Price (₹)</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={inlineProduct.purchasePrice}
+                  onChange={(e) => setInlineProduct({ ...inlineProduct, purchasePrice: e.target.value })}
+                  placeholder="e.g. 850"
+                />
+              </label>
+              <label className="field">
+                <span className="field-label">Selling Price (₹)</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={inlineProduct.sellingPrice}
+                  onChange={(e) => setInlineProduct({ ...inlineProduct, sellingPrice: e.target.value })}
+                  placeholder="e.g. 1299"
+                />
+              </label>
+            </div>
+            <div className="modal-actions" style={{ marginTop: 16 }}>
+              <button type="button" className="btn" onClick={() => setInlineModal(null)}>Cancel</button>
+              <button type="submit" className="btn primary" disabled={inlineLoading}>
+                {inlineLoading ? 'Creating…' : 'Create Product'}
               </button>
             </div>
           </form>

@@ -3,7 +3,9 @@ import cors from 'cors';
 import crypto from 'node:crypto';
 import { selfTest } from './utils/pricing.js';
 import { notFound, errorHandler } from './middleware/errors.js';
-import { securityHeaders, rateLimit, clientIpOf } from './middleware/security.js';
+import { helmetMiddleware, additionalSecurityHeaders, rateLimit } from './middleware/security.js';
+import { securityContext, logRateLimit } from './middleware/securityLogger.js';
+import { sanitizeInput, rejectSuspiciousPayload } from './middleware/sanitize.js';
 
 import authRoutes from './routes/auth.js';
 import usersRoutes from './routes/users.js';
@@ -44,26 +46,45 @@ if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
   process.env.JWT_SECRET = crypto.randomBytes(48).toString('hex');
 }
 
-// CORS: same-origin and curl (no Origin header) always pass; when CORS_ORIGIN
-// is configured ONLY those origins may call the API from a browser.
+// ─── SECURITY LAYER 1: Helmet (HTTP security headers) ─────────────────────
+app.use(helmetMiddleware);
+app.use(additionalSecurityHeaders);
+
+// ─── SECURITY LAYER 2: CORS ───────────────────────────────────────────────
 const allowedOrigins = (process.env.CORS_ORIGIN || '')
   .split(',').map((s) => s.trim()).filter(Boolean);
+
 app.use(cors({
   origin(origin, cb) {
     if (!origin || !allowedOrigins.length || allowedOrigins.includes(origin)) return cb(null, true);
     cb(new Error('Origin not allowed by CORS'));
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id', 'X-Requested-With'],
+  exposedHeaders: ['X-RateLimit-Limit', 'X-RateLimit-Remaining', 'Retry-After'],
+  maxAge: 86400, // preflight cache 24h
 }));
 
-app.use(securityHeaders);
-// General API budget per client IP, plus tight budgets on the auth endpoints.
+// ─── SECURITY LAYER 3: Global rate limiting ───────────────────────────────
 const apiLimiter = rateLimit(600, 60 * 1000);
 const loginLimiter = rateLimit(10, 5 * 60 * 1000);
 const captchaLimiter = rateLimit(60, 60 * 1000);
 
+// ─── SECURITY LAYER 4: Body parsing with size limits ──────────────────────
 app.use(express.json({ limit: '5mb' }));
+app.use(express.urlencoded({ extended: false, limit: '5mb' }));
 
+// ─── SECURITY LAYER 5: Security context for logging ──────────────────────
+app.use(securityContext);
+
+// ─── SECURITY LAYER 6: Suspicious payload detection ──────────────────────
+app.use(rejectSuspiciousPayload);
+
+// ─── SECURITY LAYER 7: Rate limit event logging ──────────────────────────
+app.use(logRateLimit);
+
+// ─── Request timing logger ─────────────────────────────────────────────────
 app.use((req, res, next) => {
   const started = Date.now();
   res.on('finish', () => {
@@ -74,7 +95,13 @@ app.use((req, res, next) => {
   next();
 });
 
-app.get('/api/health', (req, res) => res.json({ status: 'ok', service: 'poms-api', time: new Date().toISOString() }));
+// ─── Public endpoints (no auth required) ───────────────────────────────────
+app.get('/api/health', (req, res) => res.json({
+  status: 'ok',
+  service: 'poms-api',
+  time: new Date().toISOString(),
+  version: '1.0.0',
+}));
 
 // General per-IP budget for the whole API surface.
 app.use('/api', apiLimiter);
@@ -93,10 +120,11 @@ app.get('/api/settings/public', async (req, res, next) => {
 import { uploadsDir } from './utils/storage.js';
 app.use('/uploads', express.static(uploadsDir, { maxAge: '1d', index: false }));
 
+// ─── Protected API routes ──────────────────────────────────────────────────
 app.use('/api/auth', authRoutes);
-app.use('/api', uploadRoutes); // /api/uploads, avatars (/users/me|:id/photo) — MUST precede /api/users so the self-service photo routes aren't caught by the users router's admin gate
+app.use('/api', uploadRoutes); // /api/uploads, avatars — MUST precede /api/users
 app.use('/api/users', usersRoutes);
-app.use('/api', mastersRoutes); // /api/divisions, /api/sections, /api/brands, ...
+app.use('/api', mastersRoutes);
 app.use('/api/purchase-orders', purchaseOrderRoutes);
 app.use('/api/approvals', approvalRoutes);
 app.use('/api/receipts', receiptRoutes);
@@ -104,19 +132,19 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api', miscRoutes); // /api/audit-logs, /api/notifications, /api/settings
 app.use('/api/chat', chatRoutes);
-app.use('/api', searchRoutes); // /api/search
+app.use('/api', searchRoutes);
 app.use('/api/manufacturers', manufacturerRoutes);
 app.use('/api/roles', roleRoutes);
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/locations', locationRoutes);
 app.use('/api/product-types', productTypeRoutes);
-app.use('/api', collectionRoutes); // /api/collections, /api/dealers, /api/company
-app.use('/api/files', fileRoutes); // /api/files — standalone file manager
-app.use('/api/tracking', trackingRoutes); // /api/tracking — live session monitor
-app.use('/api/import', importRoutes);   // /api/import — document import (admin-only)
+app.use('/api', collectionRoutes);
+app.use('/api/files', fileRoutes);
+app.use('/api/tracking', trackingRoutes);
+app.use('/api/import', importRoutes);
 
-// ---- Serve the built React client (single-origin full-stack site) ----
+// ─── Serve the built React client (single-origin full-stack site) ──────────
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 const distDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'frontend', 'dist');
@@ -126,6 +154,7 @@ app.get('*', (req, res, next) => {
   res.sendFile(path.join(distDir, 'index.html'));
 });
 
+// ─── Error handling (must be last) ────────────────────────────────────────
 app.use(notFound);
 app.use(errorHandler);
 

@@ -104,11 +104,17 @@ export const upload = multer({
 });
 
 export function publicUrl(storageKey) {
-  const key = String(storageKey).split(path.sep).join('/');
+  const key = String(storageKey).split(path.sep).join('/').replace(/\\/g, '/');
   if (DRIVER === 'supabase') {
     return `${SUPABASE_URL}/storage/v1/object/public/${SUPABASE_BUCKET}/${key}`;
   }
   return `/uploads/${key}`;
+}
+
+// Canonical storage key from an absolute file path — always forward slashes
+// (Windows' path.join produces backslashes which break URLs once stored).
+export function fileStorageKey(absFilePath) {
+  return path.relative(uploadsDir, absFilePath).split(path.sep).join('/').replace(/\\/g, '/');
 }
 
 export function absPath(storageKey) {

@@ -3,7 +3,9 @@ import { query, withTransaction, pool } from '../config/db.js';
 import { authenticate, requirePermission, requireAnyPermission } from '../middleware/auth.js';
 import { badRequest, ah } from '../utils/httpError.js';
 import { logAudit } from '../utils/audit.js';
-import { upload, publicUrl, removeStored, uploadsDir } from '../utils/storage.js';
+import { generateBrandQR } from '../utils/qrCode.js';
+import { fetchBrandImage } from '../utils/brandImage.js';
+import { upload, publicUrl, removeStored, fileStorageKey } from '../utils/storage.js';
 
 // Grouped master-data routes — FRS §7 (Master Data Management), §8–§11.
 // Lifecycle: active / inactive / archived; hard delete blocked by FK errors → RB-014 archive.
@@ -219,22 +221,28 @@ r.post('/colours', MANAGE, ah(async (req, res) => {
 
 // ---------- BRANDS (§10.1 — brand number ≠ brand serial, RB-005) ----------
 r.get('/brands', VIEW, ah(async (req, res) => {
-  const { search, sectionId } = req.query;
+  const { search, sectionId, collectionId } = req.query;
   const params = [];
   let where = `b.status <> 'archived'`;
   if (search) {
     params.push(`%${search}%`);
     where += ` AND (b.brand_name ILIKE $${params.length} OR b.brand_number ILIKE $${params.length} OR b.brand_serial ILIKE $${params.length})`;
   }
-  // sectionId → only brands actually stocked in that collection (via products)
   if (sectionId) {
     params.push(sectionId);
     where += ` AND EXISTS (SELECT 1 FROM products p WHERE p.brand_id = b.id AND p.section_id = $${params.length} AND p.status <> 'archived')`;
   }
+  if (collectionId) {
+    params.push(collectionId);
+    where += ` AND EXISTS (SELECT 1 FROM brand_collections bc WHERE bc.brand_id = b.id AND bc.collection_id = $${params.length})`;
+  }
   const { rows } = await query(
     `SELECT b.*,
             COALESCE((SELECT json_agg(sup.company_name) FROM supplier_brands sb JOIN suppliers sup ON sup.id = sb.supplier_id WHERE sb.brand_id = b.id), '[]') AS providers,
-            (SELECT count(*)::int FROM products p2 WHERE p2.brand_id = b.id) AS product_count
+            (SELECT count(*)::int FROM products p2 WHERE p2.brand_id = b.id) AS product_count,
+            COALESCE((SELECT json_agg(json_build_object('id', c.id, 'name', c.name, 'code', c.code))
+                      FROM brand_collections bc JOIN collections c ON c.id = bc.collection_id
+                      WHERE bc.brand_id = b.id), '[]') AS collections
        FROM brands b
       WHERE ${where}
      ORDER BY b.brand_name`, params);
@@ -242,7 +250,7 @@ r.get('/brands', VIEW, ah(async (req, res) => {
 }));
 
 r.post('/brands', requireAnyPermission(['masters.manage', 'po.create']), ah(async (req, res) => {
-  let { brandNumber, brandSerial, brandName, brandCode, manufacturer } = req.body || {};
+  let { brandNumber, brandSerial, brandName, brandCode, manufacturer, collectionIds } = req.body || {};
   brandName = (brandName || '').trim();
   if (!brandName) throw badRequest('Brand name is required');
 
@@ -256,10 +264,25 @@ r.post('/brands', requireAnyPermission(['masters.manage', 'po.create']), ah(asyn
     [brandName, brandNumber]);
   if (dup.rows[0]) throw badRequest(`Brand "${brandName}" already exists.`, { matches: dup.rows });
 
-  const { rows } = await query(
-    `INSERT INTO brands (brand_number, brand_serial, brand_name, brand_code, manufacturer) VALUES ($1,$2,$3,$4,$5) RETURNING *`,
-    [brandNumber, brandSerial, brandName, brandCode || null, manufacturer || null]);
-  res.status(201).json({ data: rows[0] });
+  const [qrCode, imageUrl] = await Promise.all([
+    generateBrandQR(brandNumber, brandName),
+    fetchBrandImage(brandName),
+  ]);
+
+  const result = await withTransaction(async (client) => {
+    const { rows: [brand] } = await client.query(
+      `INSERT INTO brands (brand_number, brand_serial, brand_name, brand_code, manufacturer, qr_code, image_url) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING *`,
+      [brandNumber, brandSerial, brandName, brandCode || null, manufacturer || null, qrCode, imageUrl]);
+
+    if (Array.isArray(collectionIds) && collectionIds.length) {
+      for (const cid of collectionIds) {
+        await client.query(`INSERT INTO brand_collections (brand_id, collection_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [brand.id, cid]);
+      }
+    }
+    return brand;
+  });
+
+  res.status(201).json({ data: result });
 }));
 
 r.post('/brands/:id/logo', MANAGE, upload.single('file'), ah(async (req, res) => {
@@ -267,21 +290,49 @@ r.post('/brands/:id/logo', MANAGE, upload.single('file'), ah(async (req, res) =>
   const brand = (await query(`SELECT id, logo_url FROM brands WHERE id=$1`, [req.params.id])).rows[0];
   if (!brand) throw badRequest('Brand not found');
   if (brand.logo_url) removeStored(brand.logo_url.replace('/uploads/', ''));
-  const storageKey = req.file.path.replace(uploadsDir, '').replace(/^[/\\]/, '');
+  const storageKey = fileStorageKey(req.file.path);
   const url = `/uploads/${storageKey}`;
   const { rows } = await query(`UPDATE brands SET logo_url=$2 WHERE id=$1 RETURNING *`, [req.params.id, url]);
   res.json({ data: rows[0] });
 }));
 
 r.patch('/brands/:id', MANAGE, ah(async (req, res) => {
-  const { brandName, brandCode, manufacturer, status, logoUrl } = req.body || {};
-  const { rows } = await query(
-    `UPDATE brands SET brand_name=COALESCE($2,brand_name), brand_code=COALESCE($3,brand_code),
-            manufacturer=COALESCE($4,manufacturer), status=COALESCE($5,status),
-            logo_url=COALESCE($6,logo_url) WHERE id=$1 RETURNING *`,
-    [req.params.id, brandName || null, brandCode || null, manufacturer || null, status || null, logoUrl || null]);
-  if (!rows[0]) throw badRequest('Brand not found');
-  res.json({ data: rows[0] });
+  const { brandName, brandCode, manufacturer, status, logoUrl, collectionIds } = req.body || {};
+  const result = await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `UPDATE brands SET brand_name=COALESCE($2,brand_name), brand_code=COALESCE($3,brand_code),
+              manufacturer=COALESCE($4,manufacturer), status=COALESCE($5,status),
+              logo_url=COALESCE($6,logo_url) WHERE id=$1 RETURNING *`,
+      [req.params.id, brandName || null, brandCode || null, manufacturer || null, status || null, logoUrl || null]);
+    if (!rows[0]) throw badRequest('Brand not found');
+
+    if (Array.isArray(collectionIds)) {
+      await client.query(`DELETE FROM brand_collections WHERE brand_id=$1`, [req.params.id]);
+      for (const cid of collectionIds) {
+        await client.query(`INSERT INTO brand_collections (brand_id, collection_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, [req.params.id, cid]);
+      }
+    }
+    return rows[0];
+  });
+  res.json({ data: result });
+}));
+
+r.delete('/brands/:id', MANAGE, ah(async (req, res) => {
+  const { rowCount } = await query(`DELETE FROM brands WHERE id=$1`, [req.params.id]);
+  if (!rowCount) throw badRequest('Brand not found');
+  res.status(204).end();
+}));
+
+r.delete('/brands', MANAGE, ah(async (req, res) => {
+  await query(`DELETE FROM supplier_brands`);
+  await query(`DELETE FROM collection_brands`);
+  await query(`DELETE FROM inventory_transactions`);
+  await query(`DELETE FROM receipt_items`);
+  await query(`DELETE FROM purchase_order_quantities`);
+  await query(`DELETE FROM purchase_order_items`);
+  await query(`DELETE FROM products`);
+  await query(`DELETE FROM brands`);
+  res.status(204).end();
 }));
 
 // ---------- PRODUCTS (§10.2 — serial generated, SKU unique RB-004) ----------
@@ -326,15 +377,16 @@ r.get('/products', VIEW, ah(async (req, res) => {
 }));
 
 r.post('/products', MANAGE, ah(async (req, res) => {
-  const { sku, name, description, brandId, sectionId, categoryId, attributes, hsnSac, taxCategory } = req.body || {};
+  const { sku, name, description, brandId, sectionId, categoryId, attributes, hsnSac, taxCategory, purchasePrice, sellingPrice } = req.body || {};
   if (!sku || !name || !brandId || !sectionId) throw badRequest('sku, name, brandId, sectionId are required');
   const row = await withTransaction(async (client) => {
     const year = new Date().getFullYear();
     const { rows } = await client.query(
-      `INSERT INTO products (product_serial, sku, name, description, brand_id, section_id, category_id, attributes, hsn_sac, tax_category)
-       VALUES ((SELECT next_number('PRD', NULL, $1)), $2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING *`,
+      `INSERT INTO products (product_serial, sku, name, description, brand_id, section_id, category_id, attributes, hsn_sac, tax_category, purchase_price, selling_price)
+       VALUES ((SELECT next_number('PRD', NULL, $1)), $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
       [year, sku, name, description || null, brandId, sectionId, categoryId || null,
-       attributes ? JSON.stringify(attributes) : '{}', hsnSac || null, taxCategory || null]);
+       attributes ? JSON.stringify(attributes) : '{}', hsnSac || null, taxCategory || null,
+       purchasePrice || null, sellingPrice || null]);
     await logAudit(client, { userId: req.user.id, role: req.user.roles.join(','), actionType: 'create', entityType: 'product', entityId: rows[0].id, afterValue: { sku, name } });
     return rows[0];
   });

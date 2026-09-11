@@ -808,7 +808,7 @@ export default function POCreate() {
               <div className="row" style={{ alignItems: 'center', marginBottom: 12 }}>
                 <div>
                   <h3 style={{ margin: 0 }}>4. Select Brand for {selectedProduct?.name}</h3>
-                  <div className="muted" style={{ fontSize: 12 }}>Choose the manufacturer brand or add a new one.</div>
+                  <div className="muted" style={{ fontSize: 12 }}>Choose the manufacturer brand or add a new one. Showing brands from {selectedCollection?.name || 'all collections'}.</div>
                 </div>
                 <button className="btn sm primary right" onClick={() => setInlineModal('brand')}>
                   + Add New Brand
@@ -816,35 +816,57 @@ export default function POCreate() {
               </div>
 
               <div className="po-brand-grid">
-                {brands.map((b) => {
-                  const isSelected = selectedBrand?.id === b.id;
-                  return (
-                    <div
-                      key={b.id}
-                      className={`po-brand-tile ${isSelected ? 'selected' : ''}`}
-                      onClick={() => {
-                        setSelectedBrand(b);
-                        goToStep(4);
-                      }}
-                    >
-                      <div style={{ fontWeight: 700, fontSize: 14 }}>{b.brand_name}</div>
-                      {b.manufacturer && (
-                        <div className="muted" style={{ fontSize: 11, marginTop: 4 }}>
-                          {b.manufacturer}
+                {brands
+                  .filter((b) => {
+                    if (!selectedCollection) return true;
+                    if (!b.collections?.length) return true;
+                    return b.collections.some((c) => c.id === selectedCollection.id);
+                  })
+                  .map((b) => {
+                    const isSelected = selectedBrand?.id === b.id;
+                    const initials = (b.brand_name || '?').split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+                    return (
+                      <div
+                        key={b.id}
+                        className={`po-brand-tile ${isSelected ? 'selected' : ''}`}
+                        onClick={() => {
+                          setSelectedBrand(b);
+                          goToStep(4);
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          {b.image_url ? (
+                            <img
+                              src={b.image_url}
+                              alt={b.brand_name}
+                              style={{ width: 40, height: 40, borderRadius: 8, objectFit: 'contain', background: '#f8fafc', border: '1px solid #e2e8f0', flexShrink: 0 }}
+                            />
+                          ) : (
+                            <div style={{ width: 40, height: 40, borderRadius: 8, background: 'linear-gradient(135deg, #b98a2f, #d4a84b)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 14, flexShrink: 0 }}>
+                              {initials}
+                            </div>
+                          )}
+                          <div>
+                            <div style={{ fontWeight: 700, fontSize: 14 }}>{b.brand_name}</div>
+                            {b.manufacturer && (
+                              <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>
+                                {b.manufacturer}
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      </div>
+                    );
+                  })}
                 <div className="po-brand-tile add-new" onClick={() => setInlineModal('brand')}>
                   + Add New Brand
                 </div>
               </div>
 
               <div className="row mt">
-                <button className="btn" onClick={() => goToStep(2)}>ÔåÉ Back</button>
+                <button className="btn" onClick={() => goToStep(2)}>← Back</button>
                 {selectedBrand && (
-                  <button className="btn primary right" onClick={() => goToStep(4)}>Continue to Sizes ÔåÆ</button>
+                  <button className="btn primary right" onClick={() => goToStep(4)}>Continue to Sizes →</button>
                 )}
               </div>
             </div>
