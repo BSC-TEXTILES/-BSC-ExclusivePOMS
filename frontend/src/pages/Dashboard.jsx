@@ -263,8 +263,8 @@ function SupervisorDashboard() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1 className="page-title">Men's Section — Purchase Summary</h1>
-          <p className="page-sub" style={{ margin: 0 }}>Restricted view (Division Supervisor) — only your section's purchase details are visible.</p>
+          <h1>Men's Section — Purchase Summary</h1>
+          <p className="page-sub">Restricted view (Division Supervisor) — only your section's purchase details are visible.</p>
         </div>
       </div>
       {error && <div className="alert error">{error}</div>}
@@ -383,10 +383,10 @@ function MainDashboard() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h1>{greeting()}, {user?.fullName || 'Admin'}!</h1>
-          <p className="muted" style={{ margin: 0 }}>{today} · Your procurement snapshot — orders, approvals and value at a glance.</p>
+          <h1>Dashboard</h1>
+          <p className="page-sub">Plan, prioritize, and accomplish your tasks with ease.</p>
           {!user.isSuperAdmin && !!mySections.length && (
-            <div className="row" style={{ marginTop: 8, gap: 6, alignItems: 'center' }}>
+            <div className="row" style={{ marginTop: 4, gap: 6, alignItems: 'center' }}>
               <span className="muted" style={{ fontSize: 12 }}>Your collections:</span>
               {mySections.map((s) => <span key={s.id} className="chip section-chip">{s.name}</span>)}
             </div>
@@ -394,7 +394,7 @@ function MainDashboard() {
           {selectedSectionId && (
             <div className="row" style={{ marginTop: 8, gap: 8, alignItems: 'center' }}>
               <span className="chip" style={{ background: '#dbeafe', color: '#1e40af' }}>
-                📌 Filtered by selected section
+                Filtered by selected section
               </span>
               <button className="btn ghost sm" onClick={clearSection} title="Clear section filter">
                 <Icon name="x" size={14} /> Clear
@@ -402,71 +402,71 @@ function MainDashboard() {
             </div>
           )}
         </div>
+        <div className="page-actions">
+          {hasPermission('products.create') && (
+            <Link to="/products/new" className="btn primary">
+              <Icon name="plus" size={15} /> Add Product
+            </Link>
+          )}
+          <Link to="/import-data" className="btn">
+            Import Data
+          </Link>
+        </div>
       </div>
 
-      {/* KPI Cards */}
-      <div className="kpis" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))' }}>
-        <div className="stat-card kpi-accent blue">
-          <div className="stat-card-top">
-            <div className="stat-icon" style={{ background: '#eff6ff', color: '#2563eb' }}>
-              <Icon name="catalogue" size={20} />
-            </div>
+      {/* KPI Cards — Image 2 style: first card green, rest white, icon top-right */}
+      <div className="kpis">
+        <div className="stat-card kpi-hero">
+          <div className="kpi-icon-wrap">
+            <Icon name="catalogue" size={20} />
           </div>
-          <div className="stat-number">{kpis.total_pos || 0}</div>
-          <div className="stat-label">Total Orders</div>
-          <div className="stat-desc">Purchase orders raised across your collections</div>
-        </div>
-        <div className="stat-card kpi-accent gold">
-          <div className="stat-card-top">
-            <div className="stat-icon" style={{ background: '#fdf6e3', color: '#b45309' }}>
-              <Icon name="reports" size={20} />
+          <div className="kpi-body">
+            <div className="kpi-title">Total Orders</div>
+            <div className="kpi-value">{kpis.total_pos || 0}</div>
+            <div className="kpi-status">
+              <span className="kpi-status-dot up" />
+              Purchase orders raised across your collections
             </div>
-          </div>
-          <div className="stat-number"><Money value={kpis.total_value || 0} /></div>
-          <div className="stat-label">Total Purchase Value</div>
-          <div className="stat-desc">Order value including taxes and freight</div>
-        </div>
-        <div className="stat-card kpi-accent amber">
-          <div className="stat-card-top">
-            <div className="stat-icon" style={{ background: '#fef3c7', color: '#d97706' }}>
-              <Icon name="po" size={20} />
-            </div>
-          </div>
-          <div className="stat-number">{kpis.pending_approvals || 0}</div>
-          <div className="stat-label">Pending Approvals</div>
-          <div className={`stat-desc ${kpis.pending_approvals ? 'stat-warn' : 'stat-ok'}`}>
-            {kpis.pending_approvals ? '⏳ Needs your attention' : '✓ All clear — nothing waiting'}
           </div>
         </div>
-        <div className="stat-card kpi-accent green">
-          <div className="stat-card-top">
-            <div className="stat-icon" style={{ background: '#ecfdf5', color: '#059669' }}>
-              <Icon name="receipts" size={20} />
+        <div className="stat-card">
+          <div className="kpi-icon-wrap muted-icon">
+            <Icon name="reports" size={20} />
+          </div>
+          <div className="kpi-body">
+            <div className="kpi-title">Total Purchase Value</div>
+            <div className="kpi-value"><Money value={kpis.total_value || 0} /></div>
+            <div className="kpi-status">
+              <span className="kpi-status-dot up" />
+              Order value including taxes and freight
             </div>
           </div>
-          <div className="stat-number">{completedOrders}</div>
-          <div className="stat-label">Completed Orders</div>
-          <div className="stat-desc">Fully received and closed orders</div>
         </div>
-        <div className="stat-card kpi-accent violet">
-          <div className="stat-card-top">
-            <div className="stat-icon" style={{ background: '#f0fdf4', color: '#16a34a' }}>
-              <Icon name="masters" size={20} />
+        <div className="stat-card">
+          <div className="kpi-icon-wrap muted-icon">
+            <Icon name="po" size={20} />
+          </div>
+          <div className="kpi-body">
+            <div className="kpi-title">Pending Approvals</div>
+            <div className="kpi-value">{kpis.pending_approvals || 0}</div>
+            <div className="kpi-status">
+              <span className={`kpi-status-dot ${kpis.pending_approvals ? 'warn' : 'up'}`} />
+              {kpis.pending_approvals ? 'Needs your attention' : 'All clear — nothing waiting'}
             </div>
           </div>
-          <div className="stat-number">{categories.length}</div>
-          <div className="stat-label">Categories</div>
-          <div className="stat-desc">Active product categories in the catalogue</div>
         </div>
-        <div className="stat-card kpi-accent rose">
-          <div className="stat-card-top">
-            <div className="stat-icon" style={{ background: '#f3e8ff', color: '#7c3aed' }}>
-              <Icon name="users" size={20} />
+        <div className="stat-card">
+          <div className="kpi-icon-wrap muted-icon">
+            <Icon name="receipts" size={20} />
+          </div>
+          <div className="kpi-body">
+            <div className="kpi-title">Completed Orders</div>
+            <div className="kpi-value">{completedOrders}</div>
+            <div className="kpi-status">
+              <span className="kpi-status-dot up" />
+              Fully received and closed orders
             </div>
           </div>
-          <div className="stat-number">{sizes.length}</div>
-          <div className="stat-label">Sizes</div>
-          <div className="stat-desc">Size options available for order entry</div>
         </div>
       </div>
 
@@ -528,8 +528,59 @@ function MainDashboard() {
         </div>
       </div>
 
-      {/* Work progress + real monthly chart (horizontal) */}
-      <div className="dash-grid">
+      {/* Main content grid: 3-column layout matching Image 2 */}
+      <div className="dash-grid" style={{ gridTemplateColumns: '1fr 1fr 1fr', marginBottom: 18 }}>
+        {/* Analytics Chart — Monthly Orders */}
+        <div className="card">
+          <div className="card-title">Monthly Orders — Last 12 Months</div>
+          <MonthlyHBar data={monthly} />
+        </div>
+
+        {/* Reminders / Notifications */}
+        <div className="card">
+          <div className="card-title">Notifications</div>
+          <div className="info-list">
+            {notifications.slice(0, 5).map((n) => (
+              <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: n.is_read ? '#d1d5db' : '#2563eb', flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: n.is_read ? 400 : 600 }}>{n.title}</div>
+                  {n.body && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{n.body}</div>}
+                </div>
+              </div>
+            ))}
+            {!notifications.length && <div className="muted">No notifications</div>}
+          </div>
+        </div>
+
+        {/* Project / Order List */}
+        <div className="card">
+          <div className="card-title">Recent Orders</div>
+          <div className="info-list">
+            {recentPOs.slice(0, 5).map((p, i) => (
+              <div key={p.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+                <span style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--accent-light)', color: 'var(--accent)', display: 'inline-grid', placeItems: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{i + 1}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}><Link to={`/purchase-orders/${p.id}`} style={{ color: 'inherit', textDecoration: 'none' }}>{p.po_number}</Link></div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>{p.section_name} · {p.supplier_name}</div>
+                </div>
+                <strong style={{ fontSize: 13 }}><Money value={p.grand_total} /></strong>
+              </div>
+            ))}
+            {!recentPOs.length && <div className="muted">No recent orders</div>}
+          </div>
+        </div>
+      </div>
+
+      {/* 2-column section: Team Activity + Work Progress */}
+      <div className="dash-grid two" style={{ marginBottom: 18 }}>
+        {/* Team Activity */}
+        <div className="card">
+          <div className="card-title">Division-wise Orders</div>
+          <DivisionVBar data={byDivision} />
+        </div>
+
+        {/* Work Progress Ring */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <div className="card-title" style={{ alignSelf: 'flex-start' }}>Work Progress</div>
           <ProgressRing pct={workPct} />
@@ -541,67 +592,18 @@ function MainDashboard() {
             <div className="funnel-row done"><span>Completed</span><strong>{completedOrders}</strong></div>
           </div>
         </div>
-
-        <div className="card">
-          <div className="card-title">Monthly Orders — Last 12 Months</div>
-          <MonthlyHBar data={monthly} />
-        </div>
       </div>
 
-      {/* Division-wise vertical bars + collection share horizontal bars */}
-      <div className="dash-grid">
-        <div className="card">
-          <div className="card-title">Division-wise Orders</div>
-          <DivisionVBar data={byDivision} />
-        </div>
+      {/* Collection Share + Top Suppliers */}
+      <div className="dash-grid two">
         <div className="card">
           <div className="card-title">Collection-wise Share of Order Value</div>
           <CollectionShareBars data={bySection} />
         </div>
-      </div>
-
-      {/* Live team monitor (admin only) */}
-      {canMonitor && <LivePanel />}
-
-      {/* Recent Orders & Top Suppliers — real PO rows */}
-      <div className="dash-grid">
-        <div className="card">
-          <div className="card-title">Recent Orders</div>
-          <div className="table-wrap">
-            <table className="recent-table">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>PO Number</th>
-                  <th>Collection</th>
-                  <th>Supplier</th>
-                  <th>Qty</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recentPOs.map((p, i) => (
-                  <tr key={p.id}>
-                    <td>{i + 1}</td>
-                    <td><Link to={`/purchase-orders/${p.id}`} style={{ color: 'var(--brand-ink)', fontWeight: 600 }}>{p.po_number}</Link></td>
-                    <td>{p.section_name}</td>
-                    <td>{p.supplier_name}</td>
-                    <td>{p.total_quantity}</td>
-                    <td><Money value={p.grand_total} /></td>
-                    <td><span className="chip" style={{ background: '#f1f5f9', color: STATUS_COLORS[p.status] || '#334155' }}>{p.status.replace(/_/g, ' ')}</span></td>
-                  </tr>
-                ))}
-                {!recentPOs.length && <tr><td colSpan={7} className="muted" style={{ textAlign: 'center', padding: 20 }}>No recent orders</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
         <div className="card">
           <div className="card-title">Top Suppliers</div>
           <div className="info-list">
-            {bySupplier.slice(0, 8).map((s, i) => (
+            {bySupplier.slice(0, 6).map((s, i) => (
               <div key={s.company_name} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
                 <span style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--brand-ink)', color: '#fff', display: 'inline-grid', placeItems: 'center', fontSize: 11, fontWeight: 700, flexShrink: 0 }}>{i + 1}</span>
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -616,6 +618,9 @@ function MainDashboard() {
         </div>
       </div>
 
+      {/* Live team monitor (admin only) */}
+      {canMonitor && <LivePanel />}
+
       {/* Brand line-up — real uploaded logos, aligned tiles */}
       <BrandStrip brands={brands} />
 
@@ -625,7 +630,7 @@ function MainDashboard() {
           <div className="card-title">Brands</div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--brand-ink)' }}>{totalBrands}</div>
+              <div style={{ fontSize: 30, fontWeight: 800, color: 'var(--ink)' }}>{totalBrands}</div>
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>Active brands</div>
             </div>
             <Link to="/brands" className="btn sm">View All →</Link>
@@ -635,7 +640,7 @@ function MainDashboard() {
           <div className="card-title">Colors</div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--brand-ink)' }}>{totalColors}</div>
+              <div style={{ fontSize: 30, fontWeight: 800, color: 'var(--ink)' }}>{totalColors}</div>
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>Available colors</div>
             </div>
             <Link to="/colors" className="btn sm">View All →</Link>
@@ -645,29 +650,11 @@ function MainDashboard() {
           <div className="card-title">Manufacturers</div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--brand-ink)' }}>{totalManufacturers}</div>
+              <div style={{ fontSize: 30, fontWeight: 800, color: 'var(--ink)' }}>{totalManufacturers}</div>
               <div style={{ fontSize: 12, color: 'var(--muted)' }}>Active manufacturers</div>
             </div>
             <Link to="/manufacturers" className="btn sm">View All →</Link>
           </div>
-        </div>
-      </div>
-
-      {/* System Notifications */}
-      <div className="card">
-        <div className="card-title">System Notifications</div>
-        <div className="info-list">
-          {notifications.slice(0, 6).map((n) => (
-            <div key={n.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: n.is_read ? '#d1d5db' : '#2563eb', flexShrink: 0 }} />
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: n.is_read ? 400 : 600 }}>{n.title}</div>
-                {n.body && <div style={{ fontSize: 11, color: 'var(--muted)' }}>{n.body}</div>}
-              </div>
-              <span style={{ fontSize: 11, color: 'var(--muted)', whiteSpace: 'nowrap' }}>{fmtTime(n.sent_at)}</span>
-            </div>
-          ))}
-          {!notifications.length && <div className="muted">No notifications</div>}
         </div>
       </div>
 

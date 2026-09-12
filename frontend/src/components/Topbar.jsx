@@ -164,7 +164,6 @@ export default function Topbar({ collapsed, onToggle }) {
         <button className="icon-btn" title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={onToggle}>
           <Icon name="menu" size={20} />
         </button>
-        <div className="topbar-title">Purchase Order Management System</div>
       </div>
 
       <div className="topbar-search">
@@ -208,14 +207,6 @@ export default function Topbar({ collapsed, onToggle }) {
       </div>
 
       <div className="topbar-right">
-        <div className="clock" title={now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}>
-          <Icon name="clock" size={15} />
-          <span>{now.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-          <strong>{now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</strong>
-        </div>
-
-        {/* (Dark / bright mode switch removed by request — light theme fixed) */}
-
         {/* Administrator-only: DevTools blocking */}
         {user.isSuperAdmin && (
           <button
@@ -252,7 +243,7 @@ export default function Topbar({ collapsed, onToggle }) {
                   </span>
                 </button>
               ))}
-              {!notifications.length && <div className="drop-empty">You're all caught up 🎉</div>}
+              {!notifications.length && <div className="drop-empty">You're all caught up</div>}
             </div>
           </div>
         )}
@@ -273,7 +264,7 @@ export default function Topbar({ collapsed, onToggle }) {
           </button>
           {openMenu === 'cart' && (
             <div className="dropdown cart-drop">
-              <div className="drop-head">🛒 Pending orders in cart</div>
+              <div className="drop-head">Pending orders in cart</div>
               <div className="drop-scroll">
                 {cart.items.map((it) => (
                   <div key={it.id} className="drop-item cart-item">

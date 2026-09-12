@@ -77,6 +77,27 @@ const SECTIONS = [
   },
 ];
 
+const FOOTWEAR_BRANDS = [
+  { name: 'Bata', manufacturer: 'Bata India' },
+  { name: 'Woodland', manufacturer: 'Aero Club / Woodland' },
+  { name: 'Liberty', manufacturer: 'Liberty Shoes Ltd.' },
+  { name: 'Relaxo', manufacturer: 'Relaxo Footwears Limited' },
+  { name: 'Sparx', manufacturer: 'Relaxo Footwears Limited' },
+  { name: 'Campus', manufacturer: 'Campus Activewear Limited' },
+  { name: 'Red Tape', manufacturer: 'Mirza International Limited' },
+  { name: 'Puma', manufacturer: 'PUMA' },
+  { name: 'Adidas', manufacturer: 'adidas India' },
+  { name: 'Nike', manufacturer: 'Nike India' },
+  { name: 'Skechers', manufacturer: 'Skechers India' },
+  { name: 'Reebok', manufacturer: 'Reebok India' },
+  { name: 'Asics', manufacturer: 'ASICS India' },
+  { name: 'Under Armour', manufacturer: 'Under Armour India' },
+  { name: 'Metro', manufacturer: 'Metro Brands Limited' },
+  { name: "Khadim's", manufacturer: 'Khadim India Limited' },
+  { name: 'Paragon', manufacturer: 'Paragon Polymer Products Pvt. Ltd.' },
+  { name: 'Walkaroo', manufacturer: 'Walkaroo International Pvt. Ltd.' },
+];
+
 const DEPARTMENT_GROUPS = [
   {
     key: 'men',
@@ -88,7 +109,7 @@ const DEPARTMENT_GROUPS = [
       { code: 'MEN-TSHIRTS', name: "Men's T-Shirts", icon: 'tshirts' },
       { code: 'MEN-ETHNIC', name: "Men's Ethnic Wear", icon: 'ethnic' },
       { code: 'MEN-INNERWEAR', name: "Men's Innerwear", icon: 'innerwear' },
-      { code: 'FOOTWEAR-M', name: "Footwear — Men", icon: 'footwear' },
+      { code: 'FOOTWEAR-M', name: "Footwear — Men", icon: 'footwear', brands: FOOTWEAR_BRANDS },
     ],
   },
   {
@@ -138,7 +159,7 @@ function canSee(item, user) {
   return true;
 }
 
-function DepartmentNavGroup({ group, collapsed, open, onToggle }) {
+function DepartmentNavGroup({ group, collapsed, open, onToggle, expandedSection, onToggleSection }) {
   return (
     <div className="nav-collection">
       <button
@@ -169,15 +190,33 @@ function DepartmentNavGroup({ group, collapsed, open, onToggle }) {
           </NavLink>
 
           {group.sections.map((sec) => (
-            <NavLink
-              key={sec.code}
-              to={`/collection/${group.key}?sectionCode=${sec.code}`}
-              className={({ isActive }) => (isActive ? 'nav-sublink active' : 'nav-sublink')}
-              title={sec.name}
-            >
-              <span className="nav-sub-icon"><CollectionIcon name={sec.icon} size={13} /></span>
-              <span className="nav-sub-text">{sec.name}</span>
-            </NavLink>
+            <div key={sec.code} className="nav-section-wrap">
+              <NavLink
+                to={`/collection/${group.key}?sectionCode=${sec.code}`}
+                className={({ isActive }) => (isActive ? 'nav-sublink active' : 'nav-sublink')}
+                title={sec.name}
+                onClick={sec.brands ? (e) => { e.preventDefault(); onToggleSection(sec.code); } : undefined}
+              >
+                <span className="nav-sub-icon"><CollectionIcon name={sec.icon} size={13} /></span>
+                <span className="nav-sub-text">{sec.name}</span>
+                {sec.brands && <span className={`nav-chevron small ${expandedSection === sec.code ? 'down' : ''}`}>›</span>}
+              </NavLink>
+              {sec.brands && expandedSection === sec.code && (
+                <div className="nav-brands-list">
+                  {sec.brands.map((brand) => (
+                    <NavLink
+                      key={brand.name}
+                      to={`/catalogue?brand=${encodeURIComponent(brand.name)}&sectionCode=FOOTWEAR-M`}
+                      className="nav-brand-link"
+                      title={brand.manufacturer}
+                    >
+                      <span className="nav-brand-dot" />
+                      <span className="nav-brand-name">{brand.name}</span>
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -238,7 +277,12 @@ export default function Sidebar({ collapsed, onToggle }) {
     : SECTIONS;
   const canCreatePO = user.isSuperAdmin || user.permissions?.includes('po.create');
   const [openGroup, setOpenGroup] = useState('men');
+  const [expandedSection, setExpandedSection] = useState(null);
   const navigate = useNavigate();
+
+  const handleToggleSection = (code) => {
+    setExpandedSection(expandedSection === code ? null : code);
+  };
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
@@ -277,6 +321,8 @@ export default function Sidebar({ collapsed, onToggle }) {
                         collapsed={collapsed}
                         open={openGroup === g.key}
                         onToggle={() => setOpenGroup(openGroup === g.key ? null : g.key)}
+                        expandedSection={expandedSection}
+                        onToggleSection={handleToggleSection}
                       />
                     ))}
                   </div>
@@ -285,14 +331,16 @@ export default function Sidebar({ collapsed, onToggle }) {
             );
           })}
         </nav>
-        {canCreatePO && (
-          <button className="btn primary create-po" title="Create Master PO"
-            onClick={() => navigate('/purchase-orders/new')}>
-            <Icon name="plus" size={16} />
-            {!collapsed && <span>Create Master PO</span>}
-          </button>
-        )}
-        {!collapsed && <div className="sidebar-foot">POMS v2.0 · role-scoped</div>}
+        <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--line)' }}>
+          {canCreatePO && (
+            <button className="btn primary create-po" title="Create Master PO"
+              onClick={() => navigate('/purchase-orders/new')}>
+              <Icon name="plus" size={16} />
+              {!collapsed && <span>Create Master PO</span>}
+            </button>
+          )}
+          {!collapsed && <div className="sidebar-foot">POMS v2.0 · role-scoped</div>}
+        </div>
       </div>
     </aside>
   );

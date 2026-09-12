@@ -188,7 +188,8 @@ export { mapField, productFieldOptions, defaultMappingFromHeaders, normKey, pars
 
 export async function executeImport(db, importId, records) {
   const out = { imported: 0, updated: 0, failed: 0, perRow: [] };
-  await db.query('BEGIN');
+  const client = await db;
+  await client.query('BEGIN');
   try {
     for (const rec of records) {
       const row = {
@@ -228,12 +229,12 @@ export async function executeImport(db, importId, records) {
           gender: rec.mapped.gender || null,
           status: rec.mapped.status || 'active',
           attributes: {},
-          created_by: rec.existingId ? null : db.userId,
-          updated_by: db.userId,
+          created_by: rec.existingId ? null : client.userId,
+          updated_by: client.userId,
         };
 
         if (rec.action === 'update' && rec.existingId) {
-          const { rows } = await db.query(
+          const { rows } = await client.query(
             `UPDATE products SET name=$2, brand_id=$3, section_id=$4, category_id=$5,
               hsn_sac=$6, tax_category=$7, purchase_price=$8, selling_price=$9,
               barcode=$10, internal_ref=$11, material=$12, collection=$13, gender=$14, status=$15,
@@ -251,7 +252,7 @@ export async function executeImport(db, importId, records) {
             out.updated++;
           } else throw new Error('Existing product row not found at update time');
         } else {
-          const { rows } = await db.query(
+          const { rows } = await client.query(
             `INSERT INTO products (sku, name, brand_id, section_id, category_id, hsn_sac, tax_category,
               purchase_price, selling_price, barcode, internal_ref, material, collection, gender, status,
               attributes, created_by)
@@ -283,9 +284,9 @@ export async function executeImport(db, importId, records) {
         out.perRow.push(row);
       }
     }
-    await db.query('COMMIT');
+    await client.query('COMMIT');
   } catch (e) {
-    await db.query('ROLLBACK');
+    await client.query('ROLLBACK');
     throw e;
   }
   return out;

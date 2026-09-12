@@ -110,7 +110,7 @@ export function validateFileUpload(options = {}) {
 export function validateUploadedFiles(options = {}) {
   const { allowedTypes = 'all' } = options;
 
-  return (req, res, next) => {
+  return async (req, res, next) => {
     const files = req.files;
     if (!files || !files.length) return next();
 

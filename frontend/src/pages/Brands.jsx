@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import api, { errMessage, assetUrl } from '../api.js';
 import { useAuth } from '../auth.jsx';
@@ -13,29 +13,45 @@ export default function Brands() {
   const [searchParams] = useSearchParams();
   const sectionFilter = searchParams.get('sectionId') || '';
   const [rows, setRows] = useState([]);
-  const [collections, setCollections] = useState([]);
+  const [departments, setDepartments] = useState([]);
   const [sections, setSections] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [collectionFilter, setCollectionFilter] = useState('');
+  const [departmentFilter, setDepartmentFilter] = useState('');
+  const [sectionFilterLocal, setSectionFilterLocal] = useState('');
   const [error, setError] = useState('');
   const [modal, setModal] = useState(null);
   const [importOpen, setImportOpen] = useState(false);
-  const [form, setForm] = useState({ brandNumber: '', brandSerial: '', brandName: '', brandCode: '', manufacturer: '', collectionIds: [] });
+  const [form, setForm] = useState({ brandNumber: '', brandSerial: '', brandName: '', brandCode: '', manufacturer: '', departmentId: '', sectionIds: [] });
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(null);
   const fileRef = useRef({});
 
+  const visibleSections = useMemo(() => {
+    if (!departmentFilter) return sections;
+    return sections.filter((s) => s.department_id === departmentFilter);
+  }, [sections, departmentFilter]);
+
+  const formSections = useMemo(() => {
+    if (!form.departmentId) return sections;
+    return sections.filter((s) => s.department_id === form.departmentId);
+  }, [sections, form.departmentId]);
+
   const load = () => {
-    api.get('/brands', { params: { page, limit: 20, search, sectionId: sectionFilter || undefined, collectionId: collectionFilter || undefined } })
+    const params = { page, limit: 20, search };
+    if (sectionFilter) params.sectionId = sectionFilter;
+    else if (sectionFilterLocal) params.sectionId = sectionFilterLocal;
+    else if (departmentFilter) params.departmentId = departmentFilter;
+    api.get('/brands', { params })
       .then((r) => { setRows(r.data.data || []); setTotal(r.data.total || 0); })
       .catch((e) => setError(errMessage(e)));
   };
-  useEffect(load, [page, search, sectionFilter, collectionFilter]);
+  useEffect(load, [page, search, departmentFilter, sectionFilterLocal, sectionFilter, sections]);
   useEffect(() => {
-    api.get('/sections').then((r) => setSections(r.data.data || [])).catch(() => {});
-    api.get('/collections').then((r) => setCollections(r.data.data || [])).catch(() => {});
+    Promise.all([api.get('/departments'), api.get('/sections?status=active')])
+      .then(([d, s]) => { setDepartments(d.data.data || []); setSections(s.data.data || []); })
+      .catch(() => {});
   }, []);
 
   const save = async () => {
@@ -46,10 +62,13 @@ export default function Brands() {
           brandName: form.brandName,
           brandCode: form.brandCode,
           manufacturer: form.manufacturer,
-          collectionIds: form.collectionIds,
+          sectionIds: form.sectionIds,
         });
       } else {
-        await api.post('/brands', form);
+        await api.post('/brands', {
+          ...form,
+          sectionIds: form.sectionIds,
+        });
       }
       setModal(null); load();
     } catch (e) { setError(errMessage(e)); }
@@ -72,23 +91,26 @@ export default function Brands() {
     return name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
   };
 
-  const toggleCollection = (cid) => {
+  const toggleSection = (sid) => {
     setForm((prev) => {
-      const ids = prev.collectionIds || [];
-      const next = ids.includes(cid) ? ids.filter((i) => i !== cid) : [...ids, cid];
-      return { ...prev, collectionIds: next };
+      const ids = prev.sectionIds || [];
+      const next = ids.includes(sid) ? ids.filter((i) => i !== sid) : [...ids, sid];
+      return { ...prev, sectionIds: next };
     });
   };
 
   const openEdit = (b) => {
-    const colIds = (b.collections || []).map((c) => c.id);
+    const secIds = (b.sections || []).map((s) => s.id);
+    const firstSection = b.sections?.[0];
+    const deptId = firstSection?.department_id || '';
     setForm({
       brandNumber: b.brand_number,
       brandSerial: b.brand_serial,
       brandName: b.brand_name,
       brandCode: b.brand_code || '',
       manufacturer: b.manufacturer || '',
-      collectionIds: colIds,
+      departmentId: deptId,
+      sectionIds: secIds,
       id: b.id,
     });
     setModal('edit');
@@ -103,7 +125,7 @@ export default function Brands() {
             <button className="btn" onClick={() => setImportOpen(true)} title="Import brands from a CSV — new brand names are created automatically">
               <Icon name="upload" size={15} /> Import CSV
             </button>
-            <button className="btn primary" onClick={() => { setForm({ brandNumber: '', brandSerial: '', brandName: '', brandCode: '', manufacturer: '', collectionIds: [] }); setModal('create'); }}>+ Add Brand</button>
+            <button className="btn primary" onClick={() => { setForm({ brandNumber: '', brandSerial: '', brandName: '', brandCode: '', manufacturer: '', departmentId: '', sectionIds: [] }); setModal('create'); }}>+ Add Brand</button>
           </div>
         ) : (
           <span className="chip">🔒 Read-only — Authorized roles manage brands</span>
@@ -124,13 +146,23 @@ export default function Brands() {
             <input value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search brands…" />
           </label>
           <label className="field" style={{ maxWidth: 220, marginBottom: 0 }}><span className="field-label">Collection</span>
-            <select value={collectionFilter} onChange={(e) => { setCollectionFilter(e.target.value); setPage(1); }}>
+            <select value={departmentFilter} onChange={(e) => { setDepartmentFilter(e.target.value); setSectionFilterLocal(''); setPage(1); }}>
               <option value="">All Collections</option>
-              {collections.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
+              {departments.map((d) => (
+                <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
           </label>
+          {departmentFilter && (
+            <label className="field" style={{ maxWidth: 220, marginBottom: 0 }}><span className="field-label">Sub Category</span>
+              <select value={sectionFilterLocal} onChange={(e) => { setSectionFilterLocal(e.target.value); setPage(1); }}>
+                <option value="">All Sub Categories</option>
+                {visibleSections.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
         <div className="brands-grid">
           {rows.map((b) => (
@@ -168,10 +200,10 @@ export default function Brands() {
                   {b.brand_code && <span>· {b.brand_code}</span>}
                 </div>
                 {b.manufacturer && <div className="brand-card-mfr">{b.manufacturer}</div>}
-                {b.collections?.length > 0 && (
+                {b.sections?.length > 0 && (
                   <div className="brand-card-collections">
-                    {b.collections.map((c) => (
-                      <span key={c.id} className="chip collection-chip">{c.name}</span>
+                    {b.sections.map((s) => (
+                      <span key={s.id} className="chip collection-chip">{s.name}</span>
                     ))}
                   </div>
                 )}
@@ -244,30 +276,32 @@ export default function Brands() {
                 placeholder="e.g. Raymond Apparel Ltd."
               />
             </label>
-            <div className="field">
-              <span className="field-label">Collections (Men, Women, Kids, etc.)</span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
-                {collections.map((c) => (
-                  <label
-                    key={c.id}
-                    style={{
-                      display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px',
-                      borderRadius: 8, border: '1px solid', cursor: 'pointer', fontSize: 13, fontWeight: 500,
-                      borderColor: form.collectionIds?.includes(c.id) ? '#b98a2f' : '#e2e8f0',
-                      background: form.collectionIds?.includes(c.id) ? '#fef9ee' : '#fff',
-                      color: form.collectionIds?.includes(c.id) ? '#92640d' : '#475569',
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={form.collectionIds?.includes(c.id) || false}
-                      onChange={() => toggleCollection(c.id)}
-                      style={{ width: 14, height: 14, accentColor: '#b98a2f' }}
-                    />
-                    {c.name}
-                  </label>
-                ))}
-              </div>
+            <div className="fields-2">
+              <label className="field">
+                <span className="field-label">Collection</span>
+                <select
+                  value={form.departmentId}
+                  onChange={(e) => setForm({ ...form, departmentId: e.target.value, sectionIds: [] })}
+                >
+                  <option value="">Select Collection</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field-label">Sub Category</span>
+                <select
+                  value={form.sectionIds?.[0] || ''}
+                  onChange={(e) => setForm({ ...form, sectionIds: e.target.value ? [e.target.value] : [] })}
+                  disabled={!form.departmentId}
+                >
+                  <option value="">{form.departmentId ? 'Select Sub Category' : 'Select Collection first'}</option>
+                  {formSections.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </label>
             </div>
           <div className="modal-actions">
             <button className="btn" onClick={() => setModal(null)}>Cancel</button>
