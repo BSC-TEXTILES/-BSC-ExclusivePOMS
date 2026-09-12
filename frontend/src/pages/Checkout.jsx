@@ -118,6 +118,7 @@ function OrderCard({ it, po, checked, onCheck, onRemove }) {
           <input type="checkbox" checked={!!checked} onChange={(e) => onCheck(e.target.checked)} />
           I have crosschecked this order
         </label>
+        <button className="btn sm" onClick={() => window.open(`/api/purchase-orders/${po?.id || it.id}/export/pdf`, '_blank')} title="Open Invoice PDF in new tab">View Full Details</button>
         <button className="btn sm danger" onClick={onRemove}>Remove</button>
       </div>
       {!po && <p className="muted">Loading order details…</p>}

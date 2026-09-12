@@ -322,6 +322,8 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
   grand_total    numeric(14,2) NOT NULL DEFAULT 0 CHECK (grand_total >= 0),
   header_snapshot jsonb,
   remarks        text,
+  qr_code        text,
+  idempotency_key uuid,
   submitted_at timestamptz, approved_at timestamptz,
   issued_at    timestamptz, closed_at   timestamptz,
   created_at   timestamptz NOT NULL DEFAULT now(),
@@ -329,6 +331,8 @@ CREATE TABLE IF NOT EXISTS purchase_orders (
 );
 CREATE INDEX IF NOT EXISTS idx_po_div_status ON purchase_orders (division_id, status);
 CREATE INDEX IF NOT EXISTS idx_po_supplier   ON purchase_orders (supplier_id);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_po_idempotency_key
+  ON purchase_orders (idempotency_key) WHERE idempotency_key IS NOT NULL;
 
 CREATE TABLE IF NOT EXISTS purchase_order_items (
   id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),

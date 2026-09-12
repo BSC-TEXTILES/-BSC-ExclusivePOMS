@@ -225,6 +225,21 @@ export default function PODetails() {
               <tr><td className="muted">Expected delivery</td><td>{po.expected_delivery_date ? new Date(po.expected_delivery_date).toLocaleDateString("en-IN", { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}</td></tr>
               <tr><td className="muted">Tax scheme</td><td>{po.tax_scheme}</td></tr>
               <tr><td className="muted">Remarks</td><td>{po.remarks || '—'}</td></tr>
+              {po.qr_code && (
+                <tr>
+                  <td className="muted">QR Code</td>
+                  <td>
+                    <div
+                      className="po-qr-display"
+                      dangerouslySetInnerHTML={{ __html: po.qr_code }}
+                      title={`QR Code for ${po.po_number}`}
+                    />
+                    <div className="mono muted" style={{ fontSize: 11, marginTop: 2 }}>
+                      {po.po_number} — scan to open this PO
+                    </div>
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

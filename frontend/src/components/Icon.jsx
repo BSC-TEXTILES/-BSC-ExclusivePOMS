@@ -32,6 +32,9 @@ const PATHS = {
   trash: 'M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6h14Z',
   download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
   arrowRight: 'M5 12h14m-7-7 7 7-7 7',
+  rotateCw: 'M21 2v6h-6M21 8a9 9 0 1 1-2.6-6.4L21 8',
+  clipboard: 'M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2m4-2a2 2 0 1 1 4 0 2 2 0 0 1-4 0Zm-4 10h8m-8 4h8',
+  checkCircle: 'M22 11.08V12a10 10 0 1 1-5.93-9.14M22 4L12 14.01l-3-3',
 };
 
 export default function Icon({ name, size = 18, className = '', style }) {

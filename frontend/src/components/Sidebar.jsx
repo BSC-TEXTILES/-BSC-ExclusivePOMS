@@ -9,44 +9,45 @@ const SECTIONS = [
   {
     label: null,
     items: [
-      { to: '/dashboard', label: 'Dashboard', icon: 'dashboard', end: true },
+      { to: '/dashboard', label: 'Dashboard', icon: 'dashboard', end: true, permission: 'dashboard.view' },
     ],
   },
   {
     label: 'Collections',
     items: [
-      { to: '/catalogue', label: 'Catalogue', icon: 'catalogue' },
+      { to: '/catalogue', label: 'Catalogue', icon: 'catalogue', permission: 'catalogue.view' },
     ],
   },
   {
     label: 'Master Data',
     items: [
-      { to: '/products', label: 'Products', icon: 'catalogue', permission: 'masters.view' },
-      { to: '/brands', label: 'Brands', icon: 'masters', permission: 'masters.view' },
-      { to: '/categories', label: 'Categories', icon: 'masters', permission: 'masters.view' },
-      { to: '/product-types', label: 'Product Types', icon: 'masters', permission: 'masters.view' },
-      { to: '/colors', label: 'Colors', icon: 'masters', permission: 'masters.view' },
-      { to: '/sizes', label: 'Sizes', icon: 'masters', permission: 'masters.view' },
-      { to: '/manufacturers', label: 'Manufacturers', icon: 'building', permission: 'masters.view' },
-      { to: '/locations', label: 'Locations', icon: 'building', permission: 'masters.view' },
+      { to: '/products', label: 'Products', icon: 'catalogue', permission: 'products.view' },
+      { to: '/brands', label: 'Brands', icon: 'masters', permission: 'brands.view' },
+      { to: '/categories', label: 'Categories', icon: 'masters', permission: 'categories.view' },
+      { to: '/product-types', label: 'Product Types', icon: 'masters', permission: 'product_types.view' },
+      { to: '/colors', label: 'Colors', icon: 'masters', permission: 'colors.view' },
+      { to: '/sizes', label: 'Sizes', icon: 'masters', permission: 'sizes.view' },
+      { to: '/manufacturers', label: 'Manufacturers', icon: 'building', permission: 'manufacturers.view' },
+      { to: '/locations', label: 'Locations', icon: 'building', permission: 'locations.view' },
     ],
   },
   {
     label: 'Orders',
     items: [
-      { to: '/purchase-orders', label: 'Purchase Orders', icon: 'po' },
-      { to: '/calendar', label: 'PO Calendar', icon: 'calendar' },
+      { to: '/purchase-orders', label: 'Purchase Orders', icon: 'po', permission: 'po.view' },
+      { to: '/calendar', label: 'PO Calendar', icon: 'calendar', permission: 'calendar.view' },
     ],
   },
   {
     label: 'Operations',
     items: [
-      { to: '/chat', label: 'Team Chat', icon: 'chat' },
+      { to: '/chat', label: 'Team Chat', icon: 'chat', permission: 'chat.view' },
       { to: '/approvals', label: 'Approval Queue', icon: 'approvals', permission: 'approvals.view' },
       { to: '/receipts', label: 'Receiving', icon: 'receipts', permission: 'receipt.view' },
+      { to: '/auctions', label: 'Auctions', icon: 'trophy', permission: 'auctions.view' },
       { to: '/masters', label: 'Masters', icon: 'masters', permission: 'masters.view', hiddenRoles: ['purchase_executive'] },
-      { to: '/pricing', label: 'Pricing', icon: 'reports', permission: 'masters.view', hiddenRoles: ['purchase_executive'] },
-      { to: '/export-data', label: 'Export Data', icon: 'reports', permission: 'reports.view', hiddenRoles: ['purchase_executive'] },
+      { to: '/pricing', label: 'Pricing', icon: 'reports', permission: 'pricing.view', hiddenRoles: ['purchase_executive'] },
+      { to: '/export-data', label: 'Export Data', icon: 'reports', permission: 'reports.export', hiddenRoles: ['purchase_executive'] },
     ],
   },
   {
@@ -68,11 +69,11 @@ const SECTIONS = [
       { to: '/roles', label: 'Roles', icon: 'shield', permission: 'users.manage', superAdminOnly: true },
       { to: '/settings', label: 'Settings', icon: 'settings', permission: 'settings.manage' },
       { to: '/audit-logs', label: 'Audit Trail', icon: 'audit', permission: 'audit.view' },
-      { to: '/import-data', label: 'Import Data', icon: 'reports', permission: 'masters.manage' },
+      { to: '/import-data', label: 'Import Data', icon: 'reports', permission: 'import.manage' },
       { to: '/collections', label: 'Collections', icon: 'masters', permission: 'collections.view' },
       { to: '/dealers', label: 'Dealers', icon: 'building', permission: 'dealers.view' },
       { to: '/company', label: 'Company Settings', icon: 'settings', permission: 'company.view' },
-      { to: '/attachments', label: 'Attachments', icon: 'catalogue', permission: 'masters.view', hiddenRoles: ['purchase_executive'] },
+      { to: '/attachments', label: 'Attachments', icon: 'catalogue', permission: 'attachments.view', hiddenRoles: ['purchase_executive'] },
     ],
   },
 ];
@@ -172,7 +173,7 @@ function DepartmentNavGroup({ group, collapsed, open, onToggle, expandedSection,
           <>
             <span className="nav-coll-name">{group.title}</span>
             <span className="nav-dept-count">{group.sections.length}</span>
-            <span className={`nav-chevron ${open ? 'down' : ''}`}>›</span>
+            <span className={`nav-chevron ${open ? 'down' : ''}`}><Icon name="chevronRight" size={14} /></span>
           </>
         )}
       </button>
@@ -199,7 +200,7 @@ function DepartmentNavGroup({ group, collapsed, open, onToggle, expandedSection,
               >
                 <span className="nav-sub-icon"><CollectionIcon name={sec.icon} size={13} /></span>
                 <span className="nav-sub-text">{sec.name}</span>
-                {sec.brands && <span className={`nav-chevron small ${expandedSection === sec.code ? 'down' : ''}`}>›</span>}
+                {sec.brands && <span className={`nav-chevron small ${expandedSection === sec.code ? 'down' : ''}`}><Icon name="chevronRight" size={12} /></span>}
               </NavLink>
               {sec.brands && expandedSection === sec.code && (
                 <div className="nav-brands-list">
@@ -286,13 +287,10 @@ export default function Sidebar({ collapsed, onToggle }) {
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
-      <div className="brand">
-        <img src="/bsc-logo.png" alt="BSC" className="brand-mark-img" />
+      <div className="brand donezo-brand">
+        <img src="/bsc-logo.png" alt="BSC Exclusive" className="brand-mark-img" style={{ width: 40, height: 40, borderRadius: 10 }} />
         {!collapsed && (
-          <div>
-            <div className="brand-name">BSC EXCLUSIVE</div>
-            <div className="brand-sub">Procurement Desk</div>
-          </div>
+          <div className="brand-name">BSC Exclusive</div>
         )}
       </div>
       <div className="sidebar-scroll">
@@ -331,15 +329,15 @@ export default function Sidebar({ collapsed, onToggle }) {
             );
           })}
         </nav>
-        <div style={{ marginTop: 'auto', paddingTop: 12, borderTop: '1px solid var(--line)' }}>
-          {canCreatePO && (
-            <button className="btn primary create-po" title="Create Master PO"
-              onClick={() => navigate('/purchase-orders/new')}>
-              <Icon name="plus" size={16} />
-              {!collapsed && <span>Create Master PO</span>}
-            </button>
+        <div style={{ marginTop: 'auto', paddingTop: 20 }}>
+          {!collapsed && (
+            <div className="donezo-mobile-promo">
+              <div className="promo-icon"><Icon name="po" size={24} /></div>
+              <strong>BSC Exclusive Mobile App</strong>
+              <span>Manage orders on the go</span>
+              <button className="btn">Download</button>
+            </div>
           )}
-          {!collapsed && <div className="sidebar-foot">POMS v2.0 · role-scoped</div>}
         </div>
       </div>
     </aside>

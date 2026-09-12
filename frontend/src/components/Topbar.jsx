@@ -4,6 +4,7 @@ import api, { errMessage, uploadFile, API_BASE, assetUrl } from '../api.js';
 import { useAuth, useCart } from '../auth.jsx';
 import Icon from './Icon.jsx';
 import ProfileModal from './ProfileModal.jsx';
+import Modal from './Modal.jsx';
 
 // WebSocket endpoint: same host in single-origin mode, the API origin when the
 // frontend is deployed separately (Vercel → Render).
@@ -13,6 +14,23 @@ const WS_ORIGIN = API_BASE.startsWith('http')
 
 function initials(name = '') {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map((w) => w[0].toUpperCase()).join('') || '?';
+}
+
+// Display names for the role codes shown in the top bar profile button.
+const ROLE_LABELS = {
+  super_admin: 'Super Admin',
+  admin: 'Admin',
+  domain_admin: 'Domain Admin',
+  purchase_manager: 'Purchase Manager',
+  purchase_executive: 'Purchase Executive',
+  approver: 'Approver',
+  receiving_user: 'Receiving User',
+  viewer: 'Viewer',
+  auditor: 'Auditor',
+};
+
+function roleLabels(roles = []) {
+  return roles.map((r) => ROLE_LABELS[r] || String(r).replace(/_/g, ' ')).join(', ');
 }
 
 export function Avatar({ user, size = 34 }) {
@@ -41,7 +59,26 @@ export default function Topbar({ collapsed, onToggle }) {
   const [theme, setTheme] = useState(() => localStorage.getItem('poms_theme') || 'light');
   const [devtoolsBlock, setDevtoolsBlock] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState(null);
   const boxRef = useRef(null);
+  const searchRef = useRef(null);
+
+  // Listen for the beforeinstallprompt event to enable the Install App button
+  useEffect(() => {
+    const handleInstallPrompt = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+    };
+    window.addEventListener('beforeinstallprompt', handleInstallPrompt);
+    return () => window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
+  }, []);
+
+  async function handleInstallApp() {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') setInstallPrompt(null);
+  }
 
   // Dark / bright mode — persisted per browser, applied on <html data-theme>.
   useEffect(() => {
@@ -122,6 +159,18 @@ export default function Topbar({ collapsed, onToggle }) {
     return () => document.removeEventListener('mousedown', close);
   }, []);
 
+  // ⌘F / Ctrl+F focuses the global search bar (matches the "⌘F" chip).
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'f' || e.key === 'F')) {
+        e.preventDefault();
+        searchRef.current?.focus();
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   async function onSearch(v) {
     setQ(v);
     if (v.trim().length < 2) { setResults(null); setOpenMenu(null); return; }
@@ -166,14 +215,18 @@ export default function Topbar({ collapsed, onToggle }) {
         </button>
       </div>
 
-      <div className="topbar-search">
+      <div className="topbar-search donezo-search">
         <Icon name="search" size={15} className="search-icon" />
         <input
+          ref={searchRef}
           value={q}
-          placeholder="Search POs, products, suppliers…"
+          placeholder="Search task"
+          className="donezo-search-input"
+          aria-label="Search purchase orders, products, suppliers and users"
           onChange={(e) => onSearch(e.target.value)}
           onFocus={() => results && setOpenMenu('search')}
         />
+        <div className="search-shortcut">⌘F</div>
         {openMenu === 'search' && r && (
           <div className="dropdown search-drop">
             <div className="drop-section">Purchase Orders</div>
@@ -206,7 +259,11 @@ export default function Topbar({ collapsed, onToggle }) {
         )}
       </div>
 
-      <div className="topbar-right">
+      <div className="topbar-right donezo-right">
+        <div className="tb-datetime">
+          <strong>{now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</strong>
+          <span className="muted">{now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}</span>
+        </div>
         {/* Administrator-only: DevTools blocking */}
         {user.isSuperAdmin && (
           <button
@@ -222,6 +279,11 @@ export default function Topbar({ collapsed, onToggle }) {
         )}
 
         <div className="tb-anchor">
+          {installPrompt && (
+            <button className="btn accent sm" style={{ marginRight: 16 }} onClick={handleInstallApp}>
+              ↓ Install App
+            </button>
+          )}
           <button className="icon-btn bell" title="Notifications" onClick={() => setOpenMenu(openMenu === 'bell' ? null : 'bell')}>
             <Icon name="bell" size={19} />
             {unread > 0 && <span className="badge">{unread > 99 ? '99+' : unread}</span>}
@@ -295,7 +357,7 @@ export default function Topbar({ collapsed, onToggle }) {
             <Avatar user={user} />
             <span className="profile-meta">
               <span className="user-name">{user.fullName}</span>
-              <span className="user-roles">{(user.roles || []).join(', ')}</span>
+              <span className="user-roles">{roleLabels(user.roles)}</span>
             </span>
             <Icon name="chevronDown" size={14} />
           </button>
@@ -306,7 +368,7 @@ export default function Topbar({ collapsed, onToggle }) {
               <div>
                 <strong>{user.fullName}</strong>
                 <div className="muted">{user.email}</div>
-                <div className="chip" style={{ marginTop: 4 }}>{(user.roles || []).join(', ')}</div>
+                <div className="chip" style={{ marginTop: 4 }}>{roleLabels(user.roles)}</div>
               </div>
             </div>
             <button className="drop-item" onClick={() => { setOpenMenu(null); setShowProfile(true); }}>
@@ -339,6 +401,25 @@ export default function Topbar({ collapsed, onToggle }) {
       )}
 
       {showProfile && <ProfileModal />}
+
+      {/* App Install Popup */}
+      {installPrompt && (
+        <Modal title="Get the BSC Exclusive App" onClose={() => setInstallPrompt(null)} maxWidth={400}>
+          <div style={{ textAlign: 'center', padding: '20px 0' }}>
+            <img src="/bsc-logo.png" alt="BSC" style={{ width: 64, height: 64, marginBottom: 16 }} />
+            <h3 style={{ margin: '0 0 10px', fontSize: 20 }}>Install the Web App</h3>
+            <p style={{ color: '#6b7280', fontSize: 14, marginBottom: 24, lineHeight: 1.5 }}>
+              For the best experience managing orders on the go, install the BSC Exclusive App on your mobile device or desktop.
+            </p>
+            <button className="btn accent" style={{ width: '100%', padding: 14, fontSize: 16, fontWeight: 600 }} onClick={handleInstallApp}>
+              Download App Now
+            </button>
+            <button className="btn ghost" style={{ width: '100%', marginTop: 8 }} onClick={() => setInstallPrompt(null)}>
+              Continue in Browser
+            </button>
+          </div>
+        </Modal>
+      )}
     </header>
   );
 }

@@ -19,10 +19,10 @@ const WIZARD_STEPS = [
 ];
 
 const STANDARD_COLLECTIONS = [
-  { code: 'MEN', name: "Men's Collection", icon: '­ƒæö', desc: "Shirts, Trousers, Ethnic, Innerwear & Footwear" },
-  { code: 'WOMEN', name: "Women's Collection", icon: '­ƒæù', desc: "Sarees, Kurtis, Western Wear & Fabrics" },
-  { code: 'KIDS', name: "Kids Collection", icon: '­ƒºÆ', desc: "Boys, Girls, Infants & Toddlers" },
-  { code: 'HOME', name: "Home Furnishings", icon: '­ƒÅá', desc: "Bed Linen, Curtains, Towels & Accessories" },
+  { code: 'MEN', name: "Men's Collection", icon: 'Men', desc: "Shirts, Trousers, Ethnic, Innerwear & Footwear" },
+  { code: 'WOMEN', name: "Women's Collection", icon: 'Women', desc: "Sarees, Kurtis, Western Wear & Fabrics" },
+  { code: 'KIDS', name: "Kids Collection", icon: 'Kids', desc: "Boys, Girls, Infants & Toddlers" },
+  { code: 'HOME', name: "Home Furnishings", icon: 'Home', desc: "Bed Linen, Curtains, Towels & Accessories" },
 ];
 
 const STANDARD_COLORS = [
@@ -620,7 +620,7 @@ export default function POCreate() {
       <div className="row" style={{ alignItems: 'baseline', marginBottom: 6 }}>
         <h1 className="page-title">{editId ? 'Edit Draft Purchase Order' : 'Create Purchase Order'}</h1>
         <span className="muted" style={{ fontSize: 13 }}>
-          {selectedCollection ? `${selectedCollection.name} ${selectedSection ? `┬À ${selectedSection.name}` : ''}` : 'Guided Procurement Workflow'}
+          {selectedCollection ? `${selectedCollection.name} ${selectedSection ? `- ${selectedSection.name}` : ''}` : 'Guided Procurement Workflow'}
         </span>
         <button className="btn sm ghost right" onClick={() => navigate('/purchase-orders')}>
           Cancel & Exit
@@ -676,7 +676,7 @@ export default function POCreate() {
                       <div className="po-collection-title">{col.name}</div>
                       <div className="po-collection-desc">{col.desc}</div>
                       <button className={`btn sm ${isSelected ? 'primary' : ''}`} style={{ marginTop: 6 }}>
-                        {isSelected ? 'Selected Ô£ô' : 'Select Collection ÔåÆ'}
+                        {isSelected ? 'Selected Ô£ô' : 'Select Collection &rarr;'}
                       </button>
                     </div>
                   );
@@ -691,7 +691,7 @@ export default function POCreate() {
               <div className="row" style={{ alignItems: 'center', marginBottom: 10 }}>
                 <h3 style={{ margin: 0 }}>2. Select Product Type / Category in {selectedCollection?.name}</h3>
                 <button className="btn sm ghost right" onClick={() => goToStep(0)}>
-                  ÔåÉ Change Collection
+                  &larr; Change Collection
                 </button>
               </div>
               <p className="muted" style={{ fontSize: 13, margin: '0 0 16px' }}>
@@ -724,7 +724,7 @@ export default function POCreate() {
               </div>
 
               <div className="row mt">
-                <button className="btn" onClick={() => goToStep(0)}>ÔåÉ Back to Collection</button>
+                <button className="btn" onClick={() => goToStep(0)}>&larr; Back to Collection</button>
               </div>
             </div>
           )}
@@ -739,7 +739,7 @@ export default function POCreate() {
                 </div>
                 <div className="right row" style={{ gap: 8 }}>
                   <button className="btn sm" onClick={() => setInlineModal('product')}>+ Add New Product</button>
-                  <button className="btn sm ghost" onClick={() => goToStep(1)}>ÔåÉ Change Section</button>
+                  <button className="btn sm ghost" onClick={() => goToStep(1)}>&larr; Change Section</button>
                 </div>
               </div>
 
@@ -772,9 +772,9 @@ export default function POCreate() {
                       }}
                     >
                       <div className="po-product-title">{p.name}</div>
-                      <div className="po-product-sku">SKU: {p.sku || 'N/A'} ┬À Brand: {p.brand_name || 'Standard'}</div>
+                      <div className="po-product-sku">SKU: {p.sku || 'N/A'} - Brand: {p.brand_name || 'Standard'}</div>
                       <div className="po-product-meta">
-                        <span className="po-product-price">Ôé╣{Number(p.purchase_price || 850).toFixed(2)}</span>
+                        <span className="po-product-price">Rs.{Number(p.purchase_price || 850).toFixed(2)}</span>
                         <button className={`btn sm ${isSelected ? 'primary' : ''}`}>
                           {isSelected ? 'Selected Ô£ô' : 'Select'}
                         </button>
@@ -794,9 +794,9 @@ export default function POCreate() {
               )}
 
               <div className="row mt">
-                <button className="btn" onClick={() => goToStep(1)}>ÔåÉ Back</button>
+                <button className="btn" onClick={() => goToStep(1)}>&larr; Back</button>
                 {selectedProduct && (
-                  <button className="btn primary right" onClick={() => goToStep(3)}>Continue to Brand ÔåÆ</button>
+                  <button className="btn primary right" onClick={() => goToStep(3)}>Continue to Brand &rarr;</button>
                 )}
               </div>
             </div>
@@ -917,13 +917,13 @@ export default function POCreate() {
               </div>
 
               <div className="row mt">
-                <button className="btn" onClick={() => goToStep(3)}>ÔåÉ Back</button>
+                <button className="btn" onClick={() => goToStep(3)}>&larr; Back</button>
                 <button
                   className="btn primary right"
                   disabled={selectedSizes.length === 0}
                   onClick={() => goToStep(5)}
                 >
-                  Continue to Colors ÔåÆ
+                  Continue to Colors &rarr;
                 </button>
               </div>
             </div>
@@ -985,13 +985,13 @@ export default function POCreate() {
               </div>
 
               <div className="row mt">
-                <button className="btn" onClick={() => goToStep(4)}>ÔåÉ Back</button>
+                <button className="btn" onClick={() => goToStep(4)}>&larr; Back</button>
                 <button
                   className="btn primary right"
                   disabled={selectedColors.length === 0}
                   onClick={() => goToStep(6)}
                 >
-                  Continue to Quantity Matrix ÔåÆ
+                  Continue to Quantity Matrix &rarr;
                 </button>
               </div>
             </div>
@@ -1068,13 +1068,13 @@ export default function POCreate() {
               </div>
 
               <div className="row mt">
-                <button className="btn" onClick={() => goToStep(5)}>ÔåÉ Back</button>
+                <button className="btn" onClick={() => goToStep(5)}>&larr; Back</button>
                 <button
                   className="btn primary right"
                   disabled={currentLineCalc.totalQty <= 0}
                   onClick={() => goToStep(7)}
                 >
-                  Continue to Pricing ÔåÆ
+                  Continue to Pricing &rarr;
                 </button>
               </div>
             </div>
@@ -1089,7 +1089,7 @@ export default function POCreate() {
               </p>
 
               <div className="fields-2">
-                <Field label="Purchase Value / Cost Price (Ôé╣ per piece)" hint="Must be greater than 0">
+                <Field label="Purchase Value / Cost Price (Rs. per piece)" hint="Must be greater than 0">
                   <input
                     type="number"
                     min="0"
@@ -1114,7 +1114,7 @@ export default function POCreate() {
                 <div className="po-calc-grid">
                   <div className="po-calc-metric">
                     <span className="po-calc-metric-label">Purchase Value</span>
-                    <span className="po-calc-metric-val">Ôé╣{currentLineCalc.purchasePrice.toFixed(2)}</span>
+                    <span className="po-calc-metric-val">Rs.{currentLineCalc.purchasePrice.toFixed(2)}</span>
                   </div>
                   <div className="po-calc-metric">
                     <span className="po-calc-metric-label">Margin Applied</span>
@@ -1122,11 +1122,11 @@ export default function POCreate() {
                   </div>
                   <div className="po-calc-metric">
                     <span className="po-calc-metric-label">Selling Price</span>
-                    <span className="po-calc-metric-val">Ôé╣{currentLineCalc.sellingPrice.toFixed(2)}</span>
+                    <span className="po-calc-metric-val">Rs.{currentLineCalc.sellingPrice.toFixed(2)}</span>
                   </div>
                   <div className="po-calc-metric">
                     <span className="po-calc-metric-label">Profit / Piece</span>
-                    <span className="po-calc-metric-val profit">Ôé╣{currentLineCalc.profitPerPiece.toFixed(2)}</span>
+                    <span className="po-calc-metric-val profit">Rs.{currentLineCalc.profitPerPiece.toFixed(2)}</span>
                   </div>
                 </div>
 
@@ -1137,21 +1137,21 @@ export default function POCreate() {
                   </div>
                   <div className="po-calc-metric">
                     <span className="po-calc-metric-label">Total Purchase Value</span>
-                    <span className="po-calc-metric-val">Ôé╣{currentLineCalc.totalPurchase.toLocaleString('en-IN')}</span>
+                    <span className="po-calc-metric-val">Rs.{currentLineCalc.totalPurchase.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="po-calc-metric">
                     <span className="po-calc-metric-label">Total Expected Sales</span>
-                    <span className="po-calc-metric-val">Ôé╣{currentLineCalc.totalSelling.toLocaleString('en-IN')}</span>
+                    <span className="po-calc-metric-val">Rs.{currentLineCalc.totalSelling.toLocaleString('en-IN')}</span>
                   </div>
                   <div className="po-calc-metric">
                     <span className="po-calc-metric-label">Total Expected Profit</span>
-                    <span className="po-calc-metric-val profit">Ôé╣{currentLineCalc.totalProfit.toLocaleString('en-IN')}</span>
+                    <span className="po-calc-metric-val profit">Rs.{currentLineCalc.totalProfit.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
               </div>
 
               <div className="row mt" style={{ gap: 12 }}>
-                <button className="btn" onClick={() => goToStep(6)}>ÔåÉ Back</button>
+                <button className="btn" onClick={() => goToStep(6)}>&larr; Back</button>
                 <button
                   className="btn"
                   style={{ marginLeft: 'auto', fontWeight: 600 }}
@@ -1163,7 +1163,7 @@ export default function POCreate() {
                   className="btn primary"
                   onClick={() => commitCurrentLineToCart('review')}
                 >
-                  Review Order ÔåÆ
+                  Review Order &rarr;
                 </button>
               </div>
             </div>
@@ -1267,10 +1267,10 @@ export default function POCreate() {
                           <div className="muted" style={{ fontSize: 11 }}>{line.sizes?.join(', ')}</div>
                         </td>
                         <td className="num"><strong>{line.totalQty}</strong></td>
-                        <td className="num">Ôé╣{line.purchasePrice?.toFixed(2)}</td>
+                        <td className="num">Rs.{line.purchasePrice?.toFixed(2)}</td>
                         <td className="num">{line.marginPercent}%</td>
-                        <td className="num">Ôé╣{line.sellingPrice?.toFixed(2)}</td>
-                        <td className="num" style={{ color: '#16a34a' }}>+Ôé╣{line.profitPerPiece?.toFixed(2)}</td>
+                        <td className="num">Rs.{line.sellingPrice?.toFixed(2)}</td>
+                        <td className="num" style={{ color: '#16a34a' }}>+Rs.{line.profitPerPiece?.toFixed(2)}</td>
                         <td className="num"><strong><Money value={line.totalPurchase} /></strong></td>
                         <td style={{ textAlign: 'center' }}>
                           <button
@@ -1298,7 +1298,7 @@ export default function POCreate() {
               {/* Action Buttons */}
               <div className="row" style={{ gap: 12, alignItems: 'center' }}>
                 <button className="btn" onClick={() => goToStep(7)}>
-                  ÔåÉ Back to Pricing
+                  &larr; Back to Pricing
                 </button>
                 <button
                   className="btn"
@@ -1352,11 +1352,11 @@ export default function POCreate() {
                     <span style={{ color: '#b3261e', cursor: 'pointer' }} onClick={() => removeCartLine(line.id)}>├ù</span>
                   </div>
                   <div className="po-cart-item-sub">
-                    {line.brand?.brand_name} ┬À {line.totalQty} pcs ┬À Ôé╣{line.purchasePrice}/pc
+                    {line.brand?.brand_name} - {line.totalQty} pcs - Rs.{line.purchasePrice}/pc
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontWeight: 700 }}>
-                    <span style={{ color: '#16a34a', fontSize: 11.5 }}>+{line.marginPercent}% (Ôé╣{line.totalProfit} profit)</span>
-                    <span>Ôé╣{line.totalPurchase?.toLocaleString('en-IN')}</span>
+                    <span style={{ color: '#16a34a', fontSize: 11.5 }}>+{line.marginPercent}% (Rs.{line.totalProfit} profit)</span>
+                    <span>Rs.{line.totalPurchase?.toLocaleString('en-IN')}</span>
                   </div>
                 </div>
               ))}
@@ -1375,26 +1375,26 @@ export default function POCreate() {
               </div>
               <div className="po-cart-totals-row">
                 <span>Purchase Value:</span>
-                <strong>Ôé╣{cartSummary.totalPurchaseVal.toLocaleString('en-IN')}</strong>
+                <strong>Rs.{cartSummary.totalPurchaseVal.toLocaleString('en-IN')}</strong>
               </div>
               <div className="po-cart-totals-row">
                 <span>Expected Sales:</span>
-                <strong>Ôé╣{cartSummary.totalSellingVal.toLocaleString('en-IN')}</strong>
+                <strong>Rs.{cartSummary.totalSellingVal.toLocaleString('en-IN')}</strong>
               </div>
               <div className="po-cart-totals-row" style={{ color: '#16a34a' }}>
                 <span>Expected Profit:</span>
-                <strong style={{ color: '#16a34a' }}>Ôé╣{cartSummary.totalProfit.toLocaleString('en-IN')} ({cartSummary.overallMargin}%)</strong>
+                <strong style={{ color: '#16a34a' }}>Rs.{cartSummary.totalProfit.toLocaleString('en-IN')} ({cartSummary.overallMargin}%)</strong>
               </div>
               <div className="po-cart-totals-row grand">
                 <span>Total (incl. GST):</span>
-                <span>Ôé╣{cartSummary.grandTotal.toLocaleString('en-IN')}</span>
+                <span>Rs.{cartSummary.grandTotal.toLocaleString('en-IN')}</span>
               </div>
             </div>
 
             <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 8 }}>
               {step < 8 && cartLines.length > 0 && (
                 <button className="btn primary" style={{ width: '100%' }} onClick={() => goToStep(8)}>
-                  Review & Finalize Order ({cartSummary.itemCount}) ÔåÆ
+                  Review & Finalize Order ({cartSummary.itemCount}) &rarr;
                 </button>
               )}
               {step >= 2 && step <= 7 && selectedProduct && currentLineCalc.totalQty > 0 && (
@@ -1498,7 +1498,7 @@ export default function POCreate() {
                   onChange={(e) => setCustomProductForm({ ...customProductForm, hsn: e.target.value })}
                 />
               </Field>
-              <Field label="Estimated Cost (Ôé╣)">
+              <Field label="Estimated Cost (Rs.)">
                 <input
                   type="number"
                   min="0"

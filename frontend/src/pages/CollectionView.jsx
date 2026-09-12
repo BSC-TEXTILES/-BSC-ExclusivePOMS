@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, Fragment } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, Fragment, useRef } from 'react';
 import { useParams, useSearchParams, Link, useNavigate } from 'react-router-dom';
 import api, { API_BASE, API_ORIGIN, errMessage, assetUrl } from '../api.js';
 import { useAuth, useCart } from '../auth.jsx';
@@ -6,6 +6,9 @@ import Modal from '../components/Modal.jsx';
 import Icon from '../components/Icon.jsx';
 import CollectionIcon from '../components/CollectionIcon.jsx';
 import ProductGallery from '../components/ProductGallery.jsx';
+import Chat from './Chat.jsx';
+
+
 
 export const DEPARTMENT_CONFIG = {
   men: {
@@ -195,7 +198,18 @@ export default function CollectionView() {
   // Per-card quick quantity — the units prefilled per size when adding to PO
   const [cardQty, setCardQty] = useState({});
   const [poSubmitting, setPoSubmitting] = useState(false);
+  const [poSubmitted, setPoSubmitted] = useState(false);
   const [createdPO, setCreatedPO] = useState(null);
+  // One UUID per form session → backend absorbs replays so a double-click can
+  // never create two Purchase Orders. Reset only after a successful save.
+  const poSubmitKeyRef = useRef(null);
+  const poIdempotencyKey = () => {
+    if (!poSubmitKeyRef.current) {
+      poSubmitKeyRef.current = (window.crypto?.randomUUID?.()
+        || `${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    }
+    return poSubmitKeyRef.current;
+  };
 
   // Persist PO form data to localStorage on change
   useEffect(() => { localStorage.setItem(`pom-po-lines-${deptKey}`, JSON.stringify(poLines)); }, [poLines, deptKey]);
@@ -482,6 +496,7 @@ export default function CollectionView() {
     }
 
     setPoSubmitting(true);
+    setPoSubmitted(false);
     setError('');
 
     try {
@@ -493,6 +508,9 @@ export default function CollectionView() {
         taxScheme: 'GST_INTRA',
         expectedDeliveryDate: poDeliveryDate,
         remarks: `${config.title} Procurement — ${poRemarks}`.trim(),
+        // One UUID per form session: the backend returns the same PO when this
+        // key is replayed, so rapid double-clicks can never create two orders.
+        idempotencyKey: poIdempotencyKey(),
         lines: poLines.flatMap((l) => (l.colourVariants || []).map((cv) => ({
           productId: l.productId,
           colourId: cv.colourId || colours[0]?.id || null,
@@ -505,16 +523,25 @@ export default function CollectionView() {
       };
 
       const res = await api.post('/purchase-orders', payload);
-      const created = res.data.data;
+      let created = res.data.data;
+
+      // Key consumed after a successful save (a new form session = a new order).
+      poSubmitKeyRef.current = null;
 
       if (asSubmitted && created?.id) {
         await api.post(`/purchase-orders/${created.id}/submit`, {
           notes: `Auto-submitted from ${config.title} Studio`,
         });
+        // Re-fetch the real saved record — status "submitted", server totals,
+        // items, QR code — so the confirmation shows exactly what the DB holds.
+        created = (await api.get(`/purchase-orders/${created.id}`)).data.data || created;
+        setPoSubmitted(true);
+        setTimeout(() => setPoSubmitted(false), 5000);
       }
 
       setCreatedPO(created);
       addToCart(created); // show in the top-nav cart for crosscheck & checkout
+      poTotalsSnapshot.current = { ...poCalculations };
       setPoLines([]);
       // Clear persisted PO form data
       localStorage.removeItem(`pom-po-lines-${deptKey}`);
@@ -523,13 +550,60 @@ export default function CollectionView() {
       localStorage.removeItem(`pom-po-division-${deptKey}`);
       localStorage.removeItem(`pom-po-warehouse-${deptKey}`);
       localStorage.removeItem(`pom-po-delivery-${deptKey}`);
-      setSuccessMsg(`Purchase Order ${created?.po_number || ''} created successfully!`);
+      setSuccessMsg(`Purchase Order ${created?.po_number || ''} ${asSubmitted ? 'submitted' : 'saved as draft'} successfully!`);
       loadRecentPOs(); // refresh the collection's PO list with the new order
     } catch (e) {
       setError(errMessage(e));
     } finally {
       setPoSubmitting(false);
     }
+  }
+
+  // Snapshot of the on-screen totals, captured while poLines still holds the
+  // submitted items (they are cleared right after a successful save, which
+  // would otherwise zero the confirmation panel's client-side numbers).
+  const poTotalsSnapshot = useRef(null);
+
+  // Server-authoritative figures for the confirmation panel — prefer the saved
+  // PO record (status, items, totals), fall back to the captured snapshot.
+  const confirmTotals = useMemo(() => {
+    const items = createdPO?.items || [];
+    return {
+      units: items.length
+        ? items.reduce((s, it) => s + Number(it.total_quantity || 0), 0)
+        : (poTotalsSnapshot.current?.grandUnits ?? poCalculations.grandUnits),
+      subtotal: createdPO?.subtotal != null
+        ? Number(createdPO.subtotal)
+        : (poTotalsSnapshot.current?.subtotal ?? poCalculations.subtotal),
+      grandTotal: createdPO?.grand_total != null
+        ? Number(createdPO.grand_total)
+        : (poTotalsSnapshot.current?.grandTotal ?? poCalculations.grandTotal),
+    };
+  }, [createdPO, poCalculations]);
+
+  async function downloadQR() {
+    if (!createdPO?.id) return;
+    try {
+      const res = await api.get(`/purchase-orders/${createdPO.id}/qr`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'image/png' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${createdPO.po_number || 'PO'}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch { setError('Failed to download the QR code. Try again.'); }
+  }
+
+  async function printPO() {
+    if (!createdPO?.id) return;
+    try {
+      const res = await api.get(`/purchase-orders/${createdPO.id}/export/pdf`, { responseType: 'blob' });
+      const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
+      window.open(url, '_blank');
+      setTimeout(() => { try { window.URL.revokeObjectURL(url); } catch { /* ignore */ } }, 120000);
+    } catch { setError('Failed to prepare the printable Purchase Order. Try again.'); }
   }
 
   // Inline create brand from PO Studio
@@ -632,6 +706,7 @@ export default function CollectionView() {
           </div>
           <div>
             <h1 className="collection-hero-title">{config.title}</h1>
+            {config.subtitle && <p className="collection-hero-subtitle">{config.subtitle}</p>}
           </div>
         </div>
 
@@ -644,6 +719,7 @@ export default function CollectionView() {
                 setNewProd((p) => ({ ...p, sectionId: activeSection?.id || deptSections[0]?.id || '' }));
                 setShowAddProduct(true);
               }}
+              style={{ background: config.accentBg, borderColor: config.themeColor, color: config.themeColor, fontWeight: 600 }}
             >
               <Icon name="plus" size={15} /> Add New SKU
             </button>
@@ -651,9 +727,11 @@ export default function CollectionView() {
 
           <button
             type="button"
-            className={`btn ${activeTab === 'po_form' ? 'secondary' : 'primary'}`}
+            className="btn"
             onClick={() => setActiveTab(activeTab === 'po_form' ? 'catalogue' : 'po_form')}
-            style={activeTab !== 'po_form' ? { background: config.themeColor, borderColor: config.themeColor, color: '#fff' } : {}}
+            style={activeTab === 'po_form'
+              ? { background: config.accentBg, borderColor: config.themeColor, color: config.themeColor, fontWeight: 600 }
+              : { background: config.themeColor, borderColor: config.themeColor, color: '#fff', fontWeight: 600 }}
           >
             <Icon name="po" size={16} />
             {activeTab === 'po_form' ? 'Back to Catalogue' : `Create ${config.title} PO`}
@@ -661,9 +739,11 @@ export default function CollectionView() {
 
           <button
             type="button"
-            className={`btn ${activeTab === 'orders' ? 'primary' : 'secondary'}`}
+            className="btn"
             onClick={() => setActiveTab(activeTab === 'orders' ? 'catalogue' : 'orders')}
-            style={activeTab === 'orders' ? { background: config.themeColor, borderColor: config.themeColor, color: '#fff' } : {}}
+            style={activeTab === 'orders'
+              ? { background: config.accentBg, borderColor: config.themeColor, color: config.themeColor, fontWeight: 600 }
+              : { background: config.themeColor, borderColor: config.themeColor, color: '#fff', fontWeight: 600 }}
           >
             <Icon name="po" size={16} />
             {activeTab === 'orders' ? 'Back to Catalogue' : 'Order List'}
@@ -925,10 +1005,10 @@ export default function CollectionView() {
 
           {/* Quick Action Buttons */}
           <div style={{ display: 'flex', gap: 8, margin: '12px 0', flexWrap: 'wrap' }}>
-            <button type="button" className="btn sm" onClick={() => setInlineModal('brand')} style={{ border: '1px dashed #9ca3af' }}>
+            <button type="button" className="btn sm" onClick={() => setInlineModal('brand')} style={{ color: config.themeColor, borderColor: config.themeColor, backgroundColor: '#f0f4f8' }}>
               + Add New Brand
             </button>
-            <button type="button" className="btn sm" onClick={() => setInlineModal('product')} style={{ border: '1px dashed #9ca3af' }}>
+            <button type="button" className="btn sm" onClick={() => setInlineModal('product')} style={{ color: config.themeColor, borderColor: config.themeColor, backgroundColor: '#f0f4f8' }}>
               + Add New Product
             </button>
           </div>
@@ -936,10 +1016,11 @@ export default function CollectionView() {
           {/* Lines Table */}
           <div className="collection-po-lines-wrap">
             <div className="collection-po-lines-header">
-              <h3>Itemized Products & Size Breakdown</h3>
+              <h3 style={{ color: config.themeColor, margin: 0, fontSize: 16 }}>Itemized Products & Size Breakdown</h3>
               <button
                 type="button"
-                className="btn sm ghost"
+                className="btn sm accent"
+                style={{ backgroundColor: config.themeColor, color: '#fff', borderColor: config.themeColor }}
                 onClick={() => setActiveTab('catalogue')}
               >
                 + Browse & Add More Products from Catalogue
@@ -966,24 +1047,27 @@ export default function CollectionView() {
                   className="btn sm"
                   title="Fill 10 units in every size"
                   onClick={() => fillAllLines(10)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  ⚡ Fill 10 All
+                  <Icon name="plus" size={14} /> Fill 10 All
                 </button>
                 <button
                   type="button"
                   className="btn sm"
                   title="Fill 25 units in every size"
                   onClick={() => fillAllLines(25)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  ⚡ Fill 25 All
+                  <Icon name="plus" size={14} /> Fill 25 All
                 </button>
                 <button
                   type="button"
                   className="btn sm ghost"
                   title="Reset size quantities to zero"
                   onClick={() => fillAllLines(0)}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  Clear Matrix
+                  <Icon name="trash" size={14} /> Clear Matrix
                 </button>
                 <button
                   type="button"
@@ -1079,9 +1163,9 @@ export default function CollectionView() {
                                         const next = (line.colourVariants || []).filter((_, i) => i !== cvIdx);
                                         updateLine(idx, { colourVariants: next });
                                       }}
-                                      style={{ fontSize: 10, padding: '0 3px', lineHeight: 1 }}
+                                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2px' }}
                                     >
-                                      ✕
+                                      <Icon name="x" size={14} />
                                     </button>
                                   </div>
                                   {isLast && (
@@ -1164,7 +1248,31 @@ export default function CollectionView() {
                                 </td>
                                 <td style={{ fontWeight: 700, fontSize: 12 }}>{cvUnits}</td>
                                 <td style={{ textAlign: 'right', fontWeight: 700, fontSize: 12 }}>₹{cvTotal.toLocaleString('en-IN')}</td>
-                                <td></td>
+                                <td>
+                                  {line.colourVariants && line.colourVariants.length > 0 && (
+                                    <button
+                                      type="button"
+                                      className="btn primary"
+                                      style={{ background: '#16a34a', borderColor: '#16a34a', color: '#fff', fontWeight: 600, fontSize: 11, padding: '6px 12px', borderRadius: 6, marginTop: 4, transition: 'all .2s' }}
+                                      onClick={(e) => {
+                                        const allFilled = line.colourVariants.every((cv) => {
+                                          return cv.purchasePrice && cv.marginPercent && Object.values(cv.quantities || {}).some((q) => Number(q) > 0);
+                                        });
+                                        if (allFilled) {
+                                          const btn = e.currentTarget;
+                                          btn.style.background = config.themeColor;
+                                          btn.style.borderColor = config.themeColor;
+                                          btn.innerText = '✓ Saved';
+                                          setTimeout(() => setActiveTab('po_form'), 400);
+                                        }
+                                      }}
+                                      disabled={!line.colourVariants.every((cv) => cv.purchasePrice && cv.marginPercent)}
+                                      title="Save line item"
+                                    >
+                                      ✓ Save
+                                    </button>
+                                  )}
+                                </td>
                               </tr>
                             );
                           })}
@@ -1179,8 +1287,9 @@ export default function CollectionView() {
                                 className="icon-btn text-danger"
                                 onClick={() => removeLine(idx)}
                                 title="Remove item"
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                               >
-                                ✕
+                                <Icon name="x" size={14} />
                               </button>
                             </td>
                           </tr>
@@ -1229,7 +1338,7 @@ export default function CollectionView() {
                   onClick={() => submitPO(false)}
                   style={{ padding: '12px 24px', borderRadius: 8, fontSize: 14 }}
                 >
-                  Save as Draft
+                  {poSubmitting ? 'Saving Draft…' : 'Save as Draft'}
                 </button>
                 <button
                   type="button"
@@ -1252,7 +1361,7 @@ export default function CollectionView() {
                   {poSubmitting && (
                     <span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin .6s linear infinite' }} />
                   )}
-                  {poSubmitting ? 'Creating PO…' : `Submit ${config.title} PO`}
+                  {poSubmitting ? 'Submitting…' : (poSubmitted ? 'Submitted ✓' : `Submit ${config.title} PO`)}
                 </button>
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
               </div>
@@ -1263,8 +1372,14 @@ export default function CollectionView() {
           <div className="collection-po-list-wrap">
             <div className="collection-po-list-header">
               <h3>Purchase Orders ({recentPOsTotal})</h3>
-              <button type="button" className="btn sm ghost" onClick={loadRecentPOs} disabled={posLoading}>
-                {posLoading ? 'Refreshing…' : '↻ Refresh'}
+              <button
+                type="button"
+                className="btn sm ghost"
+                onClick={loadRecentPOs}
+                disabled={posLoading}
+                style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                <Icon name="rotateCw" size={13} /> {posLoading ? 'Refreshing…' : 'Refresh'}
               </button>
             </div>
             {posLoading && !recentPOs.length ? (
@@ -1317,10 +1432,17 @@ export default function CollectionView() {
         <div className="panel">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div>
-              <h2 style={{ margin: 0 }}>Order List</h2>
+              <h2 style={{ margin: 0, color: config.themeColor }}>Order List</h2>
               <p className="muted" style={{ margin: '4px 0 0' }}>Purchase Orders for {config.title}</p>
             </div>
-            <button type="button" className="btn sm" onClick={loadRecentPOs}>Refresh</button>
+            <button
+              type="button"
+              className="btn sm"
+              onClick={loadRecentPOs}
+              style={{ display: 'flex', alignItems: 'center', gap: 4 }}
+            >
+              <Icon name="rotateCw" size={13} /> Refresh
+            </button>
           </div>
 
           {/* Sub-tabs: All / Pending */}
@@ -1336,10 +1458,10 @@ export default function CollectionView() {
             <button
               type="button"
               className={`btn sm ${orderTab === 'pending' ? 'primary' : 'ghost'}`}
-              style={orderTab === 'pending' ? { background: '#f59e0b', borderColor: '#f59e0b', color: '#fff' } : {}}
+              style={orderTab === 'pending' ? { background: '#f59e0b', borderColor: '#f59e0b', color: '#fff', display: 'flex', alignItems: 'center', gap: 6 } : { display: 'flex', alignItems: 'center', gap: 6 }}
               onClick={() => setOrderTab('pending')}
             >
-              ⏳ Pending ({pendingPOsTotal})
+              <Icon name="clock" size={14} /> Pending ({pendingPOsTotal})
             </button>
           </div>
 
@@ -1351,7 +1473,9 @@ export default function CollectionView() {
               {orderTab === 'all' && (
                 recentPOs.length === 0 ? (
                   <div className="muted" style={{ padding: 40, textAlign: 'center' }}>
-                    <p style={{ fontSize: 40, margin: '0 0 8px' }}>📋</p>
+                    <div style={{ marginBottom: 12, display: 'inline-flex', padding: 12, background: '#f1f5f9', borderRadius: '50%', color: '#64748b' }}>
+                      <Icon name="clipboard" size={32} />
+                    </div>
                     <p>No Purchase Orders placed yet for {config.title}.</p>
                     <button type="button" className="btn primary" style={{ marginTop: 12, background: config.themeColor, borderColor: config.themeColor, color: '#fff' }} onClick={() => setActiveTab('po_form')}>
                       Create First PO
@@ -1395,7 +1519,9 @@ export default function CollectionView() {
               {orderTab === 'pending' && (
                 pendingPOs.length === 0 ? (
                   <div className="muted" style={{ padding: 40, textAlign: 'center' }}>
-                    <p style={{ fontSize: 40, margin: '0 0 8px' }}>✅</p>
+                    <div style={{ marginBottom: 12, display: 'inline-flex', padding: 12, background: '#f0fdf4', borderRadius: '50%', color: '#16a34a' }}>
+                      <Icon name="checkCircle" size={32} />
+                    </div>
                     <p>No pending orders. All caught up!</p>
                   </div>
                 ) : (
@@ -1448,44 +1574,82 @@ export default function CollectionView() {
             </div>
 
             <h2 style={{ margin: '0 0 6px', fontSize: 22, color: '#111827' }}>Order Placed Successfully!</h2>
-            <p style={{ margin: '0 0 20px', color: '#6b7280', fontSize: 14 }}>Your Purchase Order has been created and submitted for approval.</p>
+            <p style={{ margin: '0 0 20px', color: '#6b7280', fontSize: 14 }}>
+              {createdPO.status === 'submitted'
+                ? 'Your Purchase Order has been securely saved and submitted.'
+                : 'Your Purchase Order has been saved as a draft.'}
+            </p>
 
             {/* PO Number Card */}
             <div style={{ background: '#f0fdf4', border: '2px solid #bbf7d0', borderRadius: 12, padding: '16px 24px', marginBottom: 20, animation: 'slideUp 0.4s 0.2s ease forwards', opacity: 0, transform: 'translateY(10px)' }}>
               <div style={{ fontSize: 12, color: '#16a34a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 1 }}>Purchase Order Number</div>
               <div style={{ fontSize: 28, fontWeight: 800, color: '#166534', margin: '4px 0', fontFamily: 'monospace', letterSpacing: 2 }}>{createdPO.po_number}</div>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>
-                ID: {createdPO.id?.slice(0, 8)}… · {new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', marginTop: 2 }}>
+                <span className={`chip st-${createdPO.status}`}>{String(createdPO.status || 'draft').replace(/_/g, ' ')}</span>
+                <span style={{ fontSize: 12, color: '#6b7280' }}>
+                  ID: {String(createdPO.id || '').slice(0, 8)}… · {createdPO.created_at ? new Date(createdPO.created_at).toLocaleString('en-IN') : new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                </span>
               </div>
             </div>
 
-            {/* Summary Stats */}
+            {/* QR Code Card */}
+            {createdPO.qr_code && (
+              <div style={{ background: '#ffffff', border: '2px solid #e5e7eb', borderRadius: 12, padding: '14px 18px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, marginBottom: 20, animation: 'slideUp 0.4s 0.3s ease forwards', opacity: 0, transform: 'translateY(10px)' }}>
+                <div style={{ fontSize: 12, color: '#6b7280', letterSpacing: 1 }}>QR Code — scan to open this PO</div>
+                <div
+                  className="po-qr-display"
+                  dangerouslySetInnerHTML={{ __html: createdPO.qr_code }}
+                  title={`QR Code for ${createdPO.po_number}`}
+                />
+                <div className="mono" style={{ fontSize: 12, color: '#166534' }}>{createdPO.po_number}</div>
+              </div>
+            )}
+
+            {/* Summary Stats — server-computed values from the saved PO */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: 24, marginBottom: 24, animation: 'slideUp 0.4s 0.35s ease forwards', opacity: 0, transform: 'translateY(10px)' }}>
               <div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>{poCalculations.grandUnits}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>{confirmTotals.units}</div>
                 <div style={{ fontSize: 11, color: '#6b7280' }}>Total Units</div>
               </div>
               <div style={{ width: 1, background: '#e5e7eb' }} />
               <div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>₹{poCalculations.subtotal.toLocaleString('en-IN')}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: '#111827' }}>₹{confirmTotals.subtotal.toLocaleString('en-IN')}</div>
                 <div style={{ fontSize: 11, color: '#6b7280' }}>Subtotal</div>
               </div>
               <div style={{ width: 1, background: '#e5e7eb' }} />
               <div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: config.themeColor }}>₹{poCalculations.grandTotal.toLocaleString('en-IN')}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: config.themeColor }}>₹{confirmTotals.grandTotal.toLocaleString('en-IN')}</div>
                 <div style={{ fontSize: 11, color: '#6b7280' }}>Grand Total</div>
               </div>
             </div>
 
-            {/* Action Buttons */}
+            {/* Actions */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, animation: 'slideUp 0.4s 0.5s ease forwards', opacity: 0, transform: 'translateY(10px)' }}>
               <Link
                 to={`/purchase-orders/${createdPO.id}`}
                 className="btn primary"
                 style={{ background: config.themeColor, borderColor: config.themeColor, padding: '12px 24px', fontSize: 14, fontWeight: 600, borderRadius: 8, textDecoration: 'none', textAlign: 'center' }}
               >
-                View PO Details & Workflow →
+                View Purchase Order →
               </Link>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  style={{ flex: 1, padding: '10px', fontSize: 13, borderRadius: 8 }}
+                  onClick={printPO}
+                >
+                  🖨 Print Purchase Order
+                </button>
+                <button
+                  type="button"
+                  className="btn secondary"
+                  style={{ flex: 1, padding: '10px', fontSize: 13, borderRadius: 8 }}
+                  onClick={downloadQR}
+                >
+                  📷 Download QR Code
+                </button>
+              </div>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button
                   type="button"
@@ -1522,7 +1686,7 @@ export default function CollectionView() {
                 onClick={() => { setCreatedPO(null); setActiveTab('orders'); }}
                 style={{ padding: '10px', fontSize: 13, borderRadius: 8 }}
               >
-                View All Orders
+                ← Back to Purchase Orders
               </button>
             </div>
           </div>

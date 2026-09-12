@@ -6,6 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildPDF } from './pdfWriter.js';
 import { round2 } from './pricing.js';
+import { generatePOQRPNG } from './qrCode.js';
+import { fetchBrandImage } from './brandImage.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -31,7 +33,13 @@ function fmtINR(n) {
 
 function fmtDate(d) {
   if (!d) return 'N/A';
-  return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return 'N/A';
+  const day = String(dt.getDate()).padStart(2, '0');
+  const mon = dt.toLocaleString('en-IN', { month: 'short' });
+  const yr = dt.getFullYear();
+  // Prefix with \t and wrap in quotes to force Excel to treat as text, not a number
+  return `\t"${day} ${mon} ${yr}"`;
 }
 
 function trunc(str, maxLen) {
@@ -154,7 +162,7 @@ export function generatePOListCsv(poRows = []) {
 
 // ─── 3. BRANDED PURCHASE ORDER PDF GENERATION ──────────────────────────────────
 
-export function generatePOPdf({ header, items = [], taxes = [], charges = [], company = {} }) {
+export async function generatePOPdf({ header, items = [], taxes = [], charges = [], company = {} }, origin = '') {
   // A4 dimensions
   const W = 595.28;
   const H = 841.89;
@@ -168,6 +176,13 @@ export function generatePOPdf({ header, items = [], taxes = [], charges = [], co
   const pages = [];
   let prims = [];
   let y = MT;
+
+  const qrCodeBuffer = await generatePOQRPNG(header.po_number, origin);
+
+  // Fetch images for all items upfront
+  const itemImages = await Promise.all(
+    items.map((it) => (it.brand_number ? fetchBrandImage(it.brand_number) : Promise.resolve(null)))
+  );
 
   const NAVY = '#0f2438';
   const GOLD = '#b98a2f';
@@ -243,6 +258,9 @@ export function generatePOPdf({ header, items = [], taxes = [], charges = [], co
   rect(poBoxX, y, poBoxW, 38, LIGHT);
   line(poBoxX, y, poBoxX + poBoxW, y, NAVY);
   text('PURCHASE ORDER', poBoxX + 8, y + 10, { size: 10, bold: true, color: NAVY });
+  if (qrCodeBuffer) {
+    prims.push({ type: 'image', name: 'PoQr', buffer: qrCodeBuffer, x: poBoxX + poBoxW - 36, y: y + 4, w: 32, h: 32 });
+  }
   text(header.po_number || '', poBoxX + 8, y + 22, { size: 9, bold: true, color: GOLD });
   text(`Status: ${(header.status || 'draft').toUpperCase()} (v${header.version || 1})`, poBoxX + 8, y + 32, { size: 7, color: MUTED });
 
@@ -297,12 +315,13 @@ export function generatePOPdf({ header, items = [], taxes = [], charges = [], co
 
   // ═══ LINE ITEMS TABLE ═══
   const cols = [
-    { label: '#', w: 22 },
-    { label: 'SKU & Description', w: 170 },
-    { label: 'Brand / Colour', w: 95 },
-    { label: 'Sizes / Qty', w: 100 },
-    { label: 'Qty', w: 35 },
-    { label: 'Rate', w: 50 },
+    { label: '#', w: 18 },
+    { label: 'Image', w: 26 },
+    { label: 'SKU & Description', w: 160 },
+    { label: 'Brand / Colour', w: 85 },
+    { label: 'Sizes / Qty', w: 90 },
+    { label: 'Qty', w: 32 },
+    { label: 'Rate', w: 45 },
     { label: 'Amount', w: 55 },
   ];
 
@@ -323,7 +342,7 @@ export function generatePOPdf({ header, items = [], taxes = [], charges = [], co
 
   let totalUnits = 0;
   items.forEach((item, idx) => {
-    const rowH = 18;
+    const rowH = 26; // Increased for image height
     checkPage(rowH + 4);
 
     totalUnits += Number(item.total_quantity) || 0;
@@ -331,37 +350,44 @@ export function generatePOPdf({ header, items = [], taxes = [], charges = [], co
 
     let cx = ML + 4;
     // #
-    text(String(item.line_no || idx + 1), cx, y + 12, { size: 7, color: MUTED });
+    text(String(item.line_no || idx + 1), cx, y + (rowH/2) + 2, { size: 7, color: MUTED });
     cx += cols[0].w;
 
-    // SKU & Description
-    const skuDesc = `${item.sku || ''} — ${(item.product_name || '').slice(0, 28)}`;
-    text(skuDesc, cx, y + 12, { size: 7.5, bold: true, color: TEXT });
+    // Image
+    const imgBuf = itemImages[idx];
+    if (imgBuf) {
+      prims.push({ type: 'image', name: `Img${item.id || idx}`, buffer: imgBuf, x: cx, y: y + 3, w: 20, h: 20 });
+    }
     cx += cols[1].w;
 
-    // Brand / Colour
-    const brandCol = `${(item.brand_name || '').slice(0, 14)} / ${(item.colour_name || 'Std').slice(0, 12)}`;
-    text(brandCol, cx, y + 12, { size: 7, color: TEXT });
+    // SKU & Description
+    const skuDesc = `${item.sku || ''} — ${(item.product_name || '').slice(0, 24)}`;
+    text(skuDesc, cx, y + (rowH/2) + 2, { size: 7.5, bold: true, color: TEXT });
     cx += cols[2].w;
 
-    // Sizes / Qty
-    const sizeStr = (item.quantities || []).map((q) => `${q.sizeLabel}:${q.quantity}`).join(' ').slice(0, 22) || '-';
-    text(sizeStr, cx, y + 12, { size: 6.5, color: MUTED });
+    // Brand / Colour
+    const brandCol = `${(item.brand_name || '').slice(0, 12)} / ${(item.colour_name || 'Std').slice(0, 10)}`;
+    text(brandCol, cx, y + (rowH/2) + 2, { size: 7, color: TEXT });
     cx += cols[3].w;
+
+    // Sizes / Qty
+    const sizeStr = (item.quantities || []).map((q) => `${q.sizeLabel}:${q.quantity}`).join(' ').slice(0, 20) || '-';
+    text(sizeStr, cx, y + (rowH/2) + 2, { size: 6.5, color: MUTED });
+    cx += cols[4].w;
 
     // Qty (right aligned)
     const qtyStr = String(item.total_quantity || 0);
-    text(qtyStr, cx + cols[4].w - 12, y + 12, { size: 7.5, bold: true, color: NAVY });
-    cx += cols[4].w;
+    text(qtyStr, cx + cols[5].w - 12, y + (rowH/2) + 2, { size: 7.5, bold: true, color: NAVY });
+    cx += cols[5].w;
 
     // Rate (right aligned)
     const rateStr = Number(item.final_value_per_unit || item.purchase_price || 0).toFixed(2);
-    text(rateStr, cx + cols[5].w - 14, y + 12, { size: 7, color: TEXT });
-    cx += cols[5].w;
+    text(rateStr, cx + cols[6].w - 14, y + (rowH/2) + 2, { size: 7, color: TEXT });
+    cx += cols[6].w;
 
     // Amount (right aligned)
     const amtStr = Number(item.line_total || 0).toFixed(2);
-    text(amtStr, cx + cols[6].w - 16, y + 12, { size: 7.5, bold: true, color: TEXT });
+    text(amtStr, cx + cols[7].w - 16, y + (rowH/2) + 2, { size: 7.5, bold: true, color: TEXT });
 
     line(ML, y + rowH, W - MR, y + rowH, '#f1f5f9');
     y += rowH;

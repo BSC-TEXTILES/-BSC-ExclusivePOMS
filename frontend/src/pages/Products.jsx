@@ -92,8 +92,8 @@ export default function Products({ gender }) {
                 </td>
                 <td>{p.category_name || '—'}</td>
                 <td>{p.brand_name || '—'}</td>
-                <td><div className="tag-list">{(p.sizes || []).slice(0, 3).map((s, i) => <span key={i} className="tag" style={{ fontSize: 10 }}>{s.label || s}</span>)}{(p.sizes || []).length > 3 && <span className="tag" style={{ fontSize: 10 }}>+{p.sizes.length - 3}</span>}</div></td>
-                <td><div className="tag-list">{(p.colours || p.colors || []).slice(0, 2).map((c, i) => <span key={i} className="tag" style={{ fontSize: 10 }}>{c.name || c}</span>)}</div></td>
+                <td><div className="tag-list">{(p.sizes || []).slice(0, 3).map((s, i) => <span key={i} className="tag" style={{ fontSize: 11 }}>{s.label || s}</span>)}{(p.sizes || []).length > 3 && <span className="tag" style={{ fontSize: 11 }}>+{p.sizes.length - 3}</span>}</div></td>
+                <td><div className="tag-list">{(p.colours || p.colors || []).slice(0, 2).map((c, i) => <span key={i} className="tag" style={{ fontSize: 11 }}>{c.name || c}</span>)}</div></td>
                 <td className="num">{INR(p.purchase_price)}</td>
                 <td className="num">{INR(p.selling_price)}</td>
                 <td className="num" style={{ color: Number(p.profit_amount) >= 0 ? '#10b981' : '#ef4444' }}>{INR(p.profit_amount)}</td>

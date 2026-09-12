@@ -99,37 +99,37 @@ export default function App() {
           {user && !user.profileUpdatedAt && <ProfileModal />}
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" replace />} />
-            <Route path="/dashboard" element={<RequireAuth><Dashboard /></RequireAuth>} />
-            <Route path="/purchase-orders" element={<RequireAuth><POList /></RequireAuth>} />
+            <Route path="/dashboard" element={<RequireAuth permission="dashboard.view"><Dashboard /></RequireAuth>} />
+            <Route path="/purchase-orders" element={<RequireAuth permission="po.view"><POList /></RequireAuth>} />
             <Route path="/purchase-orders/new" element={<RequireAuth permission="po.create"><POCreate /></RequireAuth>} />
             <Route path="/purchase-orders/:id" element={<RequireAuth><PODetails /></RequireAuth>} />
-            <Route path="/calendar" element={<RequireAuth><Calendar /></RequireAuth>} />
+            <Route path="/calendar" element={<RequireAuth permission="calendar.view"><Calendar /></RequireAuth>} />
             <Route path="/approvals" element={<RequireAuth permission="approvals.view"><Approvals /></RequireAuth>} />
             <Route path="/receipts" element={<RequireAuth permission="receipt.view"><Receipts /></RequireAuth>} />
             <Route path="/masters" element={<RequireAuth permission="masters.view"><Masters /></RequireAuth>} />
-            <Route path="/catalogue" element={<RequireAuth><Catalogue /></RequireAuth>} />
+            <Route path="/catalogue" element={<RequireAuth permission="catalogue.view"><Catalogue /></RequireAuth>} />
             <Route path="/collection/:deptKey" element={<RequireAuth><CollectionView /></RequireAuth>} />
-            <Route path="/chat" element={<RequireAuth><Chat /></RequireAuth>} />
+            <Route path="/chat" element={<RequireAuth permission="chat.view"><Chat /></RequireAuth>} />
             <Route path="/users" element={<RequireAuth permission="users.manage"><Users /></RequireAuth>} />
             <Route path="/reports" element={<RequireAuth permission="reports.view"><Reports /></RequireAuth>} />
             <Route path="/audit-logs" element={<RequireAuth permission="audit.view"><AuditLogs /></RequireAuth>} />
             <Route path="/collections" element={<RequireAuth permission="collections.view"><Collections /></RequireAuth>} />
             <Route path="/dealers" element={<RequireAuth permission="dealers.view"><Dealers /></RequireAuth>} />
             <Route path="/company" element={<RequireAuth permission="company.view"><CompanySettings /></RequireAuth>} />
-            <Route path="/attachments" element={<RequireAuth permission="masters.view"><Attachments /></RequireAuth>} />
+            <Route path="/attachments" element={<RequireAuth permission="attachments.view"><Attachments /></RequireAuth>} />
             <Route path="/checkout" element={<RequireAuth><Checkout /></RequireAuth>} />
-            <Route path="/products" element={<RequireAuth permission="masters.view"><Products /></RequireAuth>} />
-            <Route path="/products/new" element={<RequireAuth permission="masters.manage"><ProductForm /></RequireAuth>} />
-            <Route path="/products/:id" element={<RequireAuth permission="masters.view"><ProductDetail /></RequireAuth>} />
-            <Route path="/products/:id/edit" element={<RequireAuth permission="masters.manage"><ProductForm /></RequireAuth>} />
-            <Route path="/product-types" element={<RequireAuth permission="masters.view"><ProductTypes /></RequireAuth>} />
-            <Route path="/brands" element={<RequireAuth permission="masters.view"><Brands /></RequireAuth>} />
-            <Route path="/categories" element={<RequireAuth permission="masters.view"><Categories /></RequireAuth>} />
-            <Route path="/colors" element={<RequireAuth permission="masters.view"><Colors /></RequireAuth>} />
-            <Route path="/sizes" element={<RequireAuth permission="masters.view"><Sizes /></RequireAuth>} />
+            <Route path="/products" element={<RequireAuth permission="products.view"><Products /></RequireAuth>} />
+            <Route path="/products/new" element={<RequireAuth permission="products.create"><ProductForm /></RequireAuth>} />
+            <Route path="/products/:id" element={<RequireAuth permission="products.view"><ProductDetail /></RequireAuth>} />
+            <Route path="/products/:id/edit" element={<RequireAuth permission="products.edit"><ProductForm /></RequireAuth>} />
+            <Route path="/product-types" element={<RequireAuth permission="product_types.view"><ProductTypes /></RequireAuth>} />
+            <Route path="/brands" element={<RequireAuth permission="brands.view"><Brands /></RequireAuth>} />
+            <Route path="/categories" element={<RequireAuth permission="categories.view"><Categories /></RequireAuth>} />
+            <Route path="/colors" element={<RequireAuth permission="colors.view"><Colors /></RequireAuth>} />
+            <Route path="/sizes" element={<RequireAuth permission="sizes.view"><Sizes /></RequireAuth>} />
             <Route path="/attributes" element={<RequireAuth permission="masters.view"><Attributes /></RequireAuth>} />
-            <Route path="/export-data" element={<RequireAuth permission="reports.view"><ExportData /></RequireAuth>} />
-            <Route path="/import-data" element={<RequireAuth permission="masters.manage"><ImportData /></RequireAuth>} />
+            <Route path="/export-data" element={<RequireAuth permission="reports.export"><ExportData /></RequireAuth>} />
+            <Route path="/import-data" element={<RequireAuth permission="import.manage"><ImportData /></RequireAuth>} />
             <Route path="/videos" element={<RequireAuth permission="videos.view"><Videos /></RequireAuth>} />
             <Route path="/videos/:id" element={<RequireAuth permission="videos.view"><VideoDetail /></RequireAuth>} />
             <Route path="/settings" element={<RequireAuth permission="settings.manage"><Settings /></RequireAuth>} />
@@ -137,9 +137,9 @@ export default function App() {
             <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="/terms" element={<Terms />} />
             <Route path="/security" element={<Security />} />
-            <Route path="/manufacturers" element={<RequireAuth permission="masters.view"><Manufacturers /></RequireAuth>} />
-            <Route path="/locations" element={<RequireAuth permission="masters.view"><Locations /></RequireAuth>} />
-            <Route path="/pricing" element={<RequireAuth permission="masters.view"><Pricing /></RequireAuth>} />
+            <Route path="/manufacturers" element={<RequireAuth permission="manufacturers.view"><Manufacturers /></RequireAuth>} />
+            <Route path="/locations" element={<RequireAuth permission="locations.view"><Locations /></RequireAuth>} />
+            <Route path="/pricing" element={<RequireAuth permission="pricing.view"><Pricing /></RequireAuth>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </main>

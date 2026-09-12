@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import api, { errMessage, fileKind } from '../api.js';
 import { useAuth } from '../auth.jsx';
@@ -8,7 +8,7 @@ import { Field } from '../components/DataTable.jsx';
 
 // Product Catalogue — browses the full 1000+ SKU catalogue with server-side
 // search / department / section / brand filters + pagination (§10, SC-6).
-// Each product carries an image gallery; anyone can browse, masters.manage can upload.
+// Cascading filters: Department → Section → Brand → Products
 export default function Catalogue() {
   const { hasPermission } = useAuth();
   const [searchParams] = useSearchParams();
@@ -20,15 +20,40 @@ export default function Catalogue() {
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [error, setError] = useState('');
-  const [filters, setFilters] = useState({ search: searchParams.get('q') || '', departmentId: '', sectionId: '', brandId: '' });
+  const [filters, setFilters] = useState({
+    search: searchParams.get('q') || '',
+    departmentId: searchParams.get('departmentId') || '',
+    sectionId: searchParams.get('sectionId') || '',
+    brandId: searchParams.get('brandId') || '',
+  });
   const [galleryProduct, setGalleryProduct] = useState(null);
   const pageSize = 20;
 
+  // Load departments on mount
   useEffect(() => {
-    Promise.all([api.get('/departments'), api.get('/sections?status=active'), api.get('/brands')])
-      .then(([d, s, b]) => { setDepartments(d.data.data); setSections(s.data.data); setBrands(b.data.data); })
+    api.get('/departments')
+      .then((r) => setDepartments(r.data.data || []))
       .catch((e) => setError(errMessage(e)));
   }, []);
+
+  // Load sections filtered by department (cascading)
+  useEffect(() => {
+    const params = { status: 'active' };
+    if (filters.departmentId) params.departmentId = filters.departmentId;
+    api.get('/sections', { params })
+      .then((r) => setSections(r.data.data || []))
+      .catch(() => {});
+  }, [filters.departmentId]);
+
+  // Load brands filtered by section (cascading)
+  useEffect(() => {
+    const params = {};
+    if (filters.sectionId) params.sectionId = filters.sectionId;
+    else if (filters.departmentId) params.departmentId = filters.departmentId;
+    api.get('/brands', { params })
+      .then((r) => setBrands(r.data.data || []))
+      .catch(() => {});
+  }, [filters.sectionId, filters.departmentId]);
 
   const load = useCallback(() => {
     const params = { page, pageSize };
@@ -41,8 +66,20 @@ export default function Catalogue() {
   useEffect(load, [load]);
 
   const pages = Math.max(1, Math.ceil(total / pageSize));
-  const visibleSections = filters.departmentId ? sections.filter((s) => s.department_id === filters.departmentId) : sections;
-  const setF = (patch) => { setPage(1); setFilters({ ...filters, ...patch }); };
+
+  // Cascading setF: resets downstream filters
+  const setF = (patch) => {
+    setPage(1);
+    const next = { ...filters, ...patch };
+    if ('departmentId' in patch && patch.departmentId !== filters.departmentId) {
+      next.sectionId = '';
+      next.brandId = '';
+    }
+    if ('sectionId' in patch && patch.sectionId !== filters.sectionId) {
+      next.brandId = '';
+    }
+    setFilters(next);
+  };
 
   return (
     <div className="page">
@@ -56,7 +93,7 @@ export default function Catalogue() {
             <input value={filters.search} onChange={(e) => setF({ search: e.target.value })} placeholder="e.g. silk saree, jeans, Levi's…" />
           </label>
           <label className="field"><span className="field-label">Department</span>
-            <select value={filters.departmentId} onChange={(e) => setF({ departmentId: e.target.value, sectionId: '' })}>
+            <select value={filters.departmentId} onChange={(e) => setF({ departmentId: e.target.value })}>
               <option value="">All departments</option>
               {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
@@ -64,7 +101,7 @@ export default function Catalogue() {
           <label className="field"><span className="field-label">Section</span>
             <select value={filters.sectionId} onChange={(e) => setF({ sectionId: e.target.value })}>
               <option value="">All sections</option>
-              {visibleSections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
+              {sections.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
             </select>
           </label>
           <label className="field"><span className="field-label">Brand</span>
@@ -74,6 +111,42 @@ export default function Catalogue() {
             </select>
           </label>
         </div>
+
+        {/* Active filter chips */}
+        {(filters.departmentId || filters.sectionId || filters.brandId || filters.search) && (
+          <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, color: '#6b7280', lineHeight: '28px' }}>Active filters:</span>
+            {filters.search && (
+              <span style={{ fontSize: 12, background: '#ede9fe', color: '#6d28d9', padding: '3px 10px', borderRadius: 999, fontWeight: 600 }}>
+                Search: "{filters.search}" <button onClick={() => setF({ search: '' })} style={{ marginLeft: 4, background: 'none', border: 'none', color: '#6d28d9', cursor: 'pointer', fontWeight: 800 }}>×</button>
+              </span>
+            )}
+            {filters.departmentId && (
+              <span style={{ fontSize: 12, background: '#dbeafe', color: '#1e40af', padding: '3px 10px', borderRadius: 999, fontWeight: 600 }}>
+                Dept: {departments.find((d) => d.id === filters.departmentId)?.name}
+                <button onClick={() => setF({ departmentId: '' })} style={{ marginLeft: 4, background: 'none', border: 'none', color: '#1e40af', cursor: 'pointer', fontWeight: 800 }}>×</button>
+              </span>
+            )}
+            {filters.sectionId && (
+              <span style={{ fontSize: 12, background: '#d1fae5', color: '#065f46', padding: '3px 10px', borderRadius: 999, fontWeight: 600 }}>
+                Section: {sections.find((s) => s.id === filters.sectionId)?.name}
+                <button onClick={() => setF({ sectionId: '' })} style={{ marginLeft: 4, background: 'none', border: 'none', color: '#065f46', cursor: 'pointer', fontWeight: 800 }}>×</button>
+              </span>
+            )}
+            {filters.brandId && (
+              <span style={{ fontSize: 12, background: '#fef3c7', color: '#92400e', padding: '3px 10px', borderRadius: 999, fontWeight: 600 }}>
+                Brand: {brands.find((b) => b.id === filters.brandId)?.brand_name}
+                <button onClick={() => setF({ brandId: '' })} style={{ marginLeft: 4, background: 'none', border: 'none', color: '#92400e', cursor: 'pointer', fontWeight: 800 }}>×</button>
+              </span>
+            )}
+            <button
+              onClick={() => { setFilters({ search: '', departmentId: '', sectionId: '', brandId: '' }); setPage(1); }}
+              style={{ fontSize: 11, background: '#f3f4f6', border: '1px solid #d1d5db', padding: '3px 8px', borderRadius: 6, cursor: 'pointer', color: '#374151', fontWeight: 600 }}
+            >
+              Clear all
+            </button>
+          </div>
+        )}
 
         <table className="grid">
           <thead>

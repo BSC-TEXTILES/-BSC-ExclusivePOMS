@@ -281,7 +281,8 @@ r.get('/:name', ah(async (req, res) => {
       if (v === null || v === undefined || v === '') return '';
       const d = new Date(v);
       if (isNaN(d.getTime())) return v;
-      return `${String(d.getDate()).padStart(2, '0')}-${MONTHS[d.getMonth()]}-${d.getFullYear()}`;
+      // Prefix with \t and wrap in quotes to force Excel to treat as text
+      return `\t"${String(d.getDate()).padStart(2, '0')}-${MONTHS[d.getMonth()]}-${d.getFullYear()}"`;
     };
     const isDateCol = (c) => /(^|_)(date|at)$/i.test(c) || /date/i.test(c);
     const fmtVal = (c, v) => (isDateCol(c) ? fmtDate(v) : v);

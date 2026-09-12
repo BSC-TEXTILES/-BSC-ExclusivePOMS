@@ -3,7 +3,7 @@ import { query, withTransaction, pool } from '../config/db.js';
 import { authenticate, requirePermission, requireAnyPermission, scopeDivision, scopeSection } from '../middleware/auth.js';
 import { badRequest, forbidden, notFoundError, ah } from '../utils/httpError.js';
 import { computeLineTotals, round2 } from '../utils/pricing.js';
-import { generateBrandQR } from '../utils/qrCode.js';
+import { generateBrandQR, generatePOQR, generatePOQRPNG } from '../utils/qrCode.js';
 import { fetchBrandImage } from '../utils/brandImage.js';
 import { logAudit } from '../utils/audit.js';
 import { notifyUsers, notifyRole } from '../utils/notify.js';
@@ -20,9 +20,20 @@ async function getSetting(key, fallback) {
 }
 
 async function loadPO(poId) {
-  const { rows } = await query(`SELECT * FROM purchase_orders WHERE id = $1`, [poId]);
+  // Accept either the internal UUID or the public PO number (e.g. PO-DVG-2026-00005),
+  // so /purchase-orders/PO-… deep links (incl. QR scans) resolve to the record.
+  const value = String(poId || '');
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+  const { rows } = await query(
+    isUuid ? `SELECT * FROM purchase_orders WHERE id = $1` : `SELECT * FROM purchase_orders WHERE po_number = $1`,
+    [value]);
   if (!rows[0]) throw notFoundError('Purchase order not found');
   return rows[0];
+}
+
+// Public origin embedded in PO QR codes so a scan opens the exact PO page.
+function poQROrigin(req) {
+  return process.env.PUBLIC_APP_URL || `${req.protocol}://${req.get('host')}`;
 }
 
 function assertPOScope(req, po) {
@@ -225,31 +236,59 @@ async function persistLines(client, po, lines, req, policy) {
 
 function extractHeader(body) {
   return {
-    divisionId: body.divisionId,
-    departmentId: body.departmentId,
-    sectionId: body.sectionId,
-    supplierId: body.supplierId,
-    paymentTerms: body.paymentTerms || null,
-    deliveryTerms: body.deliveryTerms || null,
-    taxScheme: body.taxScheme || 'GST_INTRA',
-    expectedDeliveryDate: body.expectedDeliveryDate || null,
-    remarks: body.remarks || null,
-    lines: body.lines || [],
-    orderDiscount: body.orderDiscount || null,
-    charges: body.charges || [],
+    divisionId: body?.divisionId || null,
+    departmentId: body?.departmentId || null,
+    sectionId: body?.sectionId || null,
+    supplierId: body?.supplierId || null,
+    paymentTerms: body?.paymentTerms || null,
+    deliveryTerms: body?.deliveryTerms || null,
+    taxScheme: body?.taxScheme || 'GST_INTRA',
+    expectedDeliveryDate: body?.expectedDeliveryDate || null,
+    remarks: body?.remarks || null,
+    lines: body?.lines || [],
+    orderDiscount: body?.orderDiscount || null,
+    charges: body?.charges || [],
   };
 }
 
-async function assertActiveRefs(client, h) {
-  const { rows: [div] } = await client.query(`SELECT id, code, status FROM divisions WHERE id=$1`, [h.divisionId]);
-  if (!div || div.status !== 'active') throw badRequest('Division must exist and be active (RB-002)');
-  const { rows: [sec] } = await client.query(
-    `SELECT s.id, s.status FROM sections s WHERE s.id=$1`, [h.sectionId]);
+async function assertActiveRefs(client, h, user) {
+  // Division: prefer explicit h.divisionId; fall back to user's first authorized division,
+  // then to the section → department → division chain (for non-global departments).
+  let div = null;
+  if (h.divisionId) {
+    const { rows: [d] } = await client.query(`SELECT id, code, status FROM divisions WHERE id=$1`, [h.divisionId]);
+    if (d) div = d;
+  }
+  if (!div && user?.isSuperAdmin) {
+    const { rows: [d] } = await query(`SELECT id, code, status FROM divisions WHERE status='active' ORDER BY code LIMIT 1`);
+    if (d) div = d;
+  }
+  if (!div && user?.divisionIds?.length) {
+    const { rows: [d] } = await query(`SELECT id, code, status FROM divisions WHERE id = ANY($1) AND status='active' ORDER BY code LIMIT 1`, [user.divisionIds]);
+    if (d) div = d;
+  }
+  if (!div && h.sectionId) {
+    const { rows: [sec] } = await client.query(`SELECT s.department_id FROM sections s WHERE s.id=$1`, [h.sectionId]);
+    if (sec?.department_id) {
+      const { rows: [deptRow] } = await client.query(`SELECT division_id FROM departments WHERE id=$1 AND division_id IS NOT NULL`, [sec.department_id]);
+      if (deptRow?.division_id) {
+        const { rows: [d2] } = await client.query(`SELECT id, code, status FROM divisions WHERE id=$1 AND status='active'`, [deptRow.division_id]);
+        if (d2) div = d2;
+      }
+    }
+  }
+  if (!div) throw badRequest('Please select a valid Division for this Purchase Order (RB-002)');
+  if (div.status !== 'active') throw badRequest('Division must exist and be active (RB-002)');
+
+  const { rows: [sec] } = await client.query(`SELECT s.id, s.status FROM sections s WHERE s.id=$1`, [h.sectionId]);
   if (!sec || sec.status !== 'active') throw badRequest('Section must exist and be active (RB-002)');
+
   const { rows: [sup] } = await client.query(`SELECT id, status FROM suppliers WHERE id=$1`, [h.supplierId]);
   if (!sup || sup.status !== 'active') throw badRequest('Supplier must exist and be active — inactive suppliers cannot receive new POs (§25)');
+
   const { rows: [dept] } = await client.query(`SELECT id FROM departments WHERE id=$1`, [h.departmentId || '00000000-0000-0000-0000-000000000000']);
   if (!dept) throw badRequest('Department not found');
+
   return { div };
 }
 
@@ -299,12 +338,19 @@ r.get('/', ah(async (req, res) => {
 // ---------- POST /api/purchase-orders — create draft (§12.2 guided steps) ----------
 r.post('/', requirePermission('po.create'), ah(async (req, res) => {
   const h = extractHeader(req.body || {});
-  if (!h.divisionId || !h.departmentId || !h.sectionId || !h.supplierId) {
-    throw badRequest('divisionId, departmentId, sectionId, supplierId are required');
+  if (!h.departmentId || !h.sectionId || !h.supplierId) {
+    throw badRequest('departmentId, sectionId, supplierId are required (divisionId optional — inferred from section)');
   }
   if (!h.lines?.length) throw badRequest('At least one product line is required');
-  scopeDivision(req, h.divisionId);
-  scopeSection(req, h.sectionId);
+
+  // Duplicate-submission guard: the client sends one UUID per form session.
+  // Replays of the same key return the already-created PO (never a second order).
+  const idemKey = req.body?.idempotencyKey;
+  if (idemKey) {
+    const { rows: existing } = await query(
+      `SELECT * FROM purchase_orders WHERE idempotency_key = $1 AND created_by = $2`, [idemKey, req.user.id]);
+    if (existing[0]) return res.json({ data: existing[0] });
+  }
 
   const policy = {
     gst_percent: await getSetting('gst_percent', PO_POLICY_DEFAULTS.gst_percent),
@@ -312,27 +358,55 @@ r.post('/', requirePermission('po.create'), ah(async (req, res) => {
     max_margin_percent: await getSetting('max_margin_percent', PO_POLICY_DEFAULTS.max_margin_percent),
   };
 
-  const po = await withTransaction(async (client) => {
-    const { div } = await assertActiveRefs(client, h);
-    const { rows } = await client.query(
-      `INSERT INTO purchase_orders (po_number, division_id, department_id, section_id, supplier_id, created_by,
-           status, payment_terms, delivery_terms, tax_scheme, expected_delivery_date, remarks)
-       VALUES ($1,$2,$3,$4,$5,$6,'draft',$7,$8,$9,$10,$11) RETURNING *`,
-      ['PENDING', h.divisionId, h.departmentId, h.sectionId, h.supplierId, req.user.id,
-       h.paymentTerms, h.deliveryTerms, h.taxScheme, h.expectedDeliveryDate, h.remarks]);
-    const created = rows[0];
-    const poNumber = await nextPoNumber(client, h.divisionId, div.code);
-    await client.query(`UPDATE purchase_orders SET po_number=$2 WHERE id=$1`, [created.id, poNumber]);
-    created.po_number = poNumber;
+  let po;
+  try {
+        po = await withTransaction(async (client) => {
+      // assertActiveRefs may infer divisionId from the user's authorized scope or
+      // the section → department → division chain when the client did not provide it.
+      const { div } = await assertActiveRefs(client, h, req.user);
+      const resolvedDivisionId = h.divisionId || div.id;
+      scopeDivision(req, resolvedDivisionId);
+      scopeSection(req, h.sectionId);
+      const { rows } = await client.query(
+        `INSERT INTO purchase_orders (po_number, division_id, department_id, section_id, supplier_id, created_by,
+             status, payment_terms, delivery_terms, tax_scheme, expected_delivery_date, remarks)
+         VALUES ($1,$2,$3,$4,$5,$6,'draft',$7,$8,$9,$10,$11) RETURNING *`,
+        ['PENDING', resolvedDivisionId, h.departmentId, h.sectionId, h.supplierId, req.user.id,
+         h.paymentTerms, h.deliveryTerms, h.taxScheme, h.expectedDeliveryDate, h.remarks]);
+      const created = rows[0];
+      const poNumber = await nextPoNumber(client, resolvedDivisionId, div.code);
+      await client.query(
+        `UPDATE purchase_orders SET po_number=$2, idempotency_key=$3 WHERE id=$1`,
+        [created.id, poNumber, idemKey || null]);
+      created.po_number = poNumber;
 
-    const totals = await persistLines(client, created, h.lines, req, policy);
-    await logAudit(client, {
-      userId: req.user.id, role: req.user.roles.join(','), divisionId: h.divisionId, sectionId: h.sectionId,
-      actionType: 'create', entityType: 'purchase_order', entityId: created.id,
-      afterValue: { po_number: poNumber, ...totals },
+      const totals = await persistLines(client, created, h.lines, req, policy);
+      await logAudit(client, {
+        userId: req.user.id, role: req.user.roles.join(','), divisionId: resolvedDivisionId, sectionId: h.sectionId,
+        actionType: 'create', entityType: 'purchase_order', entityId: created.id,
+        afterValue: { po_number: poNumber, ...totals },
+      });
+      return { ...created, ...totals };
     });
-    return { ...created, ...totals };
-  });
+  } catch (e) {
+    // Race: a concurrent request with the same idempotency key won the insert —
+    // return its PO instead of surfacing a unique-violation error.
+    if (idemKey && String(e.code) === '23505') {
+      const { rows: winner } = await query(
+        `SELECT * FROM purchase_orders WHERE idempotency_key = $1 AND created_by = $2`, [idemKey, req.user.id]);
+      if (winner[0]) return res.json({ data: winner[0] });
+    }
+    throw e;
+  }
+
+  // QR code is generated only AFTER the database save has committed. It is
+  // best-effort polish: a QR failure never fails the order, and the QR is
+  // re-generated on demand (submit route or GET) from the stored PO number.
+  try {
+    po.qr_code = await generatePOQR(po.po_number, poQROrigin(req));
+    await query(`UPDATE purchase_orders SET qr_code=$2 WHERE id=$1`, [po.id, po.qr_code]);
+  } catch { /* QR is regenerated on demand later */ }
+
   res.status(201).json({ data: po });
 }));
 
@@ -505,12 +579,22 @@ r.get('/:id/export/pdf', ah(async (req, res) => {
   const po = await loadPO(req.params.id);
   assertPOScope(req, po);
   const bundle = await getFullPOBundle(po.id);
-  const pdfBuffer = generatePOPdf(bundle);
+  const pdfBuffer = await generatePOPdf(bundle, poQROrigin(req));
   const filename = `${po.po_number || 'PO'}_v${po.version || 1}.pdf`;
   res.setHeader('Content-Type', 'application/pdf');
   res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
   res.setHeader('Content-Length', pdfBuffer.length);
   res.send(pdfBuffer);
+}));
+
+// ---------- GET /api/purchase-orders/:id/qr — printable PNG QR download ----------
+r.get('/:id/qr', ah(async (req, res) => {
+  const po = await loadPO(req.params.id);
+  assertPOScope(req, po);
+  const png = await generatePOQRPNG(po.po_number, poQROrigin(req));
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Content-Disposition', `inline; filename="${po.po_number || 'PO'}.png"`);
+  res.send(png);
 }));
 
 // ---------- PUT /api/purchase-orders/:id — edit draft only (RB-011) ----------
@@ -636,6 +720,17 @@ r.post('/:id/submit', requirePermission('po.submit'), ah(async (req, res) => {
     });
     return { totals, exceptionQueue };
   });
+
+  // QR code is generated after a successful save. Backfill it for POs that
+  // were created before QR support existed (drafts etc.). Best-effort only —
+  // the submission itself has already succeeded and committed.
+  if (!po.qr_code) {
+    try {
+      const qr = await generatePOQR(po.po_number, poQROrigin(req));
+      await query(`UPDATE purchase_orders SET qr_code=$2 WHERE id=$1`, [po.id, qr]);
+      result.qrCode = qr;
+    } catch { /* QR is regenerated on demand later */ }
+  }
   res.json({ data: result });
 }));
 

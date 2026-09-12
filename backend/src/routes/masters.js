@@ -221,7 +221,7 @@ r.post('/colours', MANAGE, ah(async (req, res) => {
 
 // ---------- BRANDS (§10.1 — brand number ≠ brand serial, RB-005) ----------
 r.get('/brands', VIEW, ah(async (req, res) => {
-  const { search, sectionId, collectionId } = req.query;
+  const { search, sectionId, departmentId, collectionId } = req.query;
   const params = [];
   let where = `b.status <> 'archived'`;
   if (search) {
@@ -231,6 +231,10 @@ r.get('/brands', VIEW, ah(async (req, res) => {
   if (sectionId) {
     params.push(sectionId);
     where += ` AND EXISTS (SELECT 1 FROM products p WHERE p.brand_id = b.id AND p.section_id = $${params.length} AND p.status <> 'archived')`;
+  }
+  if (departmentId) {
+    params.push(departmentId);
+    where += ` AND EXISTS (SELECT 1 FROM products p WHERE p.brand_id = b.id AND p.department_id = $${params.length} AND p.status <> 'archived')`;
   }
   if (collectionId) {
     params.push(collectionId);
