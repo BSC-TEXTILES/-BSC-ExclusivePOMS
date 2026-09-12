@@ -2185,3 +2185,79 @@ html[data-theme='dark'] .collection-prod-section { background: transparent; }
   margin-top: 2px;
 }
 
+/* ============================================================
+   DARK NAVIGATION THEME OVERRIDES
+   ============================================================ */
+.sidebar, .topbar {
+  background: linear-gradient(160deg, #0f4c2e 0%, #15693f 50%, #1a7a4c 100%);
+  color: #fff;
+  border-color: #15693f;
+}
+
+/* Sidebar adjustments */
+.sidebar .brand-name { color: #fff; }
+.sidebar .brand-sub { color: rgba(255, 255, 255, 0.7); }
+.sidebar .nav-section-label { color: rgba(255, 255, 255, 0.7); }
+.sidebar .nav-link { color: rgba(255, 255, 255, 0.85); }
+.sidebar .nav-link:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.sidebar .nav-link.active { background: rgba(255, 255, 255, 0.2); color: #fff; }
+.sidebar .nav-link.active .icon { color: #fff; }
+.sidebar .sidebar-foot { color: rgba(255, 255, 255, 0.7); }
+.sidebar .icon-btn { color: rgba(255, 255, 255, 0.85); }
+.sidebar .icon-btn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+
+.sidebar .nav-coll-btn { color: rgba(255, 255, 255, 0.85); }
+.sidebar .nav-coll-btn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.sidebar .nav-sublink { color: rgba(255, 255, 255, 0.85); }
+.sidebar .nav-sublink:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.sidebar .nav-sublink.active { color: #fff; background: rgba(255, 255, 255, 0.2); }
+
+/* Topbar adjustments */
+.topbar .icon-btn { color: rgba(255, 255, 255, 0.85); }
+.topbar .icon-btn:hover { background: rgba(255, 255, 255, 0.1); color: #fff; }
+.topbar .topbar-search input { 
+  background: rgba(255, 255, 255, 0.15); 
+  border-color: rgba(255, 255, 255, 0.25); 
+  color: #fff; 
+}
+.topbar .topbar-search input:focus {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.15);
+}
+.topbar .topbar-search input::placeholder { color: rgba(255, 255, 255, 0.7); }
+.topbar .search-icon { color: rgba(255, 255, 255, 0.7); }
+
+.topbar .clock { 
+  background: rgba(255, 255, 255, 0.15); 
+  border-color: rgba(255, 255, 255, 0.25); 
+  color: rgba(255, 255, 255, 0.9); 
+}
+.topbar .clock strong { color: #fff; }
+
+.topbar .profile-btn { 
+  background: rgba(255, 255, 255, 0.15); 
+  border-color: rgba(255, 255, 255, 0.25); 
+  color: #fff; 
+}
+.topbar .profile-btn:hover { 
+  background: rgba(255, 255, 255, 0.2); 
+  border-color: rgba(255, 255, 255, 0.4); 
+}
+.topbar .user-roles { color: rgba(255, 255, 255, 0.7); }
+
+/* Dropdown overrides to keep them white */
+.dropdown {
+  background: #fff;
+  color: var(--ink);
+}
+.topbar .tb-switch {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.9);
+}
+.topbar .tb-switch .switch-label {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+
