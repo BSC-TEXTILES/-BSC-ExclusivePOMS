@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef } from 'react';
-import api, { errMessage } from '../api.js';
+import api, { errMessage, uploadFile, assetUrl } from '../api.js';
+import PhoneInput from '../components/PhoneInput.jsx';
 
 export default function CompanySettings() {
   const [form, setForm] = useState({ companyName: '', address: '', city: '', state: '', pinCode: '', phone: '', email: '', gstNumber: '', website: '', logoUrl: '' });
@@ -60,7 +61,13 @@ export default function CompanySettings() {
         <div className="fields-2">
           <label className="field"><span className="field-label">Company Name</span><input value={form.companyName} onChange={(e) => setForm({ ...form, companyName: e.target.value })} /></label>
           <label className="field"><span className="field-label">GST Number</span><input value={form.gstNumber} onChange={(e) => setForm({ ...form, gstNumber: e.target.value })} /></label>
-          <label className="field"><span className="field-label">Phone</span><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+          <label className="field">
+            <span className="field-label">Phone</span>
+            <PhoneInput 
+              value={form.phone} 
+              onChange={(e) => setForm({ ...form, phone: e.target.value })} 
+            />
+          </label>
           <label className="field"><span className="field-label">Email</span><input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
           <label className="field"><span className="field-label">Website</span><input value={form.website} onChange={(e) => setForm({ ...form, website: e.target.value })} /></label>
         </div>

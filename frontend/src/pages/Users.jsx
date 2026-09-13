@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import api, { errMessage, uploadFile, assetUrl } from '../api.js';
 import Modal from '../components/Modal.jsx';
+import PhoneInput from '../components/PhoneInput.jsx';
 import Icon from '../components/Icon.jsx';
 import { Field } from '../components/DataTable.jsx';
 import { useAuth } from '../auth.jsx';
@@ -149,7 +150,12 @@ export default function Users() {
           )}
           <div className="fields-2">
             <Field label="Full name"><input value={form.fullName || ''} onChange={(e) => setForm({ ...form, fullName: e.target.value })} /></Field>
-            <Field label="Phone"><input value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
+            <Field label="Phone">
+              <PhoneInput 
+                value={form.phone || ''} 
+                onChange={(e) => setForm({ ...form, phone: e.target.value })} 
+              />
+            </Field>
             {!editing.id && <Field label="Email"><input type="email" name="email" autoComplete="off" value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>}
             {!editing.id && <Field label="Username"><input name="username" autoComplete="off" value={form.username || ''} onChange={(e) => setForm({ ...form, username: e.target.value })} /></Field>}
             <Field label={editing.id ? 'New password (leave blank to keep)' : 'Password'} hint="min 8 chars, uppercase, lowercase, number, special char">

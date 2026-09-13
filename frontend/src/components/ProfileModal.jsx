@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react';
-import api, { errMessage, uploadFile } from '../api.js';
+import api, { errMessage, uploadFile, assetUrl } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import { Field } from '../components/DataTable.jsx';
+import PhoneInput from './PhoneInput.jsx';
 
 // Mandatory profile completion. Rendered over the app until the user saves
 // their profile (users.profile_updated_at) — admin-created accounts start
@@ -168,11 +169,9 @@ export default function ProfileModal({ onClose }) {
                 </Field>
               </div>
               <Field label="Phone">
-                <input
+                <PhoneInput 
                   value={form.phone || ''}
                   onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                  placeholder="+91 …"
-                  style={{ fontSize: 14, padding: '10px 12px' }}
                 />
               </Field>
               <Field label="Designation">

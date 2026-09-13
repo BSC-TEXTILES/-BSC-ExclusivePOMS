@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api, { errMessage } from '../api.js';
 import Modal from '../components/Modal.jsx';
+import PhoneInput from '../components/PhoneInput.jsx';
 
 const emptyForm = { code: '', name: '', contactPerson: '', phone: '', email: '', address: '', city: '', state: '', country: 'India', gstin: '', notes: '' };
 
@@ -84,7 +85,13 @@ export default function Manufacturers() {
               <label className="field"><span className="field-label">Code *</span><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} /></label>
               <label className="field"><span className="field-label">Name *</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
               <label className="field"><span className="field-label">Contact Person</span><input value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} /></label>
-              <label className="field"><span className="field-label">Phone</span><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+              <label className="field">
+                <span className="field-label">Phone</span>
+                <PhoneInput 
+                  value={form.phone} 
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })} 
+                />
+              </label>
               <label className="field"><span className="field-label">Email</span><input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
               <label className="field"><span className="field-label">GSTIN</span><input value={form.gstin} onChange={(e) => setForm({ ...form, gstin: e.target.value })} /></label>
               <label className="field"><span className="field-label">City</span><input value={form.city} onChange={(e) => setForm({ ...form, city: e.target.value })} /></label>

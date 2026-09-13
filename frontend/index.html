@@ -8,6 +8,23 @@
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#0b1a2e" />
     <title>BSC Exclusive — Purchase Order Management System</title>
+    <script>
+      document.addEventListener('contextmenu', event => event.preventDefault());
+      document.onkeydown = function(e) {
+        if (e.keyCode === 123) { return false; } // F12
+        if (e.ctrlKey && e.shiftKey && (e.keyCode === 73 || e.keyCode === 74 || e.keyCode === 67)) { return false; } // Ctrl+Shift+I/J/C
+        if (e.ctrlKey && e.keyCode === 85) { return false; } // Ctrl+U
+      };
+      // DevTools Trap
+      setInterval(function() {
+        var start = new Date();
+        debugger;
+        var end = new Date();
+        if (end - start > 100) {
+          document.body.innerHTML = '<h1 style="color:red;text-align:center;margin-top:50px;">Unauthorized Access. Developer tools are disabled.</h1>';
+        }
+      }, 1000);
+    </script>
   </head>
   <body>
     <div id="root"></div>

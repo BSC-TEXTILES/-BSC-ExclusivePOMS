@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import api, { errMessage } from '../api.js';
 import Modal from '../components/Modal.jsx';
+import PhoneInput from '../components/PhoneInput.jsx';
 
 export default function Dealers() {
   const [rows, setRows] = useState([]);
@@ -67,7 +68,13 @@ export default function Dealers() {
               <label className="field"><span className="field-label">Code *</span><input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} disabled={modal === 'edit'} /></label>
               <label className="field"><span className="field-label">Company Name *</span><input value={form.companyName} onChange={(e) => setForm({ ...form, companyName: e.target.value })} /></label>
               <label className="field"><span className="field-label">Contact Person</span><input value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} /></label>
-              <label className="field"><span className="field-label">Phone</span><input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+              <label className="field">
+                <span className="field-label">Phone</span>
+                <PhoneInput 
+                  value={form.phone} 
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })} 
+                />
+              </label>
               <label className="field"><span className="field-label">Email</span><input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
               <label className="field"><span className="field-label">GSTIN</span><input value={form.gstin} onChange={(e) => setForm({ ...form, gstin: e.target.value })} /></label>
             </div>

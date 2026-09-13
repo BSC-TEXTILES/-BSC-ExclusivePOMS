@@ -1701,151 +1701,180 @@ export default function CollectionView() {
       {/* Admin Add Product Modal */}
       {showAddProduct && (
         <Modal title={`Add New SKU to ${config.title}`} onClose={() => setShowAddProduct(false)}>
-          <form onSubmit={handleAddProductSubmit} className="collection-add-form">
-            <div className="form-grid">
-              <label className="field">
-                <span className="field-label">Product Name *</span>
-                <input
-                  required
-                  value={newProd.name}
-                  onChange={(e) => setNewProd({ ...newProd, name: e.target.value })}
-                  placeholder="e.g. Slim Fit Linen Shirt"
-                />
-              </label>
+          <form onSubmit={handleAddProductSubmit} className="collection-add-form" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Basic Info */}
+            <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>📦 Basic Details</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <label className="field" style={{ margin: 0 }}>
+                  <span className="field-label">Product Name *</span>
+                  <input
+                    required
+                    value={newProd.name}
+                    onChange={(e) => setNewProd({ ...newProd, name: e.target.value })}
+                    placeholder="e.g. Slim Fit Linen Shirt"
+                    style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%' }}
+                  />
+                </label>
+                <label className="field" style={{ margin: 0 }}>
+                  <span className="field-label">SKU Code *</span>
+                  <input
+                    required
+                    value={newProd.sku}
+                    onChange={(e) => setNewProd({ ...newProd, sku: e.target.value.toUpperCase() })}
+                    placeholder="e.g. MSH-2026-042"
+                    style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%' }}
+                  />
+                </label>
+              </div>
+            </div>
 
-              <label className="field">
-                <span className="field-label">SKU Code *</span>
-                <input
-                  required
-                  value={newProd.sku}
-                  onChange={(e) => setNewProd({ ...newProd, sku: e.target.value.toUpperCase() })}
-                  placeholder="e.g. MSH-2026-042"
-                />
-              </label>
+            {/* Classification */}
+            <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>🏷️ Classification</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '20px' }}>
+                <label className="field" style={{ margin: 0 }}>
+                  <span className="field-label">Target Section *</span>
+                  <select
+                    required
+                    value={newProd.sectionId}
+                    onChange={(e) => setNewProd({ ...newProd, sectionId: e.target.value })}
+                    style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%' }}
+                  >
+                    <option value="">Select Section…</option>
+                    {deptSections.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field" style={{ margin: 0 }}>
+                  <span className="field-label">Category</span>
+                  <select
+                    value={newProd.categoryId}
+                    onChange={(e) => setNewProd({ ...newProd, categoryId: e.target.value })}
+                    style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%' }}
+                  >
+                    <option value="">Select Category…</option>
+                    {categories.map((c) => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="field" style={{ margin: 0 }}>
+                  <span className="field-label">HSN / SAC Code</span>
+                  <input
+                    value={newProd.hsnSac}
+                    onChange={(e) => setNewProd({ ...newProd, hsnSac: e.target.value })}
+                    placeholder="e.g. 620520"
+                    style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%' }}
+                  />
+                </label>
+              </div>
+            </div>
 
-              <label className="field">
-                <span className="field-label">Target Section *</span>
-                <select
-                  required
-                  value={newProd.sectionId}
-                  onChange={(e) => setNewProd({ ...newProd, sectionId: e.target.value })}
-                >
-                  <option value="">Select Section…</option>
-                  {deptSections.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="field" style={{ gridColumn: '1 / -1' }}>
-                <span className="field-label">Brand *</span>
-                <div className="po-brand-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 8, marginTop: 6 }}>
-                  {brands
-                    .filter((b) => {
-                      if (!department) return true;
-                      if (!b.collections?.length) return true;
-                      return b.collections.some((c) => {
-                        const deptCode = (department.code || '').toUpperCase();
-                        return c.code?.toUpperCase().includes(deptCode) || c.name?.toLowerCase().includes(deptCode.toLowerCase());
-                      });
-                    })
-                    .map((b) => {
-                      const selected = newProd.brandId === b.id;
-                      const brandInitials = b.brand_name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
-                      return (
-                        <div
-                          key={b.id}
-                          onClick={() => setNewProd({ ...newProd, brandId: b.id })}
-                          className={`po-brand-tile ${selected ? 'selected' : ''}`}
-                          style={{
-                            border: selected ? `2px solid ${config.themeColor}` : '2px solid #e5e7eb',
-                            borderRadius: 8,
-                            padding: '8px 4px',
-                            textAlign: 'center',
-                            cursor: 'pointer',
-                            background: selected ? config.accentBg : '#fff',
-                            transition: 'all .15s',
-                          }}
-                        >
-                          <div style={{ width: 40, height: 40, borderRadius: '50%', margin: '0 auto 4px', overflow: 'hidden', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            {(b.image_url || b.logo_url) ? (
-                              <img src={b.image_url || b.logo_url} alt={b.brand_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            ) : (
-                              <span style={{ fontWeight: 700, fontSize: 13, color: '#6b7280' }}>{brandInitials}</span>
-                            )}
-                          </div>
-                          <div style={{ fontSize: 11, fontWeight: 600, color: selected ? config.themeColor : '#374151', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {b.brand_name}
-                          </div>
+            {/* Brand */}
+            <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>🏢 Brand Assignment *</h4>
+              <div className="po-brand-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: '12px' }}>
+                {brands
+                  .filter((b) => {
+                    if (!department) return true;
+                    if (!b.collections?.length) return true;
+                    return b.collections.some((c) => {
+                      const deptCode = (department.code || '').toUpperCase();
+                      return c.code?.toUpperCase().includes(deptCode) || c.name?.toLowerCase().includes(deptCode.toLowerCase());
+                    });
+                  })
+                  .map((b) => {
+                    const selected = newProd.brandId === b.id;
+                    const brandInitials = b.brand_name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase();
+                    return (
+                      <div
+                        key={b.id}
+                        onClick={() => setNewProd({ ...newProd, brandId: b.id })}
+                        className={`po-brand-tile ${selected ? 'selected' : ''}`}
+                        style={{
+                          border: selected ? `2px solid ${config.themeColor}` : '1px solid #e5e7eb',
+                          borderRadius: '12px',
+                          padding: '12px 8px',
+                          textAlign: 'center',
+                          cursor: 'pointer',
+                          background: selected ? config.accentBg : '#fff',
+                          transition: 'all 0.2s ease',
+                          boxShadow: selected ? `0 4px 12px ${config.themeColor}33` : '0 2px 4px rgba(0,0,0,0.02)',
+                          transform: selected ? 'translateY(-2px)' : 'none',
+                        }}
+                        onMouseEnter={(e) => { if(!selected) { e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.08)'; e.currentTarget.style.transform = 'translateY(-2px)'; } }}
+                        onMouseLeave={(e) => { if(!selected) { e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.02)'; e.currentTarget.style.transform = 'none'; } }}
+                      >
+                        <div style={{ width: 48, height: 48, borderRadius: '50%', margin: '0 auto 8px', overflow: 'hidden', background: '#f9fafb', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #f3f4f6' }}>
+                          {(b.image_url || b.logo_url) ? (
+                            <img src={b.image_url || b.logo_url} alt={b.brand_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                          ) : (
+                            <span style={{ fontWeight: 700, fontSize: 16, color: '#9ca3af' }}>{brandInitials}</span>
+                          )}
                         </div>
-                      );
-                    })}
-                </div>
-                {!newProd.brandId && <span style={{ fontSize: 12, color: '#9ca3af', marginTop: 4, display: 'block' }}>Click a brand to select</span>}
-              </label>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: selected ? config.themeColor : '#4b5563', lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {b.brand_name}
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+              {!newProd.brandId && <span style={{ fontSize: 13, color: '#ef4444', marginTop: 12, display: 'block', fontStyle: 'italic' }}>Please select a brand from the list above.</span>}
+            </div>
 
-              <label className="field">
-                <span className="field-label">Category</span>
-                <select
-                  value={newProd.categoryId}
-                  onChange={(e) => setNewProd({ ...newProd, categoryId: e.target.value })}
-                >
-                  <option value="">Select Category…</option>
-                  {categories.map((c) => (
-                    <option key={c.id} value={c.id}>{c.name}</option>
-                  ))}
-                </select>
-              </label>
+            {/* Pricing */}
+            <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>💰 Pricing</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <label className="field" style={{ margin: 0 }}>
+                  <span className="field-label">Purchase Price (₹)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={newProd.purchasePrice || ''}
+                    onChange={(e) => setNewProd({ ...newProd, purchasePrice: e.target.value })}
+                    placeholder="e.g. 850"
+                    style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%' }}
+                  />
+                </label>
+                <label className="field" style={{ margin: 0 }}>
+                  <span className="field-label">Selling Price (₹)</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.5"
+                    value={newProd.sellingPrice || ''}
+                    onChange={(e) => setNewProd({ ...newProd, sellingPrice: e.target.value })}
+                    placeholder="e.g. 1299"
+                    style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%' }}
+                  />
+                </label>
+              </div>
+            </div>
 
-              <label className="field">
-                <span className="field-label">HSN / SAC Code</span>
-                <input
-                  value={newProd.hsnSac}
-                  onChange={(e) => setNewProd({ ...newProd, hsnSac: e.target.value })}
-                  placeholder="e.g. 620520"
-                />
-              </label>
-
-              <label className="field">
-                <span className="field-label">Purchase Price (₹)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={newProd.purchasePrice || ''}
-                  onChange={(e) => setNewProd({ ...newProd, purchasePrice: e.target.value })}
-                  placeholder="e.g. 850"
-                />
-              </label>
-
-              <label className="field">
-                <span className="field-label">Selling Price (₹)</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.5"
-                  value={newProd.sellingPrice || ''}
-                  onChange={(e) => setNewProd({ ...newProd, sellingPrice: e.target.value })}
-                  placeholder="e.g. 1299"
+            {/* Description */}
+            <div style={{ padding: '20px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+              <h4 style={{ margin: '0 0 16px 0', fontSize: '15px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>📝 Additional Info</h4>
+              <label className="field" style={{ margin: 0 }}>
+                <span className="field-label">Description / Fabric Details</span>
+                <textarea
+                  rows={3}
+                  value={newProd.description}
+                  onChange={(e) => setNewProd({ ...newProd, description: e.target.value })}
+                  placeholder="Fabric composition, weave, fit, wash care instructions…"
+                  style={{ padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', width: '100%', resize: 'vertical' }}
                 />
               </label>
             </div>
 
-            <label className="field" style={{ marginTop: 10 }}>
-              <span className="field-label">Description / Fabric Details</span>
-              <textarea
-                rows={2}
-                value={newProd.description}
-                onChange={(e) => setNewProd({ ...newProd, description: e.target.value })}
-                placeholder="Fabric composition, weave, fit, wash care instructions…"
-              />
-            </label>
-
-            <div className="modal-actions" style={{ marginTop: 16 }}>
-              <button type="button" className="btn" onClick={() => setShowAddProduct(false)}>
+            <div className="modal-actions" style={{ marginTop: '10px', paddingTop: '20px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button type="button" className="btn" onClick={() => setShowAddProduct(false)} style={{ padding: '10px 20px', borderRadius: '8px' }}>
                 Cancel
               </button>
-              <button type="submit" className="btn primary" style={{ background: config.themeColor, borderColor: config.themeColor }}>
+              <button type="submit" className="btn primary" style={{ background: config.themeColor, borderColor: config.themeColor, padding: '10px 24px', borderRadius: '8px', fontWeight: 600 }}>
                 Save Product & Add to Catalogue
               </button>
             </div>

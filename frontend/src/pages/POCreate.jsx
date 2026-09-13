@@ -1,7 +1,8 @@
-﻿import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import api, { errMessage } from '../api.js';
 import { useAuth, useCart } from '../auth.jsx';
+import PhoneInput from '../components/PhoneInput.jsx';
 import { Field, Money } from '../components/DataTable.jsx';
 import Modal from '../components/Modal.jsx';
 import Icon from '../components/Icon.jsx';
@@ -1547,10 +1548,9 @@ export default function POCreate() {
                 />
               </Field>
               <Field label="Phone / Mobile">
-                <input
-                  placeholder="9876543210"
-                  value={supplierForm.mobile}
-                  onChange={(e) => setSupplierForm({ ...supplierForm, mobile: e.target.value })}
+                <PhoneInput 
+                  value={supplierForm.mobile || ''} 
+                  onChange={(e) => setSupplierForm({ ...supplierForm, mobile: e.target.value })} 
                 />
               </Field>
               <Field label="GSTIN">

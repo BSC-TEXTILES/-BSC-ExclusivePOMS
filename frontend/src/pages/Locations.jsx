@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import api, { errMessage } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import Modal from '../components/Modal.jsx';
+import PhoneInput from '../components/PhoneInput.jsx';
 import StatusChip from '../components/StatusChip.jsx';
 
 export default function Locations() {
@@ -124,7 +125,13 @@ export default function Locations() {
             <label>Latitude<input type="number" step="any" value={form.latitude} onChange={(e) => setForm({ ...form, latitude: e.target.value })} /></label>
             <label>Longitude<input type="number" step="any" value={form.longitude} onChange={(e) => setForm({ ...form, longitude: e.target.value })} /></label>
             <label>Contact Person<input value={form.contactPerson} onChange={(e) => setForm({ ...form, contactPerson: e.target.value })} /></label>
-            <label>Phone<input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></label>
+            <label>
+              Phone
+              <PhoneInput 
+                value={form.phone} 
+                onChange={(e) => setForm({ ...form, phone: e.target.value })} 
+              />
+            </label>
             <label>Notes<textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} rows={2} /></label>
           </div>
           <div className="modal-actions">
