@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { UserButton, useAuth as useClerkAuth } from '@clerk/clerk-react';
 import api, { errMessage, uploadFile, API_BASE, assetUrl } from '../api.js';
 import { useAuth, useCart } from '../auth.jsx';
 import Icon from './Icon.jsx';
@@ -47,7 +46,6 @@ export function Avatar({ user, size = 34 }) {
 // switch · profile menu with avatar.
 export default function Topbar({ collapsed, onToggle }) {
   const { user, hasPermission } = useAuth();
-  const { getToken } = useClerkAuth();
   const cart = useCart();
   const navigate = useNavigate();
   const location = useLocation();
@@ -131,7 +129,7 @@ export default function Topbar({ collapsed, onToggle }) {
     let tokenInterval;
     const connect = async () => {
       try {
-        const token = await getToken();
+        const token = localStorage.getItem('poms_token');
         if (!token || closed) return;
         sock = new WebSocket(`${WS_ORIGIN}/ws/notify?token=${encodeURIComponent(token)}`);
         sock.onmessage = (ev) => {
@@ -157,7 +155,7 @@ export default function Topbar({ collapsed, onToggle }) {
     };
     connect();
     return () => { closed = true; clearTimeout(retry); clearInterval(tokenInterval); try { sock?.close(); } catch { /* ignore */ } };
-  }, [user?.id, getToken]);
+  }, [user?.id]);
 
   useEffect(() => {
     const close = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpenMenu(null); };
@@ -359,20 +357,18 @@ export default function Topbar({ collapsed, onToggle }) {
         </div>
 
         <div className="tb-anchor">
-          <div className="profile-btn" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <UserButton
-              afterSignOutUrl="/login"
-              appearance={{
-                elements: {
-                  avatarBox: { width: 34, height: 34 },
-                },
-              }}
-            />
+          <button
+            className="profile-btn"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 8px', borderRadius: 8 }}
+            onClick={() => setShowProfile(true)}
+            title="View profile"
+          >
+            <Avatar user={user} size={34} />
             <span className="profile-meta">
               <span className="user-name">{user.fullName}</span>
               <span className="user-roles">{roleLabels(user.roles)}</span>
             </span>
-          </div>
+          </button>
         </div>
       </div>
 

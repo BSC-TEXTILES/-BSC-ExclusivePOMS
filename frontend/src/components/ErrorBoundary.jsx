@@ -15,7 +15,7 @@ export default class ErrorBoundary extends React.Component {
   }
 
   handleReset = () => {
-    // Clerk handles session — just redirect to login
+    // Session may be invalid — redirect to login
     window.location.href = '/login';
   };
 

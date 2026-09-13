@@ -1,14 +1,52 @@
-import { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { SignUp, useAuth as useClerkAuth } from '@clerk/clerk-react';
+import { useState, useEffect } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../auth.jsx';
+import api, { errMessage } from '../api.js';
 
 export default function SignUpPage() {
-  const { isSignedIn } = useClerkAuth();
+  const { isSignedIn, login } = useAuth();
   const navigate = useNavigate();
+  const [form, setForm] = useState({ email: '', username: '', fullName: '', password: '', confirmPassword: '' });
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (isSignedIn) navigate('/dashboard', { replace: true });
   }, [isSignedIn, navigate]);
+
+  function update(field, value) {
+    setForm((prev) => ({ ...prev, [field]: value }));
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match');
+      return;
+    }
+
+    setBusy(true);
+    try {
+      // Note: self-signup creates the account; admin assigns roles later.
+      // The backend auth/login will work after the admin activates the account.
+      await api.post('/auth/signup', {
+        email: form.email.trim(),
+        username: form.username.trim(),
+        fullName: form.fullName.trim(),
+        password: form.password,
+      });
+      // Auto-login after signup
+      const { data } = await api.post('/auth/login', { email: form.email.trim(), password: form.password });
+      login(data.token, data.user);
+      navigate('/dashboard', { replace: true });
+    } catch (err) {
+      setError(errMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <div className="login-page">
@@ -80,17 +118,78 @@ export default function SignUpPage() {
             <p>Sign up for BSC Purchase Order Management System</p>
           </div>
 
-          <SignUp
-            routing="path"
-            path="/signup"
-            signInUrl="/login"
-            appearance={{
-              elements: {
-                rootBox: { width: '100%', maxWidth: 400 },
-                card: { width: '100%' },
-              },
-            }}
-          />
+          {error && <div className="alert error" style={{ width: '100%', maxWidth: 400, marginBottom: 16 }}>{error}</div>}
+
+          <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 400 }}>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, fontSize: 14 }}>Full Name</label>
+              <input
+                type="text"
+                value={form.fullName}
+                onChange={(e) => update('fullName', e.target.value)}
+                required
+                placeholder="John Doe"
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14 }}
+              />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, fontSize: 14 }}>Username</label>
+              <input
+                type="text"
+                value={form.username}
+                onChange={(e) => update('username', e.target.value)}
+                required
+                placeholder="johndoe"
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14 }}
+              />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, fontSize: 14 }}>Email</label>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => update('email', e.target.value)}
+                required
+                placeholder="you@company.com"
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14 }}
+              />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, fontSize: 14 }}>Password</label>
+              <input
+                type="password"
+                value={form.password}
+                onChange={(e) => update('password', e.target.value)}
+                required
+                minLength={10}
+                placeholder="Min 10 chars, upper, lower, digit, special"
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14 }}
+              />
+            </div>
+            <div style={{ marginBottom: 24 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, fontSize: 14 }}>Confirm Password</label>
+              <input
+                type="password"
+                value={form.confirmPassword}
+                onChange={(e) => update('confirmPassword', e.target.value)}
+                required
+                placeholder="Repeat your password"
+                style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14 }}
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={busy}
+              className="btn primary"
+              style={{ width: '100%', padding: '10px 0', fontSize: 15, fontWeight: 600 }}
+            >
+              {busy ? 'Creating account...' : 'Create Account'}
+            </button>
+          </form>
+
+          <p style={{ marginTop: 20, fontSize: 14, color: '#6b7280' }}>
+            Already have an account? <Link to="/login" style={{ color: '#2563eb' }}>Sign in</Link>
+          </p>
         </div>
       </div>
     </div>

@@ -1,12 +1,10 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 import api, { errMessage } from '../api.js';
 import { useAuth } from '../auth.jsx';
 
 // Team Chat — division-scoped, live over WebSocket (§18 communication).
 export default function Chat() {
   const { user } = useAuth();
-  const { getToken } = useClerkAuth();
   const [divisions, setDivisions] = useState([]);
   const [divisionId, setDivisionId] = useState('');
   const [messages, setMessages] = useState([]);
@@ -39,7 +37,7 @@ export default function Chat() {
     let attempts = 0;
     async function connect() {
       try {
-        const token = await getToken();
+        const token = localStorage.getItem('poms_token');
         if (!token || closed) return;
         const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
         const ws = new WebSocket(`${proto}://${window.location.host}/ws/chat?token=${encodeURIComponent(token)}`);
@@ -64,7 +62,7 @@ export default function Chat() {
     }
     connect();
     return () => { closed = true; clearTimeout(retry); try { wsRef.current?.close(); } catch { /* ignore */ } };
-  }, [getToken]);
+  }, []);
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight });

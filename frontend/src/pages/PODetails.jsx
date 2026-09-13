@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation, Link } from 'react-router-dom';
-import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 import api, { API_BASE, errMessage, uploadFile, formatBytes, fileKind } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import StatusChip from '../components/StatusChip.jsx';
@@ -113,7 +112,6 @@ export default function PODetails() {
   const navigate = useNavigate();
   const location = useLocation();
   const { hasPermission } = useAuth();
-  const { getToken } = useClerkAuth();
   const [po, setPo] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState(location.state?.submitted ? 'PO submitted for approval.' : '');
@@ -149,7 +147,7 @@ export default function PODetails() {
   async function downloadExport(format) {
     setBusy(true);
     try {
-      const token = await getToken();
+      const token = localStorage.getItem('poms_token');
       const res = await fetch(`${API_BASE}/purchase-orders/${id}/export/${format}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });

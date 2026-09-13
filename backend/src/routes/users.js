@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { query, withTransaction, pool } from '../config/db.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
+import { rateLimit } from '../middleware/security.js';
 import { validate, createUserSchema, resetPasswordSchema } from '../middleware/validate.js';
 import { badRequest, forbidden, ah } from '../utils/httpError.js';
 import { logAudit } from '../utils/audit.js';
@@ -51,7 +52,8 @@ r.get('/', ah(async (req, res) => {
 // POST /api/users — TC-01: create a user and assign a role and division
 // RBAC: only the Administrator decides roles and access scope. Other account
 // creators create the login; the role is attached afterwards by the admin.
-r.post('/', validate({ body: createUserSchema }), ah(async (req, res) => {
+// Rate limit: 5 user creations per minute per IP
+r.post('/', rateLimit(5, 60 * 1000), validate({ body: createUserSchema }), ah(async (req, res) => {
   const { email, username, fullName, phone, password, roles = [], divisionIds = [], sections = [], sectionIds = [] } = req.body || {};
   if (!req.user.isSuperAdmin && (roles.length || divisionIds.length || sections.length || sectionIds.length)) {
     throw forbidden('Only the Administrator can assign roles and access scope — the account was not created');
@@ -135,7 +137,8 @@ r.patch('/:id', ah(async (req, res) => {
 
 // POST /api/users/:id/reset-password — admin reset (§6.2 forced-reset capability)
 // Administrator-only.
-r.post('/:id/reset-password', validate({ body: resetPasswordSchema }), ah(async (req, res) => {
+// Rate limit: 3 password resets per minute per IP
+r.post('/:id/reset-password', rateLimit(3, 60 * 1000), validate({ body: resetPasswordSchema }), ah(async (req, res) => {
   if (!req.user.isSuperAdmin) throw forbidden('Only the Administrator can reset passwords');
   const { newPassword } = req.body || {};
   const hash = await bcrypt.hash(newPassword, 10);

@@ -1,5 +1,4 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth as useClerkAuth, useUser as useClerkUser, useClerk } from '@clerk/clerk-react';
 import api, { setTokenGetter } from './api.js';
 
 // Cart context — pending purchase orders placed by ANY role (admin, supervisor,
@@ -52,16 +51,26 @@ export function CartProvider({ children }) {
 
 export const useCart = () => useContext(CartContext);
 
-// ─── Clerk-backed auth context ─────────────────────────────────────────────
+// ─── Local JWT auth context ────────────────────────────────────────────────
 // Provides the same shape the rest of the app expects (user, hasPermission,
-// etc.) by reading from Clerk sessions and fetching RBAC data from /api/auth/me.
+// etc.) by using local JWT tokens and fetching RBAC data from /api/auth/me.
 
 const AuthContext = createContext(null);
 
+const TOKEN_KEY = 'poms_token';
+
+function getStoredToken() {
+  try { return localStorage.getItem(TOKEN_KEY); } catch { return null; }
+}
+
+function setStoredToken(token) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch { /* ignore */ }
+}
+
 export function AuthProvider({ children }) {
-  const { isSignedIn, getToken } = useClerkAuth();
-  const { user: clerkUser, isLoaded: clerkLoaded } = useClerkUser();
-  const clerk = useClerk();
   const [rbacUser, setRbacUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [selectedSectionId, setSelectedSectionId] = useState(() => {
@@ -69,15 +78,19 @@ export function AuthProvider({ children }) {
   });
   const fetchedRef = useRef(false);
 
-  // Expose Clerk's getToken to the Axios interceptor
-  useEffect(() => {
-    setTokenGetter(isSignedIn ? getToken : null);
-    return () => setTokenGetter(null);
-  }, [isSignedIn, getToken]);
+  const isSignedIn = !!getStoredToken() && !!rbacUser;
 
-  // Fetch RBAC data from the backend whenever the user signs in
+  // Expose the JWT getter to the Axios interceptor
+  useEffect(() => {
+    const token = getStoredToken();
+    setTokenGetter(token ? () => Promise.resolve(token) : null);
+    return () => setTokenGetter(null);
+  }, [rbacUser]);
+
+  // Fetch RBAC data from the backend whenever we have a token
   const fetchRbac = useCallback(async () => {
-    if (!isSignedIn) {
+    const token = getStoredToken();
+    if (!token) {
       setRbacUser(null);
       setLoading(false);
       return;
@@ -86,15 +99,24 @@ export function AuthProvider({ children }) {
       const { data } = await api.get('/auth/me');
       setRbacUser(data.user);
     } catch {
+      // Token invalid or expired — clear it
+      setStoredToken(null);
       setRbacUser(null);
     } finally {
       setLoading(false);
     }
-  }, [isSignedIn]);
+  }, []);
 
   useEffect(() => {
     fetchRbac();
   }, [fetchRbac]);
+
+  // Login: called from Login.jsx after successful POST /api/auth/login
+  function login(token, user) {
+    setStoredToken(token);
+    setRbacUser(user);
+    fetchedRef.current = true;
+  }
 
   function selectSection(sectionId) {
     localStorage.setItem('poms_selected_section', sectionId);
@@ -111,23 +133,17 @@ export function AuthProvider({ children }) {
     setRbacUser((prev) => prev ? { ...prev, ...fields } : prev);
   }
 
-  // Sign out from Clerk + clear local state
+  // Sign out: clear token + local state
   async function logout() {
-    try { await clerk.signOut(); } catch { /* ignore */ }
+    try { await api.post('/auth/logout').catch(() => {}); } catch { /* ignore */ }
+    setStoredToken(null);
     setRbacUser(null);
     setLoading(false);
     fetchedRef.current = false;
     window.location.href = '/login';
   }
 
-  // Build the user object combining Clerk info with RBAC data
-  const user = clerkUser && rbacUser ? {
-    ...rbacUser,
-    clerkId: clerkUser.id,
-    email: clerkUser.primaryEmailAddress?.emailAddress || rbacUser.email,
-    fullName: clerkUser.fullName || rbacUser.fullName,
-    profilePhotoUrl: clerkUser.imageUrl || rbacUser.profilePhotoUrl,
-  } : null;
+  const user = rbacUser || null;
 
   const hasPermission = useCallback((code) => !!user && (user.isSuperAdmin || user.permissions?.includes(code)), [user]);
   const hasRole = useCallback((code) => !!user && user.roles?.includes(code), [user]);
@@ -142,7 +158,8 @@ export function AuthProvider({ children }) {
   return (
     <AuthContext.Provider value={{
       user,
-      loading: loading || !clerkLoaded,
+      loading,
+      isSignedIn,
       hasPermission,
       hasRole,
       selectedSectionId,
@@ -151,6 +168,7 @@ export function AuthProvider({ children }) {
       isSectionSelected,
       canAccessSection,
       updateUser,
+      login,
       logout,
     }}>
       {children}
@@ -161,11 +179,11 @@ export function AuthProvider({ children }) {
 // Safe default so useAuth() never returns null (prevents destructuring crashes)
 const _noop = () => {};
 const _defaultAuth = {
-  user: null, loading: true,
+  user: null, loading: true, isSignedIn: false,
   hasPermission: () => false, hasRole: () => false,
   selectedSectionId: null, selectSection: _noop, clearSection: _noop,
   isSectionSelected: () => false, canAccessSection: () => false,
-  updateUser: _noop, logout: _noop,
+  updateUser: _noop, login: _noop, logout: _noop,
 };
 
 export const useAuth = () => useContext(AuthContext) || _defaultAuth;

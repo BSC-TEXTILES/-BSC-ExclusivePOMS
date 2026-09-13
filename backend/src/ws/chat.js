@@ -4,12 +4,8 @@
 // One WebSocketServer with manual path routing: two servers bound to the same
 // HTTP listener would race the upgrade event and reject each other's paths.
 import { WebSocketServer } from 'ws';
-import { createClerkClient } from '@clerk/backend';
+import { verifyToken } from '../middleware/auth.js';
 import { EventEmitter } from 'node:events';
-
-const clerkClient = createClerkClient({
-  secretKey: process.env.CLERK_SECRET_KEY,
-});
 
 export const chatBus = new EventEmitter();
 export const notifyBus = new EventEmitter();
@@ -19,8 +15,8 @@ async function verify(socket, req) {
     const url = new URL(req.url, 'http://localhost');
     const token = url.searchParams.get('token');
     if (!token) throw new Error('missing token');
-    const verified = await clerkClient.verifyToken(token);
-    socket.userId = verified.sub;
+    const decoded = verifyToken(token);
+    socket.userId = decoded.sub || decoded.userId;
     return true;
   } catch {
     try {

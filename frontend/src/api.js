@@ -20,9 +20,9 @@ export const assetUrl = (url) => {
 
 const api = axios.create({ baseURL: API_BASE });
 
-// ─── Clerk token integration ──────────────────────────────────────────────
+// ─── Token integration ──────────────────────────────────────────────────────
 // A module-level getter is set by the AuthProvider so that the Axios
-// interceptor can attach the current Clerk JWT without importing React hooks.
+// interceptor can attach the current JWT without importing React hooks.
 let _getToken = null;
 export function setTokenGetter(fn) { _getToken = fn; }
 
@@ -40,7 +40,7 @@ api.interceptors.response.use(
   (r) => r,
   (err) => {
     if (err.response?.status === 401 && !window.location.pathname.startsWith('/login')) {
-      // Clerk handles session — just redirect to login
+      // Session expired — just redirect to login
       window.location.href = '/login';
     }
     return Promise.reject(err);

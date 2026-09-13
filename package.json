@@ -8,8 +8,5 @@
     "start": "run.bat",
     "backend": "cd backend && npm run dev",
     "frontend": "cd frontend && npm run dev"
-  },
-  "dependencies": {
-    "@clerk/react": "^6.15.2"
   }
 }

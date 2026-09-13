@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 import api, { API_BASE, errMessage } from '../api.js';
 import StatusChip from '../components/StatusChip.jsx';
 import { Money } from '../components/DataTable.jsx';
@@ -44,7 +43,6 @@ export default function POList() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { selectedSectionId, hasPermission } = useAuth();
-  const { getToken } = useClerkAuth();
   const [rows, setRows] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [sections, setSections] = useState([]);
@@ -116,7 +114,7 @@ export default function POList() {
     try {
       const params = new URLSearchParams();
       Object.entries(filters).forEach(([k, v]) => { if (v) params.append(k, v); });
-      const token = await getToken();
+      const token = localStorage.getItem('poms_token');
       const res = await fetch(`${API_BASE}/purchase-orders/export/csv?${params.toString()}`, {
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       });

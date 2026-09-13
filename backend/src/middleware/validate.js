@@ -48,17 +48,36 @@ export const idBody = z.object({
 
 // ─── User schemas ───────────────────────────────────────────────────────────
 
+// Strong password validator: paper-format compliance
+// - Minimum 10 characters (industry standard for strong passwords)
+// - Maximum 128 characters
+// - At least one uppercase letter (A-Z)
+// - At least one lowercase letter (a-z)
+// - At least one digit (0-9)
+// - At least one special character (!@#$%^&*()_+-=[]{}|;:,.<>?)
+// - No more than 3 consecutive identical characters (e.g., "aaa" blocked)
+// - No sequential characters (e.g., "abc", "123" blocked)
+const strongPassword = z.string()
+  .min(10, 'Password must be at least 10 characters for security')
+  .max(128, 'Password must not exceed 128 characters')
+  .regex(/[A-Z]/, 'Password must contain at least one uppercase letter (A-Z)')
+  .regex(/[a-z]/, 'Password must contain at least one lowercase letter (a-z)')
+  .regex(/[0-9]/, 'Password must contain at least one number (0-9)')
+  .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character (!@#$%^&* etc.)')
+  .refine(
+    (val) => !/(.)\1{2,}/.test(val),
+    'Password must not contain 3 or more consecutive identical characters'
+  )
+  .refine(
+    (val) => !/(?:abc|bcd|cde|def|efg|fgh|ghi|hij|ijk|jkl|klm|lmn|mno|nop|opq|pqr|qrs|rst|stu|tuv|uvw|vwx|wxy|xyz|012|123|234|345|456|567|678|789)/i.test(val),
+    'Password must not contain sequential characters (e.g., abc, 123)'
+  );
+
 export const createUserSchema = z.object({
   email: z.string().email('Invalid email format').max(255),
   username: z.string().min(3).max(50).regex(/^[a-zA-Z0-9._-]+$/, 'Username may only contain letters, numbers, dots, underscores, and hyphens'),
   fullName: z.string().min(1).max(255),
-  password: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128)
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number')
-    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
+  password: strongPassword,
   designation: z.string().max(255).optional().nullable(),
   divisionIds: z.array(z.string().uuid()).optional().default([]),
   sectionIds: z.array(z.string().uuid()).optional().default([]),
@@ -77,13 +96,7 @@ export const updateUserSchema = z.object({
 });
 
 export const resetPasswordSchema = z.object({
-  newPassword: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128)
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number')
-    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
+  newPassword: strongPassword,
 });
 
 // ─── Purchase Order schemas ─────────────────────────────────────────────────
