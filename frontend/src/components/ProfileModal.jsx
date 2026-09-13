@@ -6,7 +6,7 @@ import { Field } from '../components/DataTable.jsx';
 // Mandatory profile completion. Rendered over the app until the user saves
 // their profile (users.profile_updated_at) — admin-created accounts start
 // uncompleted, so every new user must fill their own details first.
-export default function ProfileModal() {
+export default function ProfileModal({ onClose }) {
   const { user, updateUser, logout } = useAuth();
   const [form, setForm] = useState({ fullName: user.fullName || '', phone: user.phone || '', designation: user.designation || '' });
   const [busy, setBusy] = useState(false);
@@ -50,9 +50,9 @@ export default function ProfileModal() {
           <div style={{ position: 'absolute', top: -60, right: -60, width: 160, height: 160, borderRadius: '50%', background: 'rgba(255,255,255,0.06)' }} />
           <div style={{ position: 'absolute', bottom: -40, left: -40, width: 120, height: 120, borderRadius: '50%', background: 'rgba(255,255,255,0.04)' }} />
 
-          {/* Back / Logout button */}
+          {/* Back button - closes modal without logout */}
           <button
-            onClick={logout}
+            onClick={onClose}
             style={{
               position: 'absolute', top: 14, left: 14, background: 'rgba(255,255,255,0.15)',
               border: '1px solid rgba(255,255,255,0.25)', borderRadius: 8, color: '#fff',

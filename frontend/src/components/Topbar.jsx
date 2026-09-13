@@ -379,7 +379,7 @@ export default function Topbar({ collapsed, onToggle }) {
         </div>
       )}
 
-      {showProfile && <ProfileModal />}
+      {showProfile && <ProfileModal onClose={() => setShowProfile(false)} />}
 
       {/* App Install Popup */}
       {installPrompt && (
