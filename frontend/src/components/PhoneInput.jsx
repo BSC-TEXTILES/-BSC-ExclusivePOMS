@@ -1,60 +1,55 @@
 import React, { useState, useEffect } from 'react';
 
-export default function PhoneInput({ value, onChange, placeholder = '+91 9876543210', required, className, style, autoFocus }) {
-  const [display, setDisplay] = useState('');
+export default function PhoneInput({ value, onChange, placeholder = '9876543210', required, className, style, autoFocus }) {
+  const [digits, setDigits] = useState('');
 
   useEffect(() => {
     if (value && typeof value === 'string') {
-      let digits = value.replace(/\D/g, '');
-      if (digits.startsWith('91') && digits.length > 10) {
-        digits = digits.substring(2);
+      let val = value.trim();
+      if (val.startsWith('+91')) {
+        val = val.substring(3).trim();
+      } else if (val.startsWith('91') && val.length > 10) {
+        val = val.substring(2).trim();
       }
-      if (digits) {
-        setDisplay('+91 ' + digits.substring(0, 10));
-      } else {
-        setDisplay('');
-      }
+      setDigits(val.replace(/\D/g, '').substring(0, 10));
     } else {
-      setDisplay('');
+      setDigits('');
     }
   }, [value]);
 
   const handleChange = (e) => {
     let input = e.target.value;
-    
-    // Handle clearing the input
-    if (input === '' || input === '+91 ' || input === '+91') {
-      setDisplay('');
-      onChange({ target: { value: '' } });
-      return;
-    }
-
-    let digits = input.replace(/\D/g, '');
+    let raw = input.replace(/\D/g, '');
     
     // If they pasted a number with country code, strip it
-    if (digits.startsWith('91') && digits.length > 10) {
-      digits = digits.substring(2);
+    if (raw.startsWith('91') && raw.length > 10) {
+      raw = raw.substring(2);
     }
     
-    digits = digits.substring(0, 10);
-    const formatted = '+91 ' + digits;
+    const limited = raw.substring(0, 10);
+    setDigits(limited);
     
-    setDisplay(formatted);
-    // Send the formatted value (+91 9876543210) back up to the form
-    onChange({ target: { value: formatted } });
+    if (limited) {
+      onChange({ target: { value: '+91 ' + limited } });
+    } else {
+      onChange({ target: { value: '' } });
+    }
   };
 
   return (
-    <input
-      type="tel"
-      value={display}
-      onChange={handleChange}
-      placeholder={placeholder}
-      required={required}
-      className={className}
-      style={style}
-      autoFocus={autoFocus}
-      maxLength={14} // "+91 " (4) + 10 digits
-    />
+    <div style={{ display: 'flex', alignItems: 'center', border: '1px solid #d1d5db', borderRadius: 8, overflow: 'hidden', ...style }} className={className}>
+      <div style={{ padding: '9px 12px', background: '#f9fafb', color: '#4b5563', borderRight: '1px solid #d1d5db', fontSize: 14, fontWeight: 500, userSelect: 'none' }}>
+        +91
+      </div>
+      <input
+        type="tel"
+        value={digits}
+        onChange={handleChange}
+        placeholder={placeholder}
+        required={required}
+        autoFocus={autoFocus}
+        style={{ flex: 1, padding: '10px 12px', border: 'none', outline: 'none', fontSize: 14, width: '100%', background: 'transparent' }}
+      />
+    </div>
   );
 }

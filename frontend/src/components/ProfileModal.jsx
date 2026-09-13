@@ -9,7 +9,7 @@ import PhoneInput from './PhoneInput.jsx';
 // uncompleted, so every new user must fill their own details first.
 export default function ProfileModal({ onClose }) {
   const { user, updateUser, logout } = useAuth();
-  const [form, setForm] = useState({ fullName: user.fullName || '', phone: user.phone || '', designation: user.designation || '' });
+  const [form, setForm] = useState({ fullName: user.fullName || '', email: user.email || '', phone: user.phone || '', designation: user.designation || '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -25,6 +25,7 @@ export default function ProfileModal({ onClose }) {
       const { data } = await api.patch('/users/me', form);
       updateUser({
         fullName: data.data.full_name,
+        email: data.data.email,
         phone: data.data.phone,
         designation: data.data.designation,
         profileUpdatedAt: data.data.profile_updated_at,
@@ -34,6 +35,38 @@ export default function ProfileModal({ onClose }) {
     } catch (e) { setError(errMessage(e)); }
     setBusy(false);
   }
+
+  const [passwordFlow, setPasswordFlow] = useState('idle'); // idle, awaiting_otp, success
+  const [pwdForm, setPwdForm] = useState({ currentPassword: '', emailOtp: '', phoneOtp: '', newPassword: '' });
+  const [pwdError, setPwdError] = useState('');
+  const [pwdBusy, setPwdBusy] = useState(false);
+
+  const requestOtp = async () => {
+    setPwdError(''); setPwdBusy(true);
+    try {
+      const { data } = await api.post('/auth/change-password/request-otp', { currentPassword: pwdForm.currentPassword });
+      setPasswordFlow('awaiting_otp');
+      setSuccess(data.message || 'OTP sent successfully.');
+      setTimeout(() => setSuccess(''), 3000);
+    } catch (e) {
+      setPwdError(errMessage(e));
+    }
+    setPwdBusy(false);
+  };
+
+  const changePassword = async () => {
+    setPwdError(''); setPwdBusy(true);
+    try {
+      await api.post('/auth/change-password/verify', { emailOtp: pwdForm.emailOtp, phoneOtp: pwdForm.phoneOtp, newPassword: pwdForm.newPassword });
+      setPasswordFlow('success');
+      setPwdForm({ currentPassword: '', otp: '', newPassword: '' });
+      setSuccess('Password changed successfully.');
+      setTimeout(() => { setSuccess(''); setPasswordFlow('idle'); }, 3000);
+    } catch (e) {
+      setPwdError(errMessage(e));
+    }
+    setPwdBusy(false);
+  };
 
   return (
     <div className="modal-backdrop" style={{ zIndex: 80 }} onMouseDown={(e) => e.stopPropagation()}>
@@ -168,6 +201,17 @@ export default function ProfileModal({ onClose }) {
                   />
                 </Field>
               </div>
+              <div style={{ gridColumn: '1 / -1' }}>
+                <Field label="Email Address">
+                  <input
+                    type="email"
+                    value={form.email}
+                    onChange={(e) => setForm({ ...form, email: e.target.value })}
+                    placeholder="e.g. admin@bsc.local"
+                    style={{ fontSize: 14, padding: '10px 12px' }}
+                  />
+                </Field>
+              </div>
               <Field label="Phone">
                 <PhoneInput 
                   value={form.phone || ''}
@@ -182,6 +226,72 @@ export default function ProfileModal({ onClose }) {
                   style={{ fontSize: 14, padding: '10px 12px' }}
                 />
               </Field>
+            </div>
+
+            {/* Change Password Section */}
+            <div style={{ marginTop: 30, borderTop: '1px solid #e5e7eb', paddingTop: 20 }}>
+              <h4 style={{ margin: '0 0 16px', fontSize: 16, color: '#111827' }}>Change Password</h4>
+              
+              {passwordFlow === 'idle' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 14, alignItems: 'end' }}>
+                  <Field label="Current Password">
+                    <input
+                      type="password"
+                      value={pwdForm.currentPassword}
+                      onChange={(e) => setPwdForm({ ...pwdForm, currentPassword: e.target.value })}
+                      style={{ fontSize: 14, padding: '10px 12px' }}
+                    />
+                  </Field>
+                  <button type="button" className="btn primary" onClick={requestOtp} disabled={pwdBusy || !pwdForm.currentPassword} style={{ height: 42 }}>
+                    Request OTP
+                  </button>
+                </div>
+              )}
+
+              {passwordFlow === 'awaiting_otp' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+                  <Field label="Email OTP">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={pwdForm.emailOtp}
+                      onChange={(e) => setPwdForm({ ...pwdForm, emailOtp: e.target.value })}
+                      style={{ fontSize: 14, padding: '10px 12px', letterSpacing: 2 }}
+                    />
+                  </Field>
+                  <Field label="Phone OTP">
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={pwdForm.phoneOtp}
+                      onChange={(e) => setPwdForm({ ...pwdForm, phoneOtp: e.target.value })}
+                      style={{ fontSize: 14, padding: '10px 12px', letterSpacing: 2 }}
+                    />
+                  </Field>
+                  <Field label="New Password">
+                    <input
+                      type="password"
+                      value={pwdForm.newPassword}
+                      onChange={(e) => setPwdForm({ ...pwdForm, newPassword: e.target.value })}
+                      style={{ fontSize: 14, padding: '10px 12px' }}
+                    />
+                  </Field>
+                  <div style={{ gridColumn: '1 / -1', display: 'flex', gap: 10, marginTop: 8 }}>
+                    <button type="button" className="btn primary" onClick={changePassword} disabled={pwdBusy || !pwdForm.emailOtp || !pwdForm.phoneOtp || !pwdForm.newPassword} style={{ flex: 1 }}>
+                      Verify & Change Password
+                    </button>
+                    <button type="button" className="btn" onClick={() => { setPasswordFlow('idle'); setPwdForm({ currentPassword: '', emailOtp: '', phoneOtp: '', newPassword: '' }); setPwdError(''); }}>
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {pwdError && (
+                <div style={{ marginTop: 14, padding: '10px 14px', borderRadius: 8, fontSize: 13, background: '#fef2f2', border: '1px solid #fecaca', color: '#b91c1c' }}>
+                  {pwdError}
+                </div>
+              )}
             </div>
 
             {error && (

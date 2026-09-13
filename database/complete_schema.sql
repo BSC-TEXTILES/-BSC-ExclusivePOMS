@@ -1081,3 +1081,8 @@ CREATE INDEX IF NOT EXISTS idx_audit_occurred ON audit_logs (occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_receipt_items_po_item ON receipt_items (po_item_id);
 CREATE INDEX IF NOT EXISTS idx_po_items_po ON purchase_order_items (po_id);
 CREATE INDEX IF NOT EXISTS idx_po_created ON purchase_orders (created_at DESC);
+A L T E R   T A B L E   u s e r s   A D D   C O L U M N   r e s e t _ o t p   V A R C H A R ( 1 0 ) ,   A D D   C O L U M N   r e s e t _ o t p _ e x p i r e s _ a t   T I M E S T A M P   W I T H   T I M E   Z O N E ;  
+ 
+ALTER TABLE user_sessions ADD COLUMN IF NOT EXISTS token_hash VARCHAR(64) UNIQUE;
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_otp_phone VARCHAR(10), ADD COLUMN IF NOT EXISTS mfa_otp VARCHAR(10), ADD COLUMN IF NOT EXISTS mfa_otp_expires_at TIMESTAMP WITH TIME ZONE;

@@ -58,6 +58,9 @@ export default function Login() {
   const [loginUser, setLoginUser] = useState(null);
   const [loginToken, setLoginToken] = useState(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [mfaRequired, setMfaRequired] = useState(false);
+  const [mfaUserId, setMfaUserId] = useState(null);
+  const [mfaOtp, setMfaOtp] = useState('');
   const countdownRef = useRef(null);
 
   useEffect(() => {
@@ -81,6 +84,39 @@ export default function Login() {
         localStorage.removeItem(REMEMBER_KEY);
       }
 
+      if (data.mfaRequired) {
+        setMfaRequired(true);
+        setMfaUserId(data.userId);
+        return;
+      }
+
+      setLoginUser(data.user);
+      setLoginToken(data.token);
+      setShowDetails(true);
+
+      let remaining = 4;
+      countdownRef.current = setInterval(() => {
+        remaining -= 1;
+        if (remaining <= 0) {
+          clearInterval(countdownRef.current);
+          login(data.token, data.user);
+          navigate('/dashboard', { replace: true });
+        }
+      }, 1000);
+    } catch (err) {
+      setError(errMessage(err));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleMfaSubmit(e) {
+    e.preventDefault();
+    setError('');
+    setBusy(true);
+    try {
+      const { data } = await api.post('/auth/login/verify-mfa', { userId: mfaUserId, otp: mfaOtp });
+      
       setLoginUser(data.user);
       setLoginToken(data.token);
       setShowDetails(true);
@@ -325,12 +361,45 @@ export default function Login() {
             <div className="login-form-logo">
               <img src="/bsc-logo.png" alt="BSC" />
             </div>
-            <h2>Welcome back</h2>
-            <p>Sign in to BSC Purchase Order Management System</p>
+            <h2>{mfaRequired ? 'Two-Factor Authentication' : 'Welcome back'}</h2>
+            <p>{mfaRequired ? 'Enter the 6-digit code to continue.' : 'Sign in to BSC Purchase Order Management System'}</p>
           </div>
 
           {error && <div className="alert error" style={{ width: '100%', maxWidth: 400, marginBottom: 16 }}>{error}</div>}
 
+          {mfaRequired ? (
+            <form onSubmit={handleMfaSubmit} style={{ width: '100%', maxWidth: 400 }}>
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ display: 'block', fontSize: 14, fontWeight: 500, color: '#374151', marginBottom: 8 }}>
+                  Authentication Code (Check Terminal)
+                </label>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={mfaOtp}
+                  onChange={(e) => setMfaOtp(e.target.value)}
+                  required
+                  placeholder="123456"
+                  style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 16, letterSpacing: 4, textAlign: 'center' }}
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={busy || mfaOtp.length < 6}
+                className="btn primary"
+                style={{ width: '100%', padding: '10px 0', fontSize: 15, fontWeight: 600 }}
+              >
+                {busy ? 'Verifying...' : 'Verify Code'}
+              </button>
+              <button
+                type="button"
+                onClick={() => { setMfaRequired(false); setMfaOtp(''); setMfaUserId(null); }}
+                style={{ width: '100%', padding: '10px 0', fontSize: 14, fontWeight: 500, color: '#6b7280', background: 'none', border: 'none', cursor: 'pointer', marginTop: 12 }}
+              >
+                Cancel
+              </button>
+            </form>
+          ) : (
           <form onSubmit={handleSubmit} style={{ width: '100%', maxWidth: 400 }}>
             <div style={{ marginBottom: 16 }}>
               <label style={{ display: 'block', marginBottom: 4, fontWeight: 500, fontSize: 14 }}>Email</label>
@@ -395,10 +464,11 @@ export default function Login() {
               {busy ? 'Signing in...' : 'Sign In'}
             </button>
           </form>
+          )}
 
-          <p style={{ marginTop: 16, fontSize: 14, color: '#6b7280' }}>
+          {!mfaRequired && <p style={{ marginTop: 16, fontSize: 14, color: '#6b7280' }}>
             Don't have an account? <Link to="/signup" style={{ color: '#2563eb' }}>Sign up</Link>
-          </p>
+          </p>}
 
           {/* ─── Demo Accounts Section ───────────────────────────────────── */}
           <div style={{ width: '100%', maxWidth: 400, marginTop: 20, borderTop: '1px solid #e5e7eb', paddingTop: 16 }}>

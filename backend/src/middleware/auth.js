@@ -1,23 +1,14 @@
-import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
 import { query } from '../config/db.js';
 import { ApiError, forbidden } from '../utils/httpError.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-only-jwt-secret-change-in-production-at-least-32-chars';
-const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '8h';
-
-/**
- * Sign a JWT for a given user payload.
- */
-export function signToken(payload) {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+export function generateSessionToken() {
+  return crypto.randomBytes(32).toString('hex');
 }
 
-/**
- * Verify a JWT and return the decoded payload.
- */
-export function verifyToken(token) {
-  return jwt.verify(token, JWT_SECRET);
+export function hashToken(token) {
+  return crypto.createHash('sha256').update(token).digest('hex');
 }
 
 const USER_SELECT = `
@@ -91,9 +82,7 @@ export async function loadUserByEmail(email) {
 }
 
 /**
- * Authenticate middleware — verifies local JWT and loads the user's RBAC
- * data from PostgreSQL. The frontend sends the JWT as a Bearer token
- * in the Authorization header.
+ * Authenticate middleware — verifies hashed token from DB and loads RBAC.
  */
 export async function authenticate(req, res, next) {
   try {
@@ -101,26 +90,28 @@ export async function authenticate(req, res, next) {
     const token = header.startsWith('Bearer ') ? header.slice(7) : null;
     if (!token) throw new ApiError(401, 'Authentication required');
 
-    let decoded;
-    try {
-      decoded = verifyToken(token);
-    } catch {
+    const hashed = hashToken(token);
+    
+    // Look up active session
+    const { rows } = await query(
+      `SELECT user_id FROM user_sessions WHERE token_hash = $1 AND logout_at IS NULL`,
+      [hashed]
+    );
+    
+    if (rows.length === 0) {
       throw new ApiError(401, 'Session invalid or expired — please sign in again');
     }
 
-    const userId = decoded.sub || decoded.userId;
-    if (!userId) throw new ApiError(401, 'Invalid token payload');
-
+    const userId = rows[0].user_id;
     let user = await loadUser(userId);
-
-    // Fallback: try by email if token was signed with email as subject
-    if (!user && decoded.email) {
-      user = await loadUserByEmail(decoded.email);
-    }
 
     if (!user || user.status !== 'active') throw new ApiError(401, 'Account inactive or missing');
 
+    // Update last_seen_at for session
+    await query(`UPDATE user_sessions SET last_seen_at = now() WHERE token_hash = $1`, [hashed]).catch(() => {});
+
     req.user = user;
+    req.sessionId = hashed; // Attach session hash for logout
     req.requestId = req.headers['x-request-id'] || null;
     next();
   } catch (e) {

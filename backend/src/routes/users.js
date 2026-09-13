@@ -19,15 +19,15 @@ r.get('/me', ah(async (req, res) => {
 // PATCH /api/users/me — own name / phone / designation only
 // Completing the profile clears the profile-update gate (profile_updated_at).
 r.patch('/me', ah(async (req, res) => {
-  const { fullName, phone, designation } = req.body || {};
+  const { fullName, phone, designation, email } = req.body || {};
   if (!fullName || String(fullName).trim().length < 3) throw badRequest('Full name (min 3 characters) is required to complete your profile');
   const { rows } = await query(
     `UPDATE users SET full_name=$2, phone=COALESCE($3,phone),
-            designation=COALESCE($4,designation), profile_updated_at=now(), updated_at=now()
-     WHERE id=$1 RETURNING full_name, phone, designation, profile_updated_at`,
-    [req.user.id, String(fullName).trim(), phone || null, designation || null]);
+            designation=COALESCE($4,designation), email=COALESCE($5,email), profile_updated_at=now(), updated_at=now()
+     WHERE id=$1 RETURNING full_name, phone, designation, email, profile_updated_at`,
+    [req.user.id, String(fullName).trim(), phone || null, designation || null, email || null]);
   await logAudit(pool, {
-    userId: req.user.id, role: req.user.roles.join(','), actionType: 'profile_update', entityType: 'user', entityId: req.user.id,
+    userId: req.user.id, role: req.user.roles?.join(',') || '', actionType: 'profile_update', entityType: 'user', entityId: req.user.id,
   }).catch(() => {});
   res.json({ data: rows[0] });
 }));
