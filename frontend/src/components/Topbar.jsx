@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { UserButton, useAuth as useClerkAuth } from '@clerk/clerk-react';
 import api, { errMessage, uploadFile, API_BASE, assetUrl } from '../api.js';
 import { useAuth, useCart } from '../auth.jsx';
 import Icon from './Icon.jsx';
@@ -45,7 +46,8 @@ export function Avatar({ user, size = 34 }) {
 // (WebSocket) · running date & time · dark/bright toggle · admin DevTools-block
 // switch · profile menu with avatar.
 export default function Topbar({ collapsed, onToggle }) {
-  const { user, logout, updateUser, hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
+  const { getToken } = useClerkAuth();
   const cart = useCart();
   const navigate = useNavigate();
   const location = useLocation();
@@ -121,37 +123,41 @@ export default function Topbar({ collapsed, onToggle }) {
 
   // Live notifications over /ws/notify — badge + toast, no polling.
   useEffect(() => {
-    const token = localStorage.getItem('poms_token');
-    if (!token || !user.id) return;
+    if (!user?.id) return;
     let sock;
     let retry;
     let closed = false;
     let attempts = 0;
-    const connect = () => {
-      sock = new WebSocket(`${WS_ORIGIN}/ws/notify?token=${encodeURIComponent(token)}`);
-      sock.onmessage = (ev) => {
-        try {
-          const msg = JSON.parse(ev.data);
-          if (msg.type === 'notification' && String(msg.userId) === String(user.id)) {
-            setNotifications((list) => [msg.notification, ...list].slice(0, 50));
-            setUnread((u) => u + 1);
-            setToast(msg.notification);
-            setTimeout(() => setToast(null), 6000);
-          }
-        } catch { /* ignore malformed frame */ }
-      };
-      sock.onerror = () => { /* handled via onclose */ };
-      sock.onclose = (ev) => {
-        if (closed) return;
-        if (ev.code === 4001 || ev.code === 4002) return; // unauthorized — never retry
-        attempts += 1;
-        const delay = Math.min(30000, 1000 * 2 ** attempts); // exponential backoff
-        retry = setTimeout(connect, delay);
-      };
+    let tokenInterval;
+    const connect = async () => {
+      try {
+        const token = await getToken();
+        if (!token || closed) return;
+        sock = new WebSocket(`${WS_ORIGIN}/ws/notify?token=${encodeURIComponent(token)}`);
+        sock.onmessage = (ev) => {
+          try {
+            const msg = JSON.parse(ev.data);
+            if (msg.type === 'notification' && String(msg.userId) === String(user.id)) {
+              setNotifications((list) => [msg.notification, ...list].slice(0, 50));
+              setUnread((u) => u + 1);
+              setToast(msg.notification);
+              setTimeout(() => setToast(null), 6000);
+            }
+          } catch { /* ignore malformed frame */ }
+        };
+        sock.onerror = () => { /* handled via onclose */ };
+        sock.onclose = (ev) => {
+          if (closed) return;
+          if (ev.code === 4001 || ev.code === 4002) return; // unauthorized — never retry
+          attempts += 1;
+          const delay = Math.min(30000, 1000 * 2 ** attempts); // exponential backoff
+          retry = setTimeout(connect, delay);
+        };
+      } catch { /* getToken failed */ }
     };
     connect();
-    return () => { closed = true; clearTimeout(retry); try { sock?.close(); } catch { /* ignore */ } };
-  }, [user.id]);
+    return () => { closed = true; clearTimeout(retry); clearInterval(tokenInterval); try { sock?.close(); } catch { /* ignore */ } };
+  }, [user?.id, getToken]);
 
   useEffect(() => {
     const close = (e) => { if (boxRef.current && !boxRef.current.contains(e.target)) setOpenMenu(null); };
@@ -353,43 +359,20 @@ export default function Topbar({ collapsed, onToggle }) {
         </div>
 
         <div className="tb-anchor">
-          <button className="profile-btn" onClick={() => setOpenMenu(openMenu === 'profile' ? null : 'profile')}>
-            <Avatar user={user} />
+          <div className="profile-btn" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <UserButton
+              afterSignOutUrl="/login"
+              appearance={{
+                elements: {
+                  avatarBox: { width: 34, height: 34 },
+                },
+              }}
+            />
             <span className="profile-meta">
               <span className="user-name">{user.fullName}</span>
               <span className="user-roles">{roleLabels(user.roles)}</span>
             </span>
-            <Icon name="chevronDown" size={14} />
-          </button>
-        {openMenu === 'profile' && (
-          <div className="dropdown profile-drop">
-            <div className="profile-card">
-              <Avatar user={user} size={44} />
-              <div>
-                <strong>{user.fullName}</strong>
-                <div className="muted">{user.email}</div>
-                <div className="chip" style={{ marginTop: 4 }}>{roleLabels(user.roles)}</div>
-              </div>
-            </div>
-            <button className="drop-item" onClick={() => { setOpenMenu(null); setShowProfile(true); }}>
-              <Icon name="users" size={15} /> <span>My profile</span>
-            </button>
-            <label className="drop-item upload-photo">
-              <Icon name="upload" size={15} /> <span>Change profile photo</span>
-              <input type="file" accept="image/*" hidden onChange={async (e) => {
-                const f = e.target.files[0];
-                if (!f) return;
-                try {
-                  const { data } = await uploadFile('/users/me/photo', f, 'file');
-                  updateUser({ profilePhotoUrl: data.data.profilePhotoUrl });
-                  setOpenMenu(null);
-                } catch (err) { alert(errMessage(err)); }
-              }} />
-            </label>
-            <a className="drop-item" href="/landing"><Icon name="shield" size={15} /> <span>About POMS (landing page)</span></a>
-            <button className="drop-item danger" onClick={logout}><Icon name="logout" size={15} /> <span>Sign out</span></button>
           </div>
-        )}
         </div>
       </div>
 

@@ -14,6 +14,19 @@ function UserAvatar({ user, size = 34 }) {
   return <div className="avatar" style={{ width: size, height: size, fontSize: size * 0.38 }}>{initials(user.full_name)}</div>;
 }
 
+// Client-side password strength validation (matches server-side Zod schema)
+function validatePassword(password) {
+  if (!password) return { valid: true, errors: [] };
+  const errors = [];
+  if (password.length < 8) errors.push('at least 8 characters');
+  if (password.length > 128) errors.push('no more than 128 characters');
+  if (!/[A-Z]/.test(password)) errors.push('at least one uppercase letter');
+  if (!/[a-z]/.test(password)) errors.push('at least one lowercase letter');
+  if (!/[0-9]/.test(password)) errors.push('at least one number');
+  if (!/[^A-Za-z0-9]/.test(password)) errors.push('at least one special character');
+  return { valid: errors.length === 0, errors };
+}
+
 export default function Users() {
   const { user } = useAuth();
   const isAdmin = !!user.isSuperAdmin;
@@ -51,6 +64,13 @@ export default function Users() {
   async function save() {
     setBusy(true); setError('');
     try {
+      // Validate password strength before sending to server
+      if (form.password) {
+        const pwCheck = validatePassword(form.password);
+        if (!pwCheck.valid) {
+          throw new Error('Password does not meet requirements: ' + pwCheck.errors.join(', '));
+        }
+      }
       if (editing.id) {
         const patch = { fullName: form.fullName, phone: form.phone, status: form.status, roles: form.roles, divisionIds: form.divisionIds, sectionIds: form.sectionIds };
         await api.patch(`/users/${editing.id}`, patch);
@@ -132,8 +152,16 @@ export default function Users() {
             <Field label="Phone"><input value={form.phone || ''} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></Field>
             {!editing.id && <Field label="Email"><input type="email" name="email" autoComplete="off" value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>}
             {!editing.id && <Field label="Username"><input name="username" autoComplete="off" value={form.username || ''} onChange={(e) => setForm({ ...form, username: e.target.value })} /></Field>}
-            <Field label={editing.id ? 'New password (leave blank to keep)' : 'Password'} hint="min 8 characters">
+            <Field label={editing.id ? 'New password (leave blank to keep)' : 'Password'} hint="min 8 chars, uppercase, lowercase, number, special char">
               <input type="password" name="new-password" autoComplete="new-password" value={form.password || ''} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+              {form.password && (() => {
+                const check = validatePassword(form.password);
+                return !check.valid && (
+                  <div style={{ marginTop: 6, fontSize: 12, color: '#b91c1c' }}>
+                    {check.errors.map((e, i) => <div key={i}>• {e}</div>)}
+                  </div>
+                );
+              })()}
             </Field>
             {editing.id && (
               <Field label="Status" hint="inactive users cannot sign in">

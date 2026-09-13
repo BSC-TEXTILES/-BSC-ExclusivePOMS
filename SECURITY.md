@@ -237,7 +237,7 @@ All request data is sanitized before processing:
 ### Required Variables
 | Variable | Description | Example |
 |----------|-------------|---------|
-| `JWT_SECRET` | JWT signing secret (min 32 chars) | `crypto.randomBytes(48).toString('hex')` |
+| `CLERK_SECRET_KEY` | Clerk secret key (from Dashboard → API Keys) | `sk_test_...` |
 | `DATABASE_URL` | PostgreSQL connection string | `postgresql://...` |
 | `PORT` | Server port | `4040` |
 | `NODE_ENV` | Environment mode | `development` / `production` |
@@ -276,7 +276,7 @@ User → HTTPS → CDN/WAF → Reverse Proxy → Application → Database
 
 ### Production Checklist
 - [ ] `NODE_ENV=production`
-- [ ] Strong `JWT_SECRET` (32+ characters)
+- [ ] Strong `CLERK_SECRET_KEY` set from Clerk Dashboard
 - [ ] HTTPS enabled
 - [ ] CORS configured for production domain
 - [ ] `DEMO_MODE=false`

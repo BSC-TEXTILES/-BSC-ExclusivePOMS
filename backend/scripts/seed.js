@@ -296,8 +296,8 @@ async function main() {
   console.log('✔ Users seeded');
 
   console.log('\n=== Seed complete — demo accounts (dev only) ===');
-  for (const [email, , , , , password] of USERS) {
-    console.log(`  ${email.padEnd(28)} ${password}`);
+  for (const [email] of USERS) {
+    console.log(`  ${email.padEnd(28)} (passwords stored as bcrypt hashes only)`);
   }
   console.log('\nSuper Admin can create further users, sections and rules from the UI (no code changes — §7).');
 }

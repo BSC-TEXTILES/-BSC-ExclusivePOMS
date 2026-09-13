@@ -67,16 +67,14 @@ sequenceDiagram
     participant DB as PostgreSQL
 
     User->>FE: Enter credentials
-    FE->>BE: POST /api/auth/login
-    BE->>DB: SELECT from users WHERE email/phone
-    DB-->>BE: user row + hashed password
-    BE->>BE: bcrypt.compare(password, hash)
-    BE->>BE: JWT sign(userId, roles, divisionId)
-    BE-->>FE: { accessToken, user: { id, name, roles, isSuperAdmin } }
+    FE->>BE: Clerk handles sign-in (email/password or SSO)
+    BE->>BE: verifyToken(Clerk JWT)
+    BE->>DB: SELECT from users WHERE clerk_id or email
+    BE-->>FE: { user: { id, name, roles, isSuperAdmin } }
 
     loop Every authenticated request
-        FE->>BE: Authorization: Bearer <token>
-        BE->>BE: jwt.verify(token) → decoded
+        FE->>BE: Authorization: Bearer <Clerk session token>
+        BE->>BE: Clerk verifyToken(token) → decoded
         BE->>BE: req.user = decoded
         alt isSuperAdmin = true
             BE->>BE: bypass all permission checks

@@ -28,7 +28,7 @@ psql -d poms -f database/complete_schema.sql
 
 # 2. Backend API (also serves the built frontend)
 cd backend
-cp .env.example .env                # set DATABASE_URL + JWT_SECRET
+cp .env.example .env                # set DATABASE_URL + Clerk keys
 npm install
 npm run seed                        # roles, permissions, 21 sections, sizes, colours,
                                     # approval rules (₹25k/₹1L), settings, demo users
@@ -85,7 +85,7 @@ D:\BSC_P_O
 │
 ├── backend/                         ← TIER 2 — Express + PostgreSQL API
 │   ├── package.json                 ← start / dev / seed / e2e / check scripts
-│   ├── .env                         ← DATABASE_URL, JWT_SECRET, PORT=4040
+│   ├── .env                         ← DATABASE_URL, CLERK_SECRET_KEY, PORT=4040
 │   ├── scripts/
 │   │   ├── seed.js                  ← idempotent master-data + demo-user seeding
 │   │   └── e2e.mjs                  ← 54-check end-to-end lifecycle test

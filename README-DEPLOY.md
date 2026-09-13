@@ -42,9 +42,7 @@ The project is a three-part system:
 |-----|-------|
 | `NODE_ENV` | `production` |
 | `DATABASE_URL` | the Supabase pooler URI from step 1.2 |
-| `JWT_SECRET` | any random 32+ character string (Render can generate one) |
-| `JWT_EXPIRES_IN` | `8h` |
-| `REFRESH_EXPIRES_IN` | `7d` |
+| `CLERK_SECRET_KEY` | Clerk secret key from Dashboard → API Keys |
 | `CORS_ORIGIN` | your Vercel URL(s), comma separated — e.g. `https://poms.vercel.app` |
 | `STORAGE_DRIVER` | `supabase` |
 | `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
@@ -75,7 +73,7 @@ The project is a three-part system:
 
 - [ ] `https://<api>/api/health` → `{"status":"ok"}`
 - [ ] Landing page loads from Vercel; hero text visible over the background image.
-- [ ] Login shows the CAPTCHA (5 alphanumeric characters, 30-second countdown) and rejects wrong/expired codes.
+- [ ] Login shows the Clerk sign-in form and rejects wrong credentials.
 - [ ] Sign in as `admin@bsc.local` — **change the default password now**.
 - [ ] Upload an attachment (Attachments page) → it opens from Supabase Storage.
 - [ ] Replace an attachment (🔄 button) and edit its details (✏️) — the stored file updates.
@@ -85,9 +83,9 @@ The project is a three-part system:
 
 ## 5. Security notes
 
-- Passwords: bcrypt-hashed; CAPTCHA + rate limits + account lockout protect the login.
+- Clerk handles session management, token storage and refresh automatically.
 - Every endpoint re-checks role permissions, division and collection scope server-side.
 - The audit trail is append-only (protected by a database trigger).
 - Security headers and HTTPS-only assumptions (behind Render/Vercel proxies) are enabled automatically.
-- Rotate `JWT_SECRET` only deliberately — it invalidates all sessions.
+- Rotate `CLERK_SECRET_KEY` only deliberately — it invalidates all sessions.
 - Legal pages for users: `/privacy`, `/terms`, `/security` (linked in the landing footer).

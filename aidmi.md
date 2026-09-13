@@ -48,14 +48,12 @@ This section details exactly how data originates, transforms, validates, and com
 1. **User requests login challenge**: Browser invokes `GET /api/auth/captcha`. The backend generates a 5-character distorted SVG challenge and stores the answer in memory with a 30-second TTL.
 2. **User submits credentials**: Browser sends identifier, password, and solved CAPTCHA text via `POST /api/auth/login`.
 3. **Verification**:
-   - The CAPTCHA engine validates and instantly consumes the challenge (single-use).
-   - The user record is queried from PostgreSQL; bcrypt compares the password hash.
-   - If valid, the system retrieves the user's roles, division scopes (`division_ids`), and granular permissions (`permissions`).
-4. **Token Generation**:
-   - Short-lived Access Token (8 hours, signed with `JWT_SECRET`).
-   - Refresh Token (7 days) for seamless rotation.
+   - Clerk handles the sign-in flow (email/password or SSO).
+   - The backend verifies the Clerk JWT and loads the user's RBAC data from PostgreSQL.
+   - If the user has no DB row yet, one is auto-provisioned (self-signup).
+4. **Session Setup**: Clerk manages the session token automatically. The frontend receives the user's RBAC profile (roles, division scopes, permissions).
 5. **Audit Logging**: An immutable record (`action_type: 'login'`) is saved in `audit_logs`.
-6. **Frontend Session Setup**: Tokens and user profile are persisted in localStorage, and WebSocket connection `/ws/notify` is opened.
+6. **Frontend Session Setup**: Clerk handles token storage and refresh. WebSocket connection `/ws/notify` is opened.
 
 ---
 
@@ -167,9 +165,7 @@ This section details exactly how data originates, transforms, validates, and com
   ```ini
   PORT=4040
   DATABASE_URL=postgresql://postgres@localhost:5432/poms
-  JWT_SECRET=production-crypto-random-secret-key-32-chars-min
-  JWT_EXPIRES_IN=8h
-  REFRESH_EXPIRES_IN=7d
+  CLERK_SECRET_KEY=sk_test_your_clerk_secret_key
   ```
 
 ### 4.2 Starting the System

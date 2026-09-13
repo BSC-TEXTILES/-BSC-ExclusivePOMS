@@ -15,8 +15,7 @@ export default class ErrorBoundary extends React.Component {
   }
 
   handleReset = () => {
-    localStorage.removeItem('poms_token');
-    localStorage.removeItem('poms_user');
+    // Clerk handles session — just redirect to login
     window.location.href = '/login';
   };
 

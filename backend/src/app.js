@@ -1,6 +1,5 @@
 import express from 'express';
 import cors from 'cors';
-import crypto from 'node:crypto';
 import { selfTest } from './utils/pricing.js';
 import { notFound, errorHandler } from './middleware/errors.js';
 import { helmetMiddleware, additionalSecurityHeaders, rateLimit } from './middleware/security.js';
@@ -36,16 +35,6 @@ const app = express();
 // Render / Vercel sit behind a reverse proxy — required for correct client IPs.
 app.set('trust proxy', 1);
 
-// Production guard: refuse to boot with a weak/absent JWT secret. When unset
-// outside production we still generate an ephemeral one so local dev works.
-if (!process.env.JWT_SECRET || process.env.JWT_SECRET.length < 32) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET must be set to at least 32 characters in production');
-  }
-  console.warn('[security] JWT_SECRET missing/short — generated an ephemeral secret (dev only)');
-  process.env.JWT_SECRET = crypto.randomBytes(48).toString('hex');
-}
-
 // ─── SECURITY LAYER 1: Helmet (HTTP security headers) ─────────────────────
 app.use(helmetMiddleware);
 app.use(additionalSecurityHeaders);
@@ -68,8 +57,6 @@ app.use(cors({
 
 // ─── SECURITY LAYER 3: Global rate limiting ───────────────────────────────
 const apiLimiter = rateLimit(600, 60 * 1000);
-const loginLimiter = rateLimit(10, 5 * 60 * 1000);
-const captchaLimiter = rateLimit(60, 60 * 1000);
 
 // ─── SECURITY LAYER 4: Body parsing with size limits ──────────────────────
 app.use(express.json({ limit: '5mb' }));

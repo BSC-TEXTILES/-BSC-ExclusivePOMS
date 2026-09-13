@@ -1,4 +1,6 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import { useAuth as useClerkAuth, useUser as useClerkUser, useClerk } from '@clerk/clerk-react';
+import api, { setTokenGetter } from './api.js';
 
 // Cart context — pending purchase orders placed by ANY role (admin, supervisor,
 // purchase executive). Shown in the top-navigation cart icon; reviewed and
@@ -49,27 +51,50 @@ export function CartProvider({ children }) {
 }
 
 export const useCart = () => useContext(CartContext);
-import api from './api.js';
-import { getTabId } from './utils/devtools.js';
+
+// ─── Clerk-backed auth context ─────────────────────────────────────────────
+// Provides the same shape the rest of the app expects (user, hasPermission,
+// etc.) by reading from Clerk sessions and fetching RBAC data from /api/auth/me.
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('poms_user') || 'null'); } catch { return null; }
-  });
+  const { isSignedIn, getToken } = useClerkAuth();
+  const { user: clerkUser, isLoaded: clerkLoaded } = useClerkUser();
+  const clerk = useClerk();
+  const [rbacUser, setRbacUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [selectedSectionId, setSelectedSectionId] = useState(() => {
     try { return localStorage.getItem('poms_selected_section') || null; } catch { return null; }
   });
+  const fetchedRef = useRef(false);
 
-  async function login(identifier, password, extra = {}) {
-    const { data } = await api.post('/auth/login', { identifier, password, ...extra });
-    localStorage.setItem('poms_token', data.accessToken);
-    localStorage.setItem('poms_user', JSON.stringify(data.user));
-    setUser(data.user);
-    try { sessionStorage.removeItem('poms_geo_asked'); } catch { /* ignore */ }
-    return data.user;
-  }
+  // Expose Clerk's getToken to the Axios interceptor
+  useEffect(() => {
+    setTokenGetter(isSignedIn ? getToken : null);
+    return () => setTokenGetter(null);
+  }, [isSignedIn, getToken]);
+
+  // Fetch RBAC data from the backend whenever the user signs in
+  const fetchRbac = useCallback(async () => {
+    if (!isSignedIn) {
+      setRbacUser(null);
+      setLoading(false);
+      return;
+    }
+    try {
+      const { data } = await api.get('/auth/me');
+      setRbacUser(data.user);
+    } catch {
+      setRbacUser(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [isSignedIn]);
+
+  useEffect(() => {
+    fetchRbac();
+  }, [fetchRbac]);
 
   function selectSection(sectionId) {
     localStorage.setItem('poms_selected_section', sectionId);
@@ -81,61 +106,66 @@ export function AuthProvider({ children }) {
     setSelectedSectionId(null);
   }
 
-  function logout() {
-    // Report the session end first — keepalive fetch survives the teardown.
-    try {
-      const token = localStorage.getItem('poms_token');
-      if (token) {
-        fetch('/api/tracking/logout', {
-          method: 'POST', keepalive: true,
-          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-          body: JSON.stringify({ tabId: getTabId() }),
-        }).catch(() => {});
-      }
-    } catch { /* best effort */ }
-    api.post('/auth/logout').catch(() => {});
-    localStorage.removeItem('poms_token');
-    localStorage.removeItem('poms_user');
-    setUser(null);
+  // Sync local RBAC fields back after a profile update
+  function updateUser(fields) {
+    setRbacUser((prev) => prev ? { ...prev, ...fields } : prev);
   }
 
-  // Sync profile/role changes (photo upload, admin edits) into context + storage.
-  function updateUser(patch) {
-    setUser((u) => {
-      if (!u) return u;
-      const next = { ...u, ...patch };
-      localStorage.setItem('poms_user', JSON.stringify(next));
-      return next;
-    });
+  // Sign out from Clerk + clear local state
+  async function logout() {
+    try { await clerk.signOut(); } catch { /* ignore */ }
+    setRbacUser(null);
+    setLoading(false);
+    fetchedRef.current = false;
+    window.location.href = '/login';
   }
 
-  const hasPermission = (code) => !!user && (user.isSuperAdmin || user.permissions?.includes(code));
-  const hasRole = (code) => !!user && user.roles?.includes(code);
-  const isSectionSelected = (sectionId) => !selectedSectionId || selectedSectionId === sectionId || user.isSuperAdmin;
-  const canAccessSection = (sectionId) => {
+  // Build the user object combining Clerk info with RBAC data
+  const user = clerkUser && rbacUser ? {
+    ...rbacUser,
+    clerkId: clerkUser.id,
+    email: clerkUser.primaryEmailAddress?.emailAddress || rbacUser.email,
+    fullName: clerkUser.fullName || rbacUser.fullName,
+    profilePhotoUrl: clerkUser.imageUrl || rbacUser.profilePhotoUrl,
+  } : null;
+
+  const hasPermission = useCallback((code) => !!user && (user.isSuperAdmin || user.permissions?.includes(code)), [user]);
+  const hasRole = useCallback((code) => !!user && user.roles?.includes(code), [user]);
+  const isSectionSelected = useCallback((sectionId) => !selectedSectionId || selectedSectionId === sectionId || user?.isSuperAdmin, [selectedSectionId, user]);
+  const canAccessSection = useCallback((sectionId) => {
     if (!user) return false;
     if (user.isSuperAdmin) return true;
     if (!selectedSectionId) return user.sectionIds?.includes(String(sectionId));
     return selectedSectionId === String(sectionId);
-  };
+  }, [user, selectedSectionId]);
 
   return (
-    <AuthContext.Provider value={{ 
-      user, 
-      login, 
-      logout, 
-      updateUser, 
-      hasPermission, 
+    <AuthContext.Provider value={{
+      user,
+      loading: loading || !clerkLoaded,
+      hasPermission,
       hasRole,
       selectedSectionId,
       selectSection,
       clearSection,
       isSectionSelected,
-      canAccessSection
+      canAccessSection,
+      updateUser,
+      logout,
     }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+// Safe default so useAuth() never returns null (prevents destructuring crashes)
+const _noop = () => {};
+const _defaultAuth = {
+  user: null, loading: true,
+  hasPermission: () => false, hasRole: () => false,
+  selectedSectionId: null, selectSection: _noop, clearSection: _noop,
+  isSectionSelected: () => false, canAccessSection: () => false,
+  updateUser: _noop, logout: _noop,
+};
+
+export const useAuth = () => useContext(AuthContext) || _defaultAuth;

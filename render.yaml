@@ -14,12 +14,8 @@ services:
         value: production
       - key: DATABASE_URL
         sync: false          # set in dashboard: Supabase pooler connection string
-      - key: JWT_SECRET
-        generateValue: true  # 32+ char random secret
-      - key: JWT_EXPIRES_IN
-        value: 8h
-      - key: REFRESH_EXPIRES_IN
-        value: 7d
+      - key: CLERK_SECRET_KEY
+        sync: false          # set in dashboard: Clerk → API Keys → Secret Key
       - key: CORS_ORIGIN
         sync: false          # e.g. https://poms.vercel.app
       - key: STORAGE_DRIVER

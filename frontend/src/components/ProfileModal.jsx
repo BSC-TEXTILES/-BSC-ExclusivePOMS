@@ -9,8 +9,6 @@ import { Field } from '../components/DataTable.jsx';
 export default function ProfileModal() {
   const { user, updateUser, logout } = useAuth();
   const [form, setForm] = useState({ fullName: user.fullName || '', phone: user.phone || '', designation: user.designation || '' });
-  const [currentPassword, setCurrentPassword] = useState('');
-  const [newPassword, setNewPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -23,9 +21,6 @@ export default function ProfileModal() {
     setBusy(true); setError(''); setSuccess('');
     try {
       if (!form.fullName?.trim()) throw new Error('Full name is required');
-      if (newPassword && newPassword.length < 8) throw new Error('New password must be at least 8 characters');
-      if (newPassword && !currentPassword) throw new Error('Enter your current password to set the new one');
-      if (newPassword) await api.post('/auth/change-password', { currentPassword, newPassword });
       const { data } = await api.patch('/users/me', form);
       updateUser({
         fullName: data.data.full_name,
@@ -128,11 +123,11 @@ export default function ProfileModal() {
           <div style={{ width: '100%', marginTop: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, opacity: 0.8, marginBottom: 6 }}>
               <span>Profile Strength</span>
-              <span>{[form.fullName, form.phone, form.designation, newPassword].filter(Boolean).length}/4</span>
+              <span>{[form.fullName, form.phone, form.designation].filter(Boolean).length}/3</span>
             </div>
             <div style={{ width: '100%', height: 6, background: 'rgba(255,255,255,0.2)', borderRadius: 3 }}>
               <div style={{
-                width: `${([form.fullName, form.phone, form.designation, newPassword].filter(Boolean).length / 4) * 100}%`,
+                width: `${([form.fullName, form.phone, form.designation].filter(Boolean).length / 3) * 100}%`,
                 height: '100%', background: '#5eead4', borderRadius: 3, transition: 'width .3s',
               }} />
             </div>
@@ -188,29 +183,6 @@ export default function ProfileModal() {
                   style={{ fontSize: 14, padding: '10px 12px' }}
                 />
               </Field>
-              <div style={{ gridColumn: '1 / -1', borderTop: '1px solid #e5e7eb', paddingTop: 14, marginTop: 4 }}>
-                <Field label="Set new password (optional)">
-                  <input
-                    type="password" name="new-password" autoComplete="new-password"
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="min 8 characters"
-                    style={{ fontSize: 14, padding: '10px 12px' }}
-                  />
-                </Field>
-              </div>
-              {!!newPassword && (
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <Field label="Current password" hint="needed to set the new password">
-                    <input
-                      type="password" name="current-password" autoComplete="current-password"
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      style={{ fontSize: 14, padding: '10px 12px' }}
-                    />
-                  </Field>
-                </div>
-              )}
             </div>
 
             {error && (

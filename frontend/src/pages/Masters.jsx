@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from 'react';
 import api, { errMessage } from '../api.js';
 import { useAuth } from '../auth.jsx';
 import StatusChip from '../components/StatusChip.jsx';
-import Modal from '../components/Modal.jsx';
 import { Field } from '../components/DataTable.jsx';
 
 const TABS = ['Departments', 'Sections', 'Brands', 'Products', 'Colours', 'Suppliers'];
@@ -44,7 +43,7 @@ export default function Masters() {
       Sections: { code: '', name: '', departmentId: '', sizingMethodId: '', displayOrder: 0 },
       Brands: { brandNumber: '', brandSerial: '', brandName: '', manufacturer: '' },
       Products: { sku: '', name: '', brandId: '', sectionId: '' },
-      Colours: { name: '' },
+      Colours: { name: '', swatchHex: '#000000' },
       Suppliers: { code: '', companyName: '', contactPerson: '', gstin: '', paymentTerms: 'net_30', divisionIds: [] },
     }[tab];
     setEditing({}); setForm(blank);
@@ -56,7 +55,7 @@ export default function Masters() {
       Sections: { ...row, departmentId: row.department_id, sizingMethodId: row.sizing_method_id, displayOrder: row.display_order },
       Brands: { brandNumber: row.brand_number, brandSerial: row.brand_serial, brandName: row.brand_name, manufacturer: row.manufacturer },
       Products: { sku: row.sku, name: row.name, brandId: row.brand_id, sectionId: row.section_id },
-      Colours: { name: row.name, colourFamily: row.colour_family },
+      Colours: { name: row.name, colourFamily: row.colour_family, swatchHex: row.swatch_hex || '#000000' },
       Suppliers: { ...row, divisionIds: row.division_ids },
     }[tab];
     setForm(mapped);
@@ -249,7 +248,11 @@ export default function Masters() {
       </div>
 
       {editing && (
-        <Modal title={editing.id ? `Edit — ${tab}` : `New — ${tab}`} onClose={() => setEditing(null)}>
+        <div className="panel" style={{ marginTop: '20px' }}>
+          <h3 style={{ marginBottom: 16, fontSize: 16, fontWeight: 700, borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
+            Add / Edit {tab.replace(/s$/, '')}
+          </h3>
+          <div style={{ paddingTop: 8 }}>
           {tab === 'Departments' && (
             <>
               {!editing.id && <div className="fields-2">
@@ -333,9 +336,21 @@ export default function Masters() {
             </>
           )}
           {tab === 'Colours' && (
-            <Field label="Colour name" hint="Case-insensitive duplicate check (§9.2); flagged custom (RB-016)">
-              <input value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-            </Field>
+            <div className="row">
+              <div className="grow">
+                <Field label="Colour name" hint="Case-insensitive duplicate check (§9.2); flagged custom (RB-016)">
+                  <input value={form.name || ''} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                </Field>
+              </div>
+              <div className="grow">
+                <Field label="Colour Hex">
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <input type="color" value={form.swatchHex || '#000000'} onChange={(e) => setForm({ ...form, swatchHex: e.target.value })} style={{ width: 36, height: 36, padding: 0, border: 'none', background: 'none', cursor: 'pointer' }} />
+                    <input value={form.swatchHex || ''} onChange={(e) => setForm({ ...form, swatchHex: e.target.value })} placeholder="#000000" style={{ flex: 1 }} />
+                  </div>
+                </Field>
+              </div>
+            </div>
           )}
           {tab === 'Suppliers' && (
             <>
@@ -361,11 +376,12 @@ export default function Masters() {
               </Field>
             </>
           )}
-          <div className="row">
-            <button className="btn primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</button>
+          <div className="row" style={{ marginTop: 24 }}>
             <button className="btn" onClick={() => setEditing(null)}>Cancel</button>
+            <button className="btn primary" disabled={busy} onClick={save}>{busy ? 'Saving…' : 'Save'}</button>
           </div>
-        </Modal>
+          </div>
+        </div>
       )}
     </div>
   );

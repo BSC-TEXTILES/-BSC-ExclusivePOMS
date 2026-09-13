@@ -4,19 +4,23 @@
 // One WebSocketServer with manual path routing: two servers bound to the same
 // HTTP listener would race the upgrade event and reject each other's paths.
 import { WebSocketServer } from 'ws';
-import jwt from 'jsonwebtoken';
+import { createClerkClient } from '@clerk/backend';
 import { EventEmitter } from 'node:events';
+
+const clerkClient = createClerkClient({
+  secretKey: process.env.CLERK_SECRET_KEY,
+});
 
 export const chatBus = new EventEmitter();
 export const notifyBus = new EventEmitter();
 
-function verify(socket, req) {
+async function verify(socket, req) {
   try {
     const url = new URL(req.url, 'http://localhost');
     const token = url.searchParams.get('token');
     if (!token) throw new Error('missing token');
-    const payload = jwt.verify(token, process.env.JWT_SECRET);
-    socket.userId = payload.sub;
+    const verified = await clerkClient.verifyToken(token);
+    socket.userId = verified.sub;
     return true;
   } catch {
     try {
@@ -56,19 +60,23 @@ export function attachChatWs(server) {
   });
 
   chatWss.on('connection', (socket, req) => {
-    if (!verify(socket, req)) return;
-    socket.isAlive = true;
-    socket.on('pong', () => { socket.isAlive = true; });
-    socket.on('message', () => { /* inbound chat goes through REST; socket is receive-only */ });
+    verify(socket, req).then((ok) => {
+      if (!ok) return;
+      socket.isAlive = true;
+      socket.on('pong', () => { socket.isAlive = true; });
+      socket.on('message', () => { /* inbound chat goes through REST; socket is receive-only */ });
+    });
   });
   const hb1 = heartbeat(chatWss);
   chatWss.on('close', () => clearInterval(hb1));
 
   notifyWss.on('connection', (socket, req) => {
-    if (!verify(socket, req)) return;
-    socket.isAlive = true;
-    socket.on('pong', () => { socket.isAlive = true; });
-    socket.on('message', () => { /* receive-only */ });
+    verify(socket, req).then((ok) => {
+      if (!ok) return;
+      socket.isAlive = true;
+      socket.on('pong', () => { socket.isAlive = true; });
+      socket.on('message', () => { /* receive-only */ });
+    });
   });
   const hb2 = heartbeat(notifyWss);
   notifyWss.on('close', () => clearInterval(hb2));

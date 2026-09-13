@@ -219,6 +219,22 @@ r.post('/colours', MANAGE, ah(async (req, res) => {
   res.status(201).json({ data: rows[0] });
 }));
 
+r.patch('/colours/:id', MANAGE, ah(async (req, res) => {
+  const { name, colourFamily, swatchHex, isCustom, status } = req.body || {};
+  const before = (await query(`SELECT * FROM colours WHERE id=$1`, [req.params.id])).rows[0];
+  if (!before) throw badRequest('Colour not found');
+  const row = await withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `UPDATE colours SET name=COALESCE($2,name), colour_family=COALESCE($3,colour_family),
+              swatch_hex=COALESCE($4,swatch_hex), is_custom=COALESCE($5,is_custom), status=COALESCE($6,status)
+       WHERE id=$1 RETURNING *`,
+      [req.params.id, name || null, colourFamily || null, swatchHex || null, isCustom !== undefined ? !!isCustom : null, status || null]);
+    await logAudit(client, { userId: req.user.id, role: req.user.roles.join(','), actionType: 'edit', entityType: 'colour', entityId: req.params.id, beforeValue: before, afterValue: rows[0] });
+    return rows[0];
+  });
+  res.json({ data: row });
+}));
+
 // ---------- BRANDS (§10.1 — brand number ≠ brand serial, RB-005) ----------
 r.get('/brands', VIEW, ah(async (req, res) => {
   const { search, sectionId, departmentId, collectionId } = req.query;

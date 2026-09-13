@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { useAuth as useClerkAuth } from '@clerk/clerk-react';
 import { useAuth } from './auth.jsx';
 import Sidebar from './components/Sidebar.jsx';
 import Topbar from './components/Topbar.jsx';
 import Landing from './pages/Landing.jsx';
 import Login from './pages/Login.jsx';
+import SignUpPage from './pages/SignUp.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import POList from './pages/POList.jsx';
 import POCreate from './pages/POCreate.jsx';
@@ -48,9 +50,25 @@ import CookieConsent from './components/CookieConsent.jsx';
 import { PrivacyPolicy, Terms, Security } from './pages/Legal.jsx';
 
 function RequireAuth({ children, permission, superAdmin }) {
-  const { user, hasPermission } = useAuth();
-  if (!user) return <Navigate to="/login" replace />;
-  if (superAdmin && !user.isSuperAdmin) {
+  const { isSignedIn, isLoaded: clerkLoaded } = useClerkAuth();
+  const { user, hasPermission, loading } = useAuth();
+
+  if (!clerkLoaded) {
+    return (
+      <div className="page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+        <div className="login-spinner" />
+      </div>
+    );
+  }
+  if (!isSignedIn) return <Navigate to="/login" replace />;
+  if (loading) {
+    return (
+      <div className="page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+        <div className="login-spinner" />
+      </div>
+    );
+  }
+  if (superAdmin && !user?.isSuperAdmin) {
     return <div className="page"><div className="alert error">Only the Administrator can manage roles and permissions.</div></div>;
   }
   if (permission && !hasPermission(permission)) {
@@ -60,7 +78,8 @@ function RequireAuth({ children, permission, superAdmin }) {
 }
 
 export default function App() {
-  const { user } = useAuth();
+  const { isSignedIn, isLoaded: clerkLoaded } = useClerkAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem('poms_sidebar') === '1');
 
@@ -68,14 +87,24 @@ export default function App() {
     localStorage.setItem('poms_sidebar', collapsed ? '1' : '0');
   }, [collapsed]);
 
+  // While Clerk is initializing, show a minimal spinner (don't block the login page)
+  if (!clerkLoaded) {
+    return (
+      <div className="login-page" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <div className="login-spinner" />
+      </div>
+    );
+  }
+
   // Public routes: landing page, login and the legal pages.
   // (Login keeps its own full-screen layout; legal pages get the cookie notice.)
-  if (!user) {
+  if (!isSignedIn) {
     return (
       <>
         <Routes>
           <Route path="/landing" element={<Landing />} />
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<SignUpPage />} />
           <Route path="/privacy" element={<PrivacyPolicy />} />
           <Route path="/terms" element={<Terms />} />
           <Route path="/security" element={<Security />} />

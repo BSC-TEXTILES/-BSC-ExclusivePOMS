@@ -1,12 +1,11 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { SignIn, useAuth as useClerkAuth } from '@clerk/clerk-react';
+import { SignUp, useAuth as useClerkAuth } from '@clerk/clerk-react';
 
-export default function Login() {
+export default function SignUpPage() {
   const { isSignedIn } = useClerkAuth();
   const navigate = useNavigate();
 
-  // Redirect to dashboard if already signed in
   useEffect(() => {
     if (isSignedIn) navigate('/dashboard', { replace: true });
   }, [isSignedIn, navigate]);
@@ -77,14 +76,14 @@ export default function Login() {
             <div className="login-form-logo">
               <img src="/bsc-logo.png" alt="BSC" />
             </div>
-            <h2>Welcome back</h2>
-            <p>Sign in to BSC Purchase Order Management System</p>
+            <h2>Create your account</h2>
+            <p>Sign up for BSC Purchase Order Management System</p>
           </div>
 
-          <SignIn
+          <SignUp
             routing="path"
-            path="/login"
-            signUpUrl="/signup"
+            path="/signup"
+            signInUrl="/login"
             appearance={{
               elements: {
                 rootBox: { width: '100%', maxWidth: 400 },

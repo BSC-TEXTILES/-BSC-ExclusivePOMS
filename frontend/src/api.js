@@ -20,9 +20,19 @@ export const assetUrl = (url) => {
 
 const api = axios.create({ baseURL: API_BASE });
 
-api.interceptors.request.use((cfg) => {
-  const token = localStorage.getItem('poms_token');
-  if (token) cfg.headers.Authorization = `Bearer ${token}`;
+// ─── Clerk token integration ──────────────────────────────────────────────
+// A module-level getter is set by the AuthProvider so that the Axios
+// interceptor can attach the current Clerk JWT without importing React hooks.
+let _getToken = null;
+export function setTokenGetter(fn) { _getToken = fn; }
+
+api.interceptors.request.use(async (cfg) => {
+  if (_getToken) {
+    try {
+      const token = await _getToken();
+      if (token) cfg.headers.Authorization = `Bearer ${token}`;
+    } catch { /* ignore — will result in 401 from backend */ }
+  }
   return cfg;
 });
 
@@ -30,8 +40,7 @@ api.interceptors.response.use(
   (r) => r,
   (err) => {
     if (err.response?.status === 401 && !window.location.pathname.startsWith('/login')) {
-      localStorage.removeItem('poms_token');
-      localStorage.removeItem('poms_user');
+      // Clerk handles session — just redirect to login
       window.location.href = '/login';
     }
     return Promise.reject(err);
@@ -40,7 +49,7 @@ api.interceptors.response.use(
 
 export const errMessage = (e) => {
   if (!e) return 'Request failed';
-  
+
   // Network errors (no response received)
   if (!e.response) {
     if (e.code === 'ERR_NETWORK') {
@@ -51,12 +60,12 @@ export const errMessage = (e) => {
     }
     return `Network error: ${e.message || 'Unknown error'}`;
   }
-  
+
   // Server errors
   if (e.response.status >= 500) {
     return `Server error: ${e.response.status} - ${e.response.data?.error?.message || 'Internal server error'}`;
   }
-  
+
   // Other errors with response
   return e.response.data?.error?.message || e.message || 'Request failed';
 };

@@ -4,7 +4,7 @@
 
 ### 1. Environment Configuration
 - [ ] `NODE_ENV=production` is set
-- [ ] `JWT_SECRET` is at least 32 characters and randomly generated
+- [ ] `CLERK_SECRET_KEY` is set (from Clerk Dashboard → API Keys)
 - [ ] `DEMO_MODE=false` or unset
 - [ ] `DATABASE_URL` uses SSL connection
 - [ ] `CORS_ORIGIN` is configured for production domain only
@@ -18,7 +18,7 @@
 - [ ] Account lockout after 5 failed attempts
 - [ ] Lockout duration is 15 minutes
 - [ ] CAPTCHA required for login in production
-- [ ] JWT tokens have appropriate expiry (access: 8h, refresh: 7d)
+- [ ] Clerk manages session tokens and expiry automatically
 - [ ] Token invalidation on password change
 
 ### 3. Authorization
@@ -129,11 +129,11 @@
 - [ ] Destructive operations require confirmation
 
 ### 17. Session Management
-- [ ] Tokens stored securely (localStorage for SPA)
+- [ ] Clerk manages tokens securely (httpStorage + memory)
 - [ ] Tokens not in URLs
 - [ ] Tokens not in logs
-- [ ] Logout clears tokens
-- [ ] Session timeout configured
+- [ ] Logout clears Clerk session
+- [ ] Session timeout configured via Clerk Dashboard
 
 ---
 

@@ -46,30 +46,6 @@ export const idBody = z.object({
   id: z.string().uuid('Invalid ID format'),
 });
 
-// ─── Auth schemas ───────────────────────────────────────────────────────────
-
-export const loginSchema = z.object({
-  identifier: z.string().min(1, 'Email or username is required').max(255),
-  password: z.string().min(1, 'Password is required').max(128),
-  captchaId: z.string().max(128).optional().nullable(),
-  captchaText: z.string().max(64).optional().nullable(),
-});
-
-export const changePasswordSchema = z.object({
-  currentPassword: z.string().min(1).max(128),
-  newPassword: z.string()
-    .min(8, 'Password must be at least 8 characters')
-    .max(128, 'Password must not exceed 128 characters')
-    .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
-    .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
-    .regex(/[0-9]/, 'Password must contain at least one number')
-    .regex(/[^A-Za-z0-9]/, 'Password must contain at least one special character'),
-});
-
-export const refreshTokenSchema = z.object({
-  refreshToken: z.string().min(1, 'Refresh token is required'),
-});
-
 // ─── User schemas ───────────────────────────────────────────────────────────
 
 export const createUserSchema = z.object({
@@ -101,7 +77,7 @@ export const updateUserSchema = z.object({
 });
 
 export const resetPasswordSchema = z.object({
-  password: z.string()
+  newPassword: z.string()
     .min(8, 'Password must be at least 8 characters')
     .max(128)
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')

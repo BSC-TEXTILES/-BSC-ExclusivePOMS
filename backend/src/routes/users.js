@@ -2,6 +2,7 @@ import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { query, withTransaction, pool } from '../config/db.js';
 import { authenticate, requirePermission } from '../middleware/auth.js';
+import { validate, createUserSchema, resetPasswordSchema } from '../middleware/validate.js';
 import { badRequest, forbidden, ah } from '../utils/httpError.js';
 import { logAudit } from '../utils/audit.js';
 
@@ -50,10 +51,8 @@ r.get('/', ah(async (req, res) => {
 // POST /api/users — TC-01: create a user and assign a role and division
 // RBAC: only the Administrator decides roles and access scope. Other account
 // creators create the login; the role is attached afterwards by the admin.
-r.post('/', ah(async (req, res) => {
+r.post('/', validate({ body: createUserSchema }), ah(async (req, res) => {
   const { email, username, fullName, phone, password, roles = [], divisionIds = [], sections = [], sectionIds = [] } = req.body || {};
-  if (!email || !username || !fullName || !password) throw badRequest('email, username, fullName, password are required');
-  if (password.length < 8) throw badRequest('Password must be at least 8 characters');
   if (!req.user.isSuperAdmin && (roles.length || divisionIds.length || sections.length || sectionIds.length)) {
     throw forbidden('Only the Administrator can assign roles and access scope — the account was not created');
   }
@@ -62,7 +61,8 @@ r.post('/', ah(async (req, res) => {
     const hash = await bcrypt.hash(password, 10);
     const { rows } = await client.query(
       `INSERT INTO users (email, username, password_hash, full_name, phone)
-       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+       VALUES ($1,$2,$3,$4,$5)
+       RETURNING id, email, username, full_name, phone, status, created_at`,
       [email, username, hash, fullName, phone || null]
     );
     const u = rows[0];
@@ -103,7 +103,8 @@ r.patch('/:id', ah(async (req, res) => {
          phone = COALESCE($3, phone),
          status = COALESCE($4, status),
          force_password_reset = COALESCE($5, force_password_reset)
-       WHERE id = $1 RETURNING *`,
+       WHERE id = $1
+       RETURNING id, email, username, full_name, phone, status, force_password_reset, updated_at`,
       [id, fullName || null, phone || null, status || null, forcePasswordReset === undefined ? null : forcePasswordReset]
     );
     if (roles) {
@@ -134,10 +135,9 @@ r.patch('/:id', ah(async (req, res) => {
 
 // POST /api/users/:id/reset-password — admin reset (§6.2 forced-reset capability)
 // Administrator-only.
-r.post('/:id/reset-password', ah(async (req, res) => {
+r.post('/:id/reset-password', validate({ body: resetPasswordSchema }), ah(async (req, res) => {
   if (!req.user.isSuperAdmin) throw forbidden('Only the Administrator can reset passwords');
   const { newPassword } = req.body || {};
-  if (!newPassword || newPassword.length < 8) throw badRequest('newPassword must be at least 8 characters');
   const hash = await bcrypt.hash(newPassword, 10);
   await withTransaction(async (client) => {
     await client.query(`UPDATE users SET password_hash=$1, force_password_reset=true WHERE id=$2`, [hash, req.params.id]);
