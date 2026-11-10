@@ -820,8 +820,13 @@ export default function POCreate() {
                 {brands
                   .filter((b) => {
                     if (!selectedCollection) return true;
-                    if (!b.collections?.length) return true;
-                    return b.collections.some((c) => c.id === selectedCollection.id);
+                    const colls = Array.isArray(b.collections)
+                      ? b.collections
+                      : (typeof b.collections === 'string'
+                        ? (() => { try { const p = JSON.parse(b.collections); return Array.isArray(p) ? p : []; } catch (_) { return []; } })()
+                        : []);
+                    if (!colls.length) return true;
+                    return colls.some((c) => c.id === selectedCollection.id);
                   })
                   .map((b) => {
                     const isSelected = selectedBrand?.id === b.id;

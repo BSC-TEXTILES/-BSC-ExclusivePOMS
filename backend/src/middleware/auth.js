@@ -11,6 +11,16 @@ export function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+export async function verifyToken(token) {
+  const hashed = hashToken(token);
+  const { rows } = await query(
+    `SELECT user_id FROM user_sessions WHERE token_hash = $1 AND logout_at IS NULL`,
+    [hashed]
+  );
+  if (!rows || rows.length === 0) throw new Error('Session invalid or expired');
+  return { userId: rows[0].user_id, sub: rows[0].user_id };
+}
+
 const USER_SELECT = `
   SELECT u.id, u.email, u.username, u.full_name, u.status, u.force_password_reset,
          u.profile_photo_url, u.designation, u.profile_updated_at,
@@ -47,9 +57,14 @@ const USER_SELECT_BY_EMAIL = `
    WHERE lower(u.email) = lower($1)
    GROUP BY u.id`;
 
+function dedupe(arr) {
+  if (!Array.isArray(arr)) return [];
+  return [...new Set(arr.filter(Boolean))];
+}
+
 function parseRow(u) {
   if (!u) return null;
-  const roles = typeof u.roles === 'string' ? JSON.parse(u.roles) : u.roles;
+  const roles = dedupe(typeof u.roles === 'string' ? JSON.parse(u.roles) : u.roles);
   return {
     id: u.id,
     email: u.email,
@@ -60,9 +75,9 @@ function parseRow(u) {
     profilePhotoUrl: u.profile_photo_url,
     designation: u.designation,
     roles,
-    divisionIds: typeof u.division_ids === 'string' ? JSON.parse(u.division_ids) : u.division_ids,
-    sectionIds: typeof u.section_ids === 'string' ? JSON.parse(u.section_ids) : u.section_ids,
-    permissions: typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions,
+    divisionIds: dedupe(typeof u.division_ids === 'string' ? JSON.parse(u.division_ids) : u.division_ids),
+    sectionIds: dedupe(typeof u.section_ids === 'string' ? JSON.parse(u.section_ids) : u.section_ids),
+    permissions: dedupe(typeof u.permissions === 'string' ? JSON.parse(u.permissions) : u.permissions),
     profileUpdatedAt: u.profile_updated_at,
     passwordChangedAt: u.password_changed_at,
     failedAttempts: u.failed_attempts,

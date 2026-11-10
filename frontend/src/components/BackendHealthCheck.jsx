@@ -91,14 +91,14 @@ export default function BackendHealthCheck({ children }) {
             run.bat
           </code>
           <div style={{ marginTop: 8, color: '#6b7280', fontSize: 13 }}>
-            This starts PostgreSQL, applies the schema, seeds data, launches the backend (:4040) and frontend (:5173).
+            This verifies the database (MySQL/PostgreSQL), applies schema, seeds data, launches the backend (:4040) and frontend (:5173).
           </div>
         </div>
 
         <div style={{ background: '#fef3c7', border: '1px solid #fcd34d', padding: 16, borderRadius: 8, marginBottom: 24, textAlign: 'left', fontSize: 13, color: '#92400e' }}>
           <div style={{ fontWeight: 600, marginBottom: 4 }}>Manual steps:</div>
           <ol style={{ margin: 0, paddingLeft: 18, lineHeight: 1.8 }}>
-            <li>Start PostgreSQL: <code style={{ background: '#fff', padding: '1px 5px', borderRadius: 3 }}>run.bat</code> handles this automatically</li>
+            <li>Start Database (MySQL / PostgreSQL): <code style={{ background: '#fff', padding: '1px 5px', borderRadius: 3 }}>run.bat</code> handles this automatically</li>
             <li>Start backend: <code style={{ background: '#fff', padding: '1px 5px', borderRadius: 3 }}>cd backend &amp;&amp; npm run dev</code></li>
             <li>Frontend proxy: <code style={{ background: '#fff', padding: '1px 5px', borderRadius: 3 }}>/api → http://localhost:4040</code></li>
           </ol>

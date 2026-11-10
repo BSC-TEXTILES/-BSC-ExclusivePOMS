@@ -88,10 +88,12 @@ r.post('/login', rateLimit(10, 60 * 1000), validate({ body: loginSchema }), ah(a
   const token = generateSessionToken();
   const hashed = hashToken(token);
   
-  // Create stateful session
+  // Create stateful session (replace any previous session on this tab)
+  const tabId = req.headers['x-tab-id'] || 'default';
+  await query('DELETE FROM user_sessions WHERE user_id = $1 AND tab_id = $2', [user.id, tabId]).catch(() => {});
   await query(
     'INSERT INTO user_sessions (user_id, token_hash, tab_id, ip_address, user_agent) VALUES ($1, $2, $3, $4, $5)', 
-    [user.id, hashed, req.headers['x-tab-id'] || 'default', req.ip, req.headers['user-agent']]
+    [user.id, hashed, tabId, req.ip, req.headers['user-agent']]
   );
 
   await logAudit(pool, {
@@ -147,9 +149,11 @@ r.post('/login/verify-mfa', rateLimit(5, 60 * 1000), validate({ body: verifyMfaS
   
   const token = generateSessionToken();
   const hashed = hashToken(token);
+  const tabId = req.headers['x-tab-id'] || 'default';
+  await query('DELETE FROM user_sessions WHERE user_id = $1 AND tab_id = $2', [user.id, tabId]).catch(() => {});
   await query(
     'INSERT INTO user_sessions (user_id, token_hash, tab_id, ip_address, user_agent) VALUES ($1, $2, $3, $4, $5)', 
-    [user.id, hashed, req.headers['x-tab-id'] || 'default', req.ip, req.headers['user-agent']]
+    [user.id, hashed, tabId, req.ip, req.headers['user-agent']]
   );
 
   await logAudit(pool, {

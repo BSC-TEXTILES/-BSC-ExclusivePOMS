@@ -2,6 +2,9 @@
 setlocal enabledelayedexpansion
 title BSC Exclusive POMS - Full Stack Launcher
 
+REM Unset npm configuration environment variables leaked by npm run (prevents EALLOWSCRIPTS on npm v11)
+set npm_config_allow_scripts=
+
 REM ============================================================
 REM  BSC Exclusive POMS - ONE-CLICK FULL STACK LAUNCHER
 REM  Runs the ENTIRE project:
@@ -48,41 +51,61 @@ for /f "tokens=*" %%v in ('npm -v') do set NPM_VER=%%v
 echo [OK]   npm v!NPM_VER! detected.
 echo.
 
-REM ---- 1. Detect & Ensure PostgreSQL is running ----
-echo [....] Checking PostgreSQL service...
-set PGSERVICE=
-for %%v in (18 17 16 15 14 13 12) do (
-  if not defined PGSERVICE (
-    sc.exe query postgresql-x64-%%v >NUL 2>&1
-    if !errorlevel!==0 set PGSERVICE=postgresql-x64-%%v
-  )
-  if not defined PGSERVICE (
-    sc.exe query postgresql-%%v >NUL 2>&1
-    if !errorlevel!==0 set PGSERVICE=postgresql-%%v
-  )
-)
-if not defined PGSERVICE (
-  sc.exe query postgresql >NUL 2>&1
-  if !errorlevel!==0 set PGSERVICE=postgresql
-)
+REM ---- 1. Detect & Ensure Database is running ----
+echo [....] Checking database service...
+set USE_MYSQL=0
+findstr /i "mysql:" "%~dp0backend\.env" >NUL 2>&1
+if not errorlevel 1 set USE_MYSQL=1
 
-if defined PGSERVICE (
-  sc.exe query !PGSERVICE! | findstr /i "RUNNING" >NUL 2>&1
+if "!USE_MYSQL!"=="1" (
+  echo [....] Detected MySQL configuration. Checking port 3306 and MySQL80...
+  netstat -ano | findstr ":3306 " >NUL 2>&1
   if not errorlevel 1 (
-    echo [OK]   PostgreSQL !PGSERVICE! is running.
+    echo [OK]   MySQL is running on port 3306.
   ) else (
-    echo [....] Starting PostgreSQL !PGSERVICE!...
-    net start !PGSERVICE! >NUL 2>&1
+    echo [....] Starting MySQL80 service...
+    net start MySQL80 >NUL 2>&1
     if not errorlevel 1 (
-      echo [OK]   PostgreSQL started successfully.
+      echo [OK]   MySQL80 started successfully.
     ) else (
-      echo [WARN] Could not auto-start !PGSERVICE!.
-      echo         Please ensure PostgreSQL is running manually.
+      echo [WARN] Could not auto-start MySQL80. Please ensure MySQL is running.
     )
   )
 ) else (
-  echo [INFO] No standard local PostgreSQL service detected.
-  echo         Assuming external, container, or custom DB config.
+  echo [....] Detected PostgreSQL configuration. Checking service...
+  set PGSERVICE=
+  for %%v in (18 17 16 15 14 13 12) do (
+    if not defined PGSERVICE (
+      sc.exe query postgresql-x64-%%v >NUL 2>&1
+      if !errorlevel!==0 set PGSERVICE=postgresql-x64-%%v
+    )
+    if not defined PGSERVICE (
+      sc.exe query postgresql-%%v >NUL 2>&1
+      if !errorlevel!==0 set PGSERVICE=postgresql-%%v
+    )
+  )
+  if not defined PGSERVICE (
+    sc.exe query postgresql >NUL 2>&1
+    if !errorlevel!==0 set PGSERVICE=postgresql
+  )
+
+  if defined PGSERVICE (
+    sc.exe query !PGSERVICE! | findstr /i "RUNNING" >NUL 2>&1
+    if not errorlevel 1 (
+      echo [OK]   PostgreSQL !PGSERVICE! is running.
+    ) else (
+      echo [....] Starting PostgreSQL !PGSERVICE!...
+      net start !PGSERVICE! >NUL 2>&1
+      if not errorlevel 1 (
+        echo [OK]   PostgreSQL started successfully.
+      ) else (
+        echo [WARN] Could not auto-start !PGSERVICE!.
+        echo         Please ensure PostgreSQL is running manually.
+      )
+    )
+  ) else (
+    echo [INFO] Assuming external, cloud, or container database.
+  )
 )
 echo.
 
@@ -90,6 +113,7 @@ REM ---- 2. Install dependencies if missing ----
 if not exist "%~dp0backend\node_modules\" (
   echo [....] Backend dependencies not found. Installing...
   pushd "%~dp0backend"
+  set npm_config_allow_scripts=
   call npm install
   popd
   if errorlevel 1 (
@@ -107,6 +131,7 @@ if not exist "%~dp0backend\node_modules\" (
 if not exist "%~dp0frontend\node_modules\" (
   echo [....] Frontend dependencies not found. Installing...
   pushd "%~dp0frontend"
+  set npm_config_allow_scripts=
   call npm install
   popd
   if errorlevel 1 (
@@ -151,12 +176,31 @@ if not "!SETUP_STATUS!"=="0" (
   echo   [ERROR] Database setup failed!
   echo.
   echo   Possible causes:
-  echo     - PostgreSQL is not running
-  echo     - DATABASE_URL in backend\.env is incorrect
-  echo     - Database user/password mismatch
+  if "!USE_MYSQL!"=="1" (
+    echo     - MySQL service (MySQL80) is not running
+    echo     - Port 3306 is not open or access is denied
+    echo     - DATABASE_URL in backend\.env is incorrect
+  ) else (
+    echo     - PostgreSQL service is not running
+    echo     - DATABASE_URL in backend\.env is incorrect
+    echo     - Database user/password mismatch
+  )
   echo.
-  echo   Current config: backend\.env
-  echo     DATABASE_URL=postgresql://postgres@localhost:5432/poms
+  echo   Current config in backend\.env:
+  for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0backend\.env") do (
+    if "%%A"=="DATABASE_URL" echo     DATABASE_URL=%%B
+  )
+  echo.
+  echo   Solutions:
+  if "!USE_MYSQL!"=="1" (
+    echo     1. Ensure MySQL is running: net start MySQL80
+    echo     2. Verify credentials: cd backend ^&^& node scripts\check-db.mjs
+  ) else (
+    echo     1. Use a free cloud database (Neon.tech or Supabase.com):
+    echo        Paste the connection URI into backend\.env as DATABASE_URL
+    echo     2. Or install PostgreSQL locally (PostgreSQL 15+):
+    echo        https://www.enterprisedb.com/downloads/postgres-postgresql-downloads
+  )
   echo.
   echo   Fix the above and try again.
   echo ============================================================
@@ -219,7 +263,11 @@ echo   BSC Exclusive POMS is running!
 echo.
 echo     Frontend : http://localhost:5173
 echo     Backend  : http://localhost:4040
-echo     Database : PostgreSQL (localhost:5432/poms)
+if "!USE_MYSQL!"=="1" (
+  echo     Database : MySQL (localhost:3306/poms)
+) else (
+  echo     Database : PostgreSQL
+)
 echo.
 echo   Demo Credentials:
 echo     Super Admin : admin@bsc.local / Admin@123

@@ -89,21 +89,32 @@ r.get('/dashboard', ah(async (req, res) => {
       GROUP BY d.id, d.code, d.name ORDER BY d.code`, s.all ? [] : [s.ids])).rows;
 
   // Real monthly series — last 12 months, scoped, zero-filled (no synthetic data).
-  const monthly = (await query(
-    `WITH months AS (
-       SELECT generate_series(date_trunc('month', now()) - interval '11 months',
-                              date_trunc('month', now()), interval '1 month') AS m
-     ), agg AS (
-       SELECT date_trunc('month', po.po_date) AS m, count(*)::int AS orders,
-              COALESCE(SUM(po.grand_total),0) AS value
-         FROM purchase_orders po
-        WHERE ${W} AND po.po_date >= date_trunc('month', now()) - interval '11 months'
-        GROUP BY 1
-     )
-     SELECT to_char(mm.m, 'Mon') AS label, to_char(mm.m, 'YYYY-MM') AS key,
-            COALESCE(a.orders, 0)::int AS orders, COALESCE(a.value, 0)::float8 AS value
-       FROM months mm LEFT JOIN agg a ON a.m = mm.m
-      ORDER BY mm.m`, params)).rows;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const now = new Date();
+  const cutoff = new Date(now.getFullYear(), now.getMonth() - 11, 1).toISOString().slice(0, 10);
+
+  const monthlyAgg = (await query(
+    `SELECT to_char(po.po_date, 'YYYY-MM') AS ym,
+            count(*)::int AS orders,
+            COALESCE(SUM(po.grand_total),0)::float8 AS value
+       FROM purchase_orders po
+      WHERE ${W} AND po.po_date >= '${cutoff}'
+      GROUP BY ym`, params)).rows;
+
+  const aggMap = new Map(monthlyAgg.map((r) => [r.ym, r]));
+  const monthly = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    const label = months[d.getMonth()];
+    const hit = aggMap.get(key);
+    monthly.push({
+      label,
+      key,
+      orders: Number(hit?.orders || 0),
+      value: Number(hit?.value || 0),
+    });
+  }
 
   // Real recent purchase orders for the dashboard table.
   const recentPOs = (await query(

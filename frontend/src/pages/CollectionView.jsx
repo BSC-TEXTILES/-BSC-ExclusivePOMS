@@ -1779,8 +1779,13 @@ export default function CollectionView() {
                 {brands
                   .filter((b) => {
                     if (!department) return true;
-                    if (!b.collections?.length) return true;
-                    return b.collections.some((c) => {
+                    const colls = Array.isArray(b.collections)
+                      ? b.collections
+                      : (typeof b.collections === 'string'
+                        ? (() => { try { const p = JSON.parse(b.collections); return Array.isArray(p) ? p : []; } catch (_) { return []; } })()
+                        : []);
+                    if (!colls.length) return true;
+                    return colls.some((c) => {
                       const deptCode = (department.code || '').toUpperCase();
                       return c.code?.toUpperCase().includes(deptCode) || c.name?.toLowerCase().includes(deptCode.toLowerCase());
                     });

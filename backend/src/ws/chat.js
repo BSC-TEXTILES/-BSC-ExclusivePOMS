@@ -15,7 +15,7 @@ async function verify(socket, req) {
     const url = new URL(req.url, 'http://localhost');
     const token = url.searchParams.get('token');
     if (!token) throw new Error('missing token');
-    const decoded = verifyToken(token);
+    const decoded = await verifyToken(token);
     socket.userId = decoded.sub || decoded.userId;
     return true;
   } catch {

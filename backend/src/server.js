@@ -1,7 +1,13 @@
 import dotenv from 'dotenv';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const explicitPort = process.env.PORT;
 const explicitDb = process.env.DATABASE_URL;
-dotenv.config({ override: true });
+dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
+dotenv.config({ path: path.resolve(__dirname, '../.env') });
 if (explicitPort) process.env.PORT = explicitPort;
 if (explicitDb) process.env.DATABASE_URL = explicitDb;
 import app from './app.js';
@@ -15,10 +21,10 @@ async function probeDatabase() {
   const started = Date.now();
   try {
     await pool.query('SELECT 1');
-    console.log(`✓ PostgreSQL connected in ${Date.now() - started} ms — database ready`);
+    console.log(`✓ Database connected in ${Date.now() - started} ms — database ready`);
   } catch (e) {
     const reason = e.code === 'ECONNREFUSED'
-      ? 'connection refused — PostgreSQL service is not running'
+      ? 'connection refused — database service is not running'
       : e.message;
     console.error(`\n⚠ DATABASE WARNING: ${reason}`);
     console.error('  The API will still start, but every /api route will fail until the DB is reachable.');
