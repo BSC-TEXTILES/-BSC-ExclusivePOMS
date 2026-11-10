@@ -7,6 +7,8 @@
     "dev": "run.bat",
     "start": "run.bat",
     "backend": "cd backend && npm run dev",
-    "frontend": "cd frontend && npm run dev"
+    "frontend": "cd frontend && npm run dev",
+    "build": "npm run build --prefix frontend",
+    "test": "npm run check --prefix backend"
   }
 }
