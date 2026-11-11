@@ -826,7 +826,11 @@ export default function POCreate() {
                         ? (() => { try { const p = JSON.parse(b.collections); return Array.isArray(p) ? p : []; } catch (_) { return []; } })()
                         : []);
                     if (!colls.length) return true;
-                    return colls.some((c) => c.id === selectedCollection.id);
+                    return colls.some((c) => {
+                      if (!c) return false;
+                      const cid = typeof c === 'object' ? c.id : c;
+                      return cid === selectedCollection.id;
+                    });
                   })
                   .map((b) => {
                     const isSelected = selectedBrand?.id === b.id;

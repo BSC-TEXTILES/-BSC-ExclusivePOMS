@@ -406,7 +406,7 @@ function MainDashboard() {
         <div className="polist-head-actions">
           {canCreatePO && (
             <Link to="/purchase-orders/new" className="btn primary" style={{ borderRadius: 999, padding: '8px 16px', background: '#114224', border: 'none' }}>
-              + Add Project
+              + Add Order
             </Link>
           )}
           <Link to="/import-data" className="btn" style={{ borderRadius: 999, padding: '8px 16px', borderColor: '#114224', color: '#114224', fontWeight: 600 }}>
@@ -417,22 +417,22 @@ function MainDashboard() {
 
       <div className="donezo-kpis" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
         <Link to="/purchase-orders" className="donezo-stat-card polist-card kpi-green" style={{ textDecoration: 'none' }}>
-          <div className="st-head"><span>Total Projects</span> <div className="st-arrow">↗</div></div>
+          <div className="st-head"><span>Total Orders</span> <div className="st-arrow">↗</div></div>
           <div className="st-val">{kpis.total_pos || 0}</div>
           <div className="st-note"><span className="st-up">↑</span> View all purchase orders</div>
         </Link>
         <Link to="/purchase-orders?status=received" className="donezo-stat-card polist-card" style={{ textDecoration: 'none' }}>
-          <div className="st-head"><span>Ended Projects</span> <div className="st-arrow">↗</div></div>
+          <div className="st-head"><span>Ended Orders</span> <div className="st-arrow">↗</div></div>
           <div className="st-val">{completedOrders}</div>
           <div className="st-note"><span className="st-up">↑</span> Completed / Received orders</div>
         </Link>
         <Link to="/purchase-orders?status=issued" className="donezo-stat-card polist-card" style={{ textDecoration: 'none' }}>
-          <div className="st-head"><span>Running Projects</span> <div className="st-arrow">↗</div></div>
+          <div className="st-head"><span>Running Orders</span> <div className="st-arrow">↗</div></div>
           <div className="st-val">{kpis.pending_approvals || 0}</div>
           <div className="st-note"><span className="st-up">↑</span> Issued & in-progress orders</div>
         </Link>
         <Link to="/purchase-orders?status=draft" className="donezo-stat-card polist-card" style={{ textDecoration: 'none' }}>
-          <div className="st-head"><span>Pending Project</span> <div className="st-arrow">↗</div></div>
+          <div className="st-head"><span>Pending Orders</span> <div className="st-arrow">↗</div></div>
           <div className="st-val">{workProgress.drafts || 0}</div>
           <div className="st-note">Drafts awaiting submission</div>
         </Link>

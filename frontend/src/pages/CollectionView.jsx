@@ -1786,8 +1786,11 @@ export default function CollectionView() {
                         : []);
                     if (!colls.length) return true;
                     return colls.some((c) => {
+                      if (!c) return false;
                       const deptCode = (department.code || '').toUpperCase();
-                      return c.code?.toUpperCase().includes(deptCode) || c.name?.toLowerCase().includes(deptCode.toLowerCase());
+                      const cCode = typeof c === 'string' ? c.toUpperCase() : (c.code || '').toUpperCase();
+                      const cName = typeof c === 'string' ? c.toLowerCase() : (c.name || '').toLowerCase();
+                      return cCode.includes(deptCode) || cName.includes(deptCode.toLowerCase());
                     });
                   })
                   .map((b) => {

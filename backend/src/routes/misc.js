@@ -151,7 +151,7 @@ r.post('/notifications/:id/read', ah(async (req, res) => {
 
 // ---------- SETTINGS (super-admin managed; read for all authenticated) ----------
 r.get('/settings', ah(async (req, res) => {
-  const { rows } = await query(`SELECT key, value, description FROM settings ORDER BY key`);
+  const { rows } = await query('SELECT `key`, value, description FROM settings ORDER BY `key`');
   res.json({ data: rows });
 }));
 

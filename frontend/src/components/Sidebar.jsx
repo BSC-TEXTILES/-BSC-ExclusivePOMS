@@ -287,11 +287,22 @@ export default function Sidebar({ collapsed, onToggle }) {
 
   return (
     <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
-      <div className="brand donezo-brand">
-        <img src="/bsc-logo.png" alt="BSC Exclusive" className="brand-mark-img" style={{ width: 40, height: 40, borderRadius: 10 }} />
-        {!collapsed && (
-          <div className="brand-name">BSC Exclusive</div>
-        )}
+      <div className="sidebar-brand-wrapper">
+        <button
+          type="button"
+          className="sidebar-hamburger-btn"
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          onClick={onToggle}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          <Icon name="menu" size={20} />
+        </button>
+        <div className="brand donezo-brand">
+          <img src="/bsc-logo.png" alt="BSC Exclusive" className="brand-mark-img" style={{ width: 40, height: 40, borderRadius: 10 }} />
+          {!collapsed && (
+            <div className="brand-name">BSC Exclusive</div>
+          )}
+        </div>
       </div>
       <div className="sidebar-scroll">
         <nav>

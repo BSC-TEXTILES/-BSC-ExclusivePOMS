@@ -44,6 +44,8 @@ if (isMySQL) {
   };
 
   const mysqlPool = mysql.default.createPool(mysqlConfig);
+  // Ensure PIPES_AS_CONCAT is active so || behaves as string concatenation like standard SQL/PostgreSQL
+  mysqlPool.query("SET GLOBAL sql_mode = CONCAT(@@sql_mode, ',PIPES_AS_CONCAT')").catch(() => {});
 
   function translateSql(text, params = []) {
     let sql = text;
@@ -119,10 +121,16 @@ if (isMySQL) {
     sql = sql.replace(/JSON_ARRAYAGG\s*\(\s*DISTINCT\s+([a-zA-Z0-9_.]+)\s*\)/gi, 'JSON_ARRAYAGG($1)');
 
     // Backtick reserved keyword `key` in settings table
-    sql = sql.replace(/\bsettings\s*\(\s*key\s*,/gi, 'settings (`key`,');
+    sql = sql.replace(/\bSELECT\s+key\b/gi, 'SELECT `key`');
+    sql = sql.replace(/\bORDER\s+BY\s+key\b/gi, 'ORDER BY `key`');
+    sql = sql.replace(/\bsettings\s*\(\s*key\b/gi, 'settings (`key`');
     sql = sql.replace(/\bINSERT\s+INTO\s+settings\s*\(\s*key\s*,/gi, 'INSERT INTO settings (`key`,');
     sql = sql.replace(/\bWHERE\s+key\s*=/gi, 'WHERE `key` =');
     sql = sql.replace(/\bWHERE\s+s\.key\s*=/gi, 'WHERE s.`key` =');
+    sql = sql.replace(/\bON\s+CONFLICT\s*\(\s*key\s*\)/gi, 'ON CONFLICT (`key`)');
+
+    // Remove NULLS LAST / NULLS FIRST (unsupported in MySQL)
+    sql = sql.replace(/\s+NULLS\s+(LAST|FIRST)\b/gi, '');
 
     // ON CONFLICT DO NOTHING -> INSERT IGNORE
     if (sql.match(/ON\s+CONFLICT[\s\S]*?DO\s+NOTHING/i)) {
@@ -155,7 +163,12 @@ if (isMySQL) {
     if (params && params.length > 0) {
       sql = sql.replace(/\$([0-9]+)/g, (match, num) => {
         const idx = parseInt(num, 10) - 1;
-        newParams.push(params[idx]);
+        const val = params[idx];
+        if (Array.isArray(val) && val.length === 0) {
+          newParams.push([null]);
+        } else {
+          newParams.push(val);
+        }
         return '?';
       });
     }
@@ -164,17 +177,37 @@ if (isMySQL) {
   }
 
   async function executeOnConn(conn, text, params = []) {
+    if (!conn._pipesConfigured) {
+      await conn.query("SET SESSION sql_mode = CONCAT(@@sql_mode, ',PIPES_AS_CONCAT')").catch(() => {});
+      conn._pipesConfigured = true;
+    }
     let { sql, params: mappedParams, returningCols } = translateSql(text, params);
 
     const isInsert = /^\s*INSERT(?:\s+IGNORE)?\s+INTO\s+/i.test(sql);
     const isUpdate = /^\s*UPDATE\s+/i.test(sql);
     let generatedId = null;
 
+    const NO_ID_TABLES = new Set([
+      'settings',
+      'brand_collections',
+      'product_colours',
+      'product_manufacturers',
+      'product_sizes',
+      'role_permissions',
+      'supplier_brands',
+      'supplier_divisions',
+      'user_collections',
+      'user_divisions',
+      'user_roles',
+      'user_sections'
+    ]);
+
     if (isInsert && returningCols) {
       const tableMatch = sql.match(/^\s*INSERT(?:\s+IGNORE)?\s+INTO\s+([a-zA-Z0-9_`]+)\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i);
       if (tableMatch) {
+        const rawTableName = tableMatch[1].replace(/`/g, '').toLowerCase();
         const colList = tableMatch[2].split(',').map(c => c.trim().replace(/`/g, ''));
-        if (!colList.includes('id')) {
+        if (!colList.includes('id') && !NO_ID_TABLES.has(rawTableName)) {
           generatedId = crypto.randomUUID();
           sql = sql.replace(
             /^\s*(INSERT(?:\s+IGNORE)?\s+INTO\s+[a-zA-Z0-9_`]+\s*)\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i,
@@ -211,19 +244,29 @@ if (isMySQL) {
     if (returningCols) {
       if (isInsert) {
         const tableMatch = sql.match(/^\s*INSERT(?:\s+IGNORE)?\s+INTO\s+([a-zA-Z0-9_`]+)/i);
-        const tableName = tableMatch ? tableMatch[1] : null;
+        const rawTableName = tableMatch ? tableMatch[1].replace(/`/g, '').toLowerCase() : null;
+        if (rawTableName === 'settings') {
+          const keyParam = params && params[0];
+          const [rows] = await conn.query('SELECT * FROM settings WHERE `key` = ?', [keyParam]);
+          return { rows: sanitizeRows(rows), rowCount: rows.length };
+        }
         const targetId = generatedId || (params && params[0]);
-        if (tableName && targetId) {
-          const [rows] = await conn.query(`SELECT * FROM ${tableName} WHERE id = ?`, [targetId]);
+        if (rawTableName && targetId) {
+          const [rows] = await conn.query(`SELECT * FROM ${rawTableName} WHERE id = ?`, [targetId]);
           return { rows: sanitizeRows(rows), rowCount: rows.length };
         }
       } else if (isUpdate) {
         const tableMatch = sql.match(/^\s*UPDATE\s+([a-zA-Z0-9_`]+)/i);
-        const tableName = tableMatch ? tableMatch[1] : null;
+        const rawTableName = tableMatch ? tableMatch[1].replace(/`/g, '').toLowerCase() : null;
+        if (rawTableName === 'settings') {
+          const keyParam = params && (params[params.length - 1] || params[0]);
+          const [rows] = await conn.query('SELECT * FROM settings WHERE `key` = ?', [keyParam]);
+          return { rows: sanitizeRows(rows), rowCount: rows.length };
+        }
         // In most updates with RETURNING, the ID is the first or last param
         const idParam = params && (params[params.length - 1] || params[0]);
-        if (tableName && idParam) {
-          const [rows] = await conn.query(`SELECT * FROM ${tableName} WHERE id = ?`, [idParam]);
+        if (rawTableName && idParam) {
+          const [rows] = await conn.query(`SELECT * FROM ${rawTableName} WHERE id = ?`, [idParam]);
           return { rows: sanitizeRows(rows), rowCount: rows.length };
         }
       }

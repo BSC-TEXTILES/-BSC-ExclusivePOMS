@@ -480,7 +480,7 @@ CREATE TABLE IF NOT EXISTS comments (
 
 CREATE TABLE IF NOT EXISTS audit_logs (
   id BIGINT AUTO_INCREMENT PRIMARY KEY,
-  event_id VARCHAR(36) NOT NULL ,
+  event_id VARCHAR(36) NOT NULL DEFAULT (UUID()),
   occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   user_id VARCHAR(36), user_role text,
   division_id VARCHAR(36), section_id VARCHAR(36),

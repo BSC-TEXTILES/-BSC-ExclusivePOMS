@@ -29,6 +29,13 @@ const ROLE_LABELS = {
   auditor: 'Auditor',
 };
 
+const LOCATIONS = [
+  'All locations (BGV + DVG + SMG)',
+  'Belagavi',
+  'Davangere',
+  'Shivamogga',
+];
+
 function roleLabels(roles = []) {
   return roles.map((r) => ROLE_LABELS[r] || String(r).replace(/_/g, ' ')).join(', ');
 }
@@ -60,6 +67,9 @@ export default function Topbar({ collapsed, onToggle }) {
   const [devtoolsBlock, setDevtoolsBlock] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [installPrompt, setInstallPrompt] = useState(null);
+  const [selectedLocation, setSelectedLocation] = useState(
+    () => localStorage.getItem('poms_selected_location') || 'All locations (BGV + DVG + SMG)'
+  );
   const boxRef = useRef(null);
   const searchRef = useRef(null);
 
@@ -208,17 +218,17 @@ export default function Topbar({ collapsed, onToggle }) {
     if (n.entity_type === 'purchase_order' && n.entity_id) navigate(`/purchase-orders/${n.entity_id}`);
   }
 
+  function handleSelectLocation(loc) {
+    setSelectedLocation(loc);
+    localStorage.setItem('poms_selected_location', loc);
+    setOpenMenu(null);
+  }
+
   const canSearchUsers = user.isSuperAdmin || hasPermission('users.manage');
   const r = results;
 
   return (
     <header className="topbar" ref={boxRef}>
-      <div className="topbar-left">
-        <button className="icon-btn" title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} onClick={onToggle}>
-          <Icon name="menu" size={20} />
-        </button>
-      </div>
-
       <div className="topbar-search donezo-search">
         <Icon name="search" size={15} className="search-icon" />
         <input
@@ -268,19 +278,6 @@ export default function Topbar({ collapsed, onToggle }) {
           <strong>{now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</strong>
           <span className="muted">{now.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}</span>
         </div>
-        {/* Administrator-only: DevTools blocking */}
-        {user.isSuperAdmin && (
-          <button
-            className="tb-switch" title={devtoolsBlock
-              ? 'DevTools blocking is ON — developer tools block login and end sessions. Click to disable.'
-              : 'DevTools blocking is OFF. Click to enable (recommended).'}
-            onClick={toggleDevtoolsBlock}>
-            <span className={`switch-track ${devtoolsBlock ? 'on' : 'off'}`}>
-              <span className="switch-thumb">{devtoolsBlock ? '🛡️' : '⚠️'}</span>
-            </span>
-            <span className="switch-label">DevTools {devtoolsBlock ? 'blocked' : 'allowed'}</span>
-          </button>
-        )}
 
         <div className="tb-anchor">
           {installPrompt && (
@@ -355,6 +352,61 @@ export default function Topbar({ collapsed, onToggle }) {
             </div>
           )}
         </div>
+
+        {/* Location Dropdown */}
+        <div className="tb-anchor location-dropdown-anchor">
+          <button
+            type="button"
+            className={`tb-location-btn ${openMenu === 'location' ? 'active' : ''}`}
+            title="Select store location"
+            onClick={() => setOpenMenu(openMenu === 'location' ? null : 'location')}
+            aria-expanded={openMenu === 'location'}
+          >
+            <Icon name="location" size={15} className="location-btn-icon" />
+            <span className="location-btn-text">{selectedLocation}</span>
+            <Icon name="chevronDown" size={13} className={`location-btn-chevron ${openMenu === 'location' ? 'open' : ''}`} />
+          </button>
+          {openMenu === 'location' && (
+            <div className="dropdown location-drop">
+              <div className="drop-section" style={{ padding: '8px 14px 6px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Store Location
+              </div>
+              <div className="drop-scroll" style={{ maxHeight: 240 }}>
+                {LOCATIONS.map((loc) => {
+                  const isSelected = selectedLocation === loc;
+                  return (
+                    <button
+                      key={loc}
+                      type="button"
+                      className={`drop-item location-item ${isSelected ? 'selected' : ''}`}
+                      onClick={() => handleSelectLocation(loc)}
+                    >
+                      <div className="location-item-label">
+                        <Icon name="location" size={14} className="location-item-icon" />
+                        <span>{loc}</span>
+                      </div>
+                      {isSelected && <Icon name="check" size={14} className="location-check" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Administrator-only: DevTools blocking */}
+        {user.isSuperAdmin && (
+          <button
+            className="tb-switch" title={devtoolsBlock
+              ? 'DevTools blocking is ON — developer tools block login and end sessions. Click to disable.'
+              : 'DevTools blocking is OFF. Click to enable (recommended).'}
+            onClick={toggleDevtoolsBlock}>
+            <span className={`switch-track ${devtoolsBlock ? 'on' : 'off'}`}>
+              <span className="switch-thumb">{devtoolsBlock ? '🛡️' : '⚠️'}</span>
+            </span>
+            <span className="switch-label">DevTools {devtoolsBlock ? 'blocked' : 'allowed'}</span>
+          </button>
+        )}
 
         <div className="tb-anchor">
           <button

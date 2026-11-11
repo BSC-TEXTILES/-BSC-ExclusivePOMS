@@ -200,7 +200,7 @@ export default function Brands() {
                   {b.brand_code && <span>· {b.brand_code}</span>}
                 </div>
                 {b.manufacturer && <div className="brand-card-mfr">{b.manufacturer}</div>}
-                {b.sections?.length > 0 && (
+                {Array.isArray(b.sections) && b.sections.length > 0 && (
                   <div className="brand-card-collections">
                     {b.sections.map((s) => (
                       <span key={s.id} className="chip collection-chip">{s.name}</span>

@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { ApiError } from '../utils/httpError.js';
 
 export function notFound(req, res) {
@@ -6,6 +8,14 @@ export function notFound(req, res) {
 
 // eslint-disable-next-line no-unused-vars
 export function errorHandler(err, req, res, next) {
+  try {
+    const logLine = `[${new Date().toISOString()}] ${req.method} ${req.originalUrl}\n` +
+      `Error: ${err.message || err.code || err}\n` +
+      (err.sql ? `SQL: ${err.sql}\nSQL Message: ${err.sqlMessage}\n` : '') +
+      `Stack: ${err.stack}\n---\n`;
+    fs.appendFileSync(path.resolve(process.cwd(), 'backend_errors.log'), logLine, 'utf8');
+  } catch (_) {}
+
   // Log the full error for debugging (server-side only)
   if (process.env.NODE_ENV !== 'production') {
     console.error('[ERROR]', err);
