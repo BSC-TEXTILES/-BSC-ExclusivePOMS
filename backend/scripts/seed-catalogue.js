@@ -63,7 +63,6 @@ const SECTION_RECIPES = {
   'KIDS-INFANT':   { dept: 'KIDS', count: 45, min: 299, max: 2499, items: ['Infant Romper Set', 'Infant Onesie Pack', 'Baby Gift Set', 'Infant Jhabla Set', 'Baby Towel Set'] },
   'KIDS-TOYS':     { dept: 'KIDS', count: 60, min: 199, max: 7999, items: ['Building Blocks Set', 'Soft Teddy', 'Remote Control Car', 'Educational Puzzle', 'Musical Toy', 'Doll House Set', 'Board Game'] },
   'HOME-FURN':     { dept: 'HOME', count: 65, min: 249, max: 9999, items: ['Double Bedsheet Set', 'Blanket', 'Curtain Pair', 'Bath Towel Set', 'Cushion Cover Set', 'Table Cover', 'Sofa Cover', 'Door Mat', 'Rug'] },
-  'FURNITURE':     { dept: 'HOME', count: 60, min: 4999, max: 149999, items: ['3-Seater Sofa', 'Coffee Table', 'TV Unit', 'Queen Bed with Storage', '3-Door Wardrobe', '6-Seater Dining Set', 'Study Table', 'Ergonomic Office Chair', 'Bookshelf', 'Shoe Rack', 'Nightstand', 'Recliner'] },
 };
 
 const FINISH_WORDS = ['Premium', 'Classic', 'Elite', 'Signature', 'Designer', 'Everyday', 'Festive', 'Deluxe'];

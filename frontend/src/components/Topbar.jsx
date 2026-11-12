@@ -164,7 +164,22 @@ export default function Topbar({ collapsed, onToggle }) {
       } catch { /* getToken failed */ }
     };
     connect();
-    return () => { closed = true; clearTimeout(retry); clearInterval(tokenInterval); try { sock?.close(); } catch { /* ignore */ } };
+    return () => {
+      closed = true;
+      clearTimeout(retry);
+      clearInterval(tokenInterval);
+      try {
+        if (sock) {
+          if (sock.readyState === WebSocket.OPEN) {
+            sock.close();
+          } else if (sock.readyState === WebSocket.CONNECTING) {
+            sock.onopen = () => {
+              try { sock.close(); } catch { /* ignore */ }
+            };
+          }
+        }
+      } catch { /* ignore */ }
+    };
   }, [user?.id]);
 
   useEffect(() => {

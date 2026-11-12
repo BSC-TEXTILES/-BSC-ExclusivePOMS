@@ -44,6 +44,7 @@ export function attachChatWs(server) {
   const notifyWss = new WebSocketServer({ noServer: true });
 
   server.on('upgrade', (req, socket, head) => {
+    socket.on('error', () => {});
     const { pathname } = new URL(req.url, 'http://localhost');
     if (pathname === '/ws/chat') return chatWss.handleUpgrade(req, socket, head, (ws) => chatWss.emit('connection', ws, req));
     if (pathname === '/ws/notify') return notifyWss.handleUpgrade(req, socket, head, (ws) => notifyWss.emit('connection', ws, req));
@@ -56,6 +57,7 @@ export function attachChatWs(server) {
   });
 
   chatWss.on('connection', (socket, req) => {
+    socket.on('error', () => {});
     verify(socket, req).then((ok) => {
       if (!ok) return;
       socket.isAlive = true;
@@ -67,6 +69,7 @@ export function attachChatWs(server) {
   chatWss.on('close', () => clearInterval(hb1));
 
   notifyWss.on('connection', (socket, req) => {
+    socket.on('error', () => {});
     verify(socket, req).then((ok) => {
       if (!ok) return;
       socket.isAlive = true;

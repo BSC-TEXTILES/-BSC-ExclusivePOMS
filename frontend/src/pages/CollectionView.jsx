@@ -68,13 +68,12 @@ export const DEPARTMENT_CONFIG = {
     key: 'home',
     code: 'HOME',
     title: "Home & Living Collection",
-    subtitle: "Textiles, Home Furnishings, Decor, Interior Furniture & Essentials",
+    subtitle: "Textiles, Home Furnishings, Decor & Essentials",
     icon: 'home',
     themeColor: '#d97706',
     accentBg: '#fffbeb',
     sections: [
       { code: 'HOME-FURN', name: "Home Furnishing (Textiles & Decor)", icon: 'bed' },
-      { code: 'FURNITURE', name: "Furniture & Home Interiors", icon: 'chair' },
     ],
   },
 };
@@ -135,7 +134,7 @@ export default function CollectionView() {
   // Known departments come from the hardcoded config; NEW admin-created
   // departments resolve live from the API by matching the route key to
   // department code (case-insensitive) — so any newly added collection
-  // (e.g. Cricket, Lycra, Furniture) works without code changes.
+  // (e.g. Cricket, Lycra) works without code changes.
   const hardcoded = DEPARTMENT_CONFIG[deptKey] || null;
   const config = hardcoded || {
     code: (deptKey || '').toUpperCase(),
@@ -262,7 +261,7 @@ export default function CollectionView() {
         allDeps[0];
       setDepartment(foundDept);
 
-      const allSecs = secRes.data.data || [];
+      const allSecs = (secRes.data.data || []).filter((s) => s.code !== 'FURNITURE');
       const matchingSecs = foundDept ? allSecs.filter((s) => s.department_id === foundDept.id) : allSecs;
       setDeptSections(matchingSecs);
 
@@ -279,7 +278,7 @@ export default function CollectionView() {
 
   // Determine active section object
   const activeSection = useMemo(() => {
-    if (!activeSectionCode) return null;
+    if (!activeSectionCode || activeSectionCode === 'FURNITURE') return null;
     return deptSections.find((s) => s.code === activeSectionCode) || null;
   }, [deptSections, activeSectionCode]);
 

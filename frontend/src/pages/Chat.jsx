@@ -61,7 +61,22 @@ export default function Chat() {
       } catch { /* getToken failed */ }
     }
     connect();
-    return () => { closed = true; clearTimeout(retry); try { wsRef.current?.close(); } catch { /* ignore */ } };
+    return () => {
+      closed = true;
+      clearTimeout(retry);
+      try {
+        const ws = wsRef.current;
+        if (ws) {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.close();
+          } else if (ws.readyState === WebSocket.CONNECTING) {
+            ws.onopen = () => {
+              try { ws.close(); } catch { /* ignore */ }
+            };
+          }
+        }
+      } catch { /* ignore */ }
+    };
   }, []);
 
   useEffect(() => {

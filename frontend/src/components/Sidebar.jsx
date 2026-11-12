@@ -146,7 +146,6 @@ const DEPARTMENT_GROUPS = [
     icon: 'home',
     sections: [
       { code: 'HOME-FURN', name: "Home Furnishing & Decor", icon: 'bed' },
-      { code: 'FURNITURE', name: "Furniture & Interiors", icon: 'chair' },
     ],
   },
 ];
@@ -234,7 +233,7 @@ export default function Sidebar({ collapsed, onToggle }) {
 
   // Dynamic collection navigation: known groups come from the hardcoded
   // DEPARTMENT_GROUPS; any NEW department/section created by the Admin in
-  // Master Data (e.g. Lycra Men's, Women's Ethnic, Cricket, Furniture) is
+  // Master Data (e.g. Lycra Men's, Women's Ethnic, Cricket) is
   // fetched from the API and merged in — the nav grows automatically.
   const [dynamicGroups, setDynamicGroups] = useState(DEPARTMENT_GROUPS);
   useEffect(() => {
@@ -242,7 +241,7 @@ export default function Sidebar({ collapsed, onToggle }) {
     Promise.all([api.get('/departments'), api.get('/sections', { params: { status: 'active' } })])
       .then(([depRes, secRes]) => {
         const deps = depRes.data.data || [];
-        const secs = secRes.data.data || [];
+        const secs = (secRes.data.data || []).filter((s) => s.code !== 'FURNITURE');
         const depById = new Map(deps.map((d) => [d.id, d]));
         const defaultsByKey = new Map(DEPARTMENT_GROUPS.map((g) => [g.key, g]));
         const knownIcons = new Map(DEPARTMENT_GROUPS.flatMap((g) => g.sections.map((s) => [s.code, s.icon])));

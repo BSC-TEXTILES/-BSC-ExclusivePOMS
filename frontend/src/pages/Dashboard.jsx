@@ -498,7 +498,7 @@ function MainDashboard() {
 
       <div className="dash-grid three" style={{ marginBottom: 24 }}>
         <div className="card analytics-card" style={{ gridColumn: 'span 1' }}>
-          <div className="card-title">Project Analytics</div>
+          <div className="card-title">Order Analytics</div>
           <MonthlyHBar data={monthly} />
         </div>
 
@@ -513,7 +513,7 @@ function MainDashboard() {
 
         <div className="card projects-card" style={{ gridColumn: 'span 1' }}>
           <div className="card-title" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            Project <button className="btn sm" style={{ borderRadius: 999 }}>+ New</button>
+            Orders <button className="btn sm" style={{ borderRadius: 999 }}>+ New</button>
           </div>
           <div className="donezo-proj-list" style={{ display: 'flex', flexDirection: 'column', gap: 12, marginTop: 12 }}>
             {recentPOs.slice(0, 4).map((p, i) => (

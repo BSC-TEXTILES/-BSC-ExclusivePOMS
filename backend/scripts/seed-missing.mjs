@@ -64,10 +64,6 @@ async function seedData() {
     ['HOME-FURN', 'HF-CURTAIN', 'Curtains and Drapes'],
     ['HOME-FURN', 'HF-TOWEL', 'Towels and Bath'],
     ['HOME-FURN', 'HF-CUSHION', 'Cushions and Rugs'],
-    ['FURNITURE', 'FU-SOFA', 'Sofas and Seating'],
-    ['FURNITURE', 'FU-TABLE', 'Tables and Desks'],
-    ['FURNITURE', 'FU-BED', 'Beds and Headboards'],
-    ['FURNITURE', 'FU-WARDROBE', 'Wardrobes and Storage'],
   ];
 
   let catCreated = 0, catSkipped = 0;
